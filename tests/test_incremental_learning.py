@@ -26,13 +26,13 @@ def test_append_encoding_calls_database():
     enc = np.random.rand(128).astype(np.float64)
 
     with patch("face_engine.database") as mock_db, \
-         patch.object(face_engine.encoding_cache, "refresh") as mock_refresh:
+            patch.object(face_engine.encoding_cache, "add_encoding_to_student") as mock_add:
         mock_db.append_student_encoding.return_value = True
         result = face_engine.append_encoding(sid, enc)
 
     assert result is True
     mock_db.append_student_encoding.assert_called_once_with(sid, enc)
-    mock_refresh.assert_called_once()
+    mock_add.assert_called_once_with(sid, enc)
 
 
 def test_append_encoding_handles_failure():
@@ -41,7 +41,7 @@ def test_append_encoding_handles_failure():
     enc = np.random.rand(128).astype(np.float64)
 
     with patch("face_engine.database") as mock_db, \
-         patch.object(face_engine.encoding_cache, "refresh"):
+            patch.object(face_engine.encoding_cache, "add_encoding_to_student"):
         mock_db.append_student_encoding.side_effect = Exception("DB error")
         result = face_engine.append_encoding(sid, enc)
 

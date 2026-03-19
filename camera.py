@@ -53,8 +53,8 @@ def _emit_event(event_name: str, data: dict):
     if _socketio is not None:
         try:
             _socketio.emit(event_name, data, namespace="/")
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("SocketIO emit failed for %s: %s", event_name, exc)
 
 
 def _resize_to_process_width(frame: np.ndarray) -> np.ndarray:
@@ -81,6 +81,7 @@ class Camera:
         self._lock = threading.Lock()
         self._running = False
         self._thread: threading.Thread | None = None
+        self._process_thread: threading.Thread | None = None
 
         # Active subject for per-subject attendance
         self._subject: str = "General"
@@ -107,6 +108,10 @@ class Camera:
 
         # Last encoded JPEG for MJPEG stream when no fresh frame available
         self._last_jpeg: bytes | None = None
+        self._jpeg_lock = threading.Lock()
+
+        # Ensure only one thread mutates pipeline state at a time.
+        self._process_lock = threading.Lock()
 
         # -- Detect-Track-Recognize state --
         self._tracks: list[FaceTrack] = []
@@ -133,13 +138,20 @@ class Camera:
             return
         self._running = True
         self._thread = threading.Thread(target=self._capture_loop, daemon=True)
+        self._process_thread = threading.Thread(
+            target=self._process_loop,
+            daemon=True,
+        )
         self._thread.start()
+        self._process_thread.start()
         logger.info("Camera %d started.", self._source)
 
     def stop(self):
         self._running = False
         if self._thread:
             self._thread.join(timeout=2)
+        if self._process_thread:
+            self._process_thread.join(timeout=2)
         if self._cap.isOpened():
             self._cap.release()
         logger.info("Camera %d stopped.", self._source)
@@ -153,6 +165,15 @@ class Camera:
             with self._lock:
                 self._frame = frame
                 self._frame_fresh = True
+
+    def _process_loop(self):
+        min_interval = 1.0 / max(config.MJPEG_TARGET_FPS, 1)
+        while self._running:
+            start = time.monotonic()
+            self.process_frame()
+            elapsed = time.monotonic() - start
+            if elapsed < min_interval:
+                time.sleep(min_interval - elapsed)
 
     def get_raw_frame(self, consume: bool = False) -> np.ndarray | None:
         """Return last captured frame. If *consume* is True, only return
@@ -225,7 +246,8 @@ class Camera:
 
     def _create_track(self, frame: np.ndarray,
                       bbox_xywh: tuple[int, int, int, int],
-                      raw_frame: np.ndarray | None = None) -> FaceTrack:
+                      raw_frame: np.ndarray | None = None,
+                      raw_bbox_xywh: tuple[int, int, int, int] | None = None) -> FaceTrack:
         """Run anti-spoof -> aligned encoding -> recognition for a
         newly-detected face and return a fully populated
         :class:`~pipeline.FaceTrack`."""
@@ -233,15 +255,33 @@ class Camera:
         self._next_track_id += 1
         trk = FaceTrack(tid, frame, bbox_xywh)
 
-        # -- Anti-spoof (use full-resolution frame for accuracy) --
+        # -- Anti-spoof on per-face crop --
         liveness_frame = raw_frame if raw_frame is not None else frame
+        liveness_box = raw_bbox_xywh if raw_bbox_xywh is not None else bbox_xywh
 
         if config.BYPASS_ANTISPOOF:
             # Bypass: treat every face as real
             liveness_label, liveness_conf = 1, 1.0
             logger.debug("Track #%d: anti-spoof BYPASSED by config.", tid)
         else:
-            liveness_label, liveness_conf = check_liveness(liveness_frame)
+            x, y, w, h = liveness_box
+            fh, fw = liveness_frame.shape[:2]
+            pad = int(max(w, h) * 0.2)
+            x1, y1 = max(0, x - pad), max(0, y - pad)
+            x2, y2 = min(fw, x + w + pad), min(fh, y + h + pad)
+            face_crop = liveness_frame[y1:y2, x1:x2]
+            if face_crop.size == 0:
+                liveness_label, liveness_conf = 0, 0.0
+            else:
+                liveness_label, liveness_conf = check_liveness(face_crop)
+
+        if liveness_label == -1:
+            logger.warning(
+                "Track #%d: anti-spoof error, proceeding in degraded mode.",
+                tid,
+            )
+            liveness_label = 1
+            liveness_conf = config.LIVENESS_CONFIDENCE_THRESHOLD
 
         trk.liveness = (liveness_label, liveness_conf)
 
@@ -259,7 +299,9 @@ class Camera:
 
         if is_real:
             # -- Face encoding (with alignment) + recognition --
-            encoding = encode_face(frame, bbox_xywh)
+            encode_frame = raw_frame if raw_frame is not None else frame
+            encode_box = raw_bbox_xywh if raw_bbox_xywh is not None else bbox_xywh
+            encoding = encode_face(encode_frame, encode_box)
             if encoding is not None:
                 logger.debug(
                     "Track #%d: encoding generated, shape=%s",
@@ -311,6 +353,14 @@ class Camera:
                 )
                 tracker.record_recognition(False, False)
             else:
+                trk.is_unknown = True
+                tracker.record_recognition(False, False)
+                self._push_event({
+                    "name": "Unknown",
+                    "status": "liveness_uncertain",
+                    "confidence": 0.0,
+                    "liveness_confidence": round(liveness_conf, 4),
+                })
                 logger.debug(
                     "Track #%d: liveness uncertain (label=%d conf=%.4f) "
                     "— treating as unknown.",
@@ -329,9 +379,7 @@ class Camera:
         frame: np.ndarray,
         encoding: np.ndarray | None = None,
     ):
-        """Apply cooldown check, mark attendance, push events for a
-        recognised student.  Also performs incremental learning if
-        confidence is above threshold."""
+        """Apply cooldown check, mark attendance, and perform incremental learning."""
         now = time.monotonic()
         with self._seen_lock:
             last_seen = self._seen.get(student_id, 0)
@@ -348,7 +396,6 @@ class Camera:
                 "section": student_doc.get("section", ""),
             }
 
-        # Mark attendance with subject
         subject = self.get_subject()
         marked = database.mark_attendance_with_subject(student_id, confidence, subject)
         with self._seen_lock:
@@ -372,10 +419,25 @@ class Camera:
                 name, confidence, liveness_conf, subject,
             )
 
-        # -- Incremental learning --
         if (encoding is not None
                 and confidence >= config.INCREMENTAL_LEARNING_CONFIDENCE):
             try:
+                flat_enc, flat_idx, ids, _ = encoding_cache.get_flat()
+                if flat_enc is not None and flat_idx is not None and student_id in ids:
+                    student_idx = ids.index(student_id)
+                    student_rows = np.where(flat_idx == student_idx)[0]
+                    if len(student_rows) > 0:
+                        min_dist = float(
+                            np.min(np.linalg.norm(flat_enc[student_rows] - encoding, axis=1))
+                        )
+                        if min_dist < 0.15:
+                            logger.debug(
+                                "Incremental learning skipped for %s (too similar: dist=%.4f)",
+                                name,
+                                min_dist,
+                            )
+                            return
+
                 append_encoding(student_id, encoding)
                 logger.info(
                     "Incremental learning: appended encoding for %s "
@@ -387,93 +449,132 @@ class Camera:
                     "Incremental learning failed for %s: %s", name, exc,
                 )
 
-    # -- main processing pipeline --------------------------------------------
-
     def process_frame(self) -> bytes | None:
-        """Grab latest frame, update trackers, optionally detect & recognise
-        new faces, draw overlays, and return a JPEG."""
-        raw = self.get_raw_frame(consume=True)
-        if raw is None:
-            return None
+        """Grab latest frame, update trackers, detect new faces, and return JPEG."""
+        if not self._process_lock.acquire(blocking=False):
+            return self.get_latest_jpeg()
 
-        # Stabilise resolution for consistent performance
-        frame = _resize_to_process_width(raw)
+        try:
+            raw = self.get_raw_frame(consume=True)
+            if raw is None:
+                return self.get_latest_jpeg()
 
-        start_time = time.perf_counter()
-        self._frame_count += 1
+            frame = _resize_to_process_width(raw)
+            h_raw, w_raw = raw.shape[:2]
+            h_proc, w_proc = frame.shape[:2]
+            sx = w_raw / w_proc if w_proc else 1.0
+            sy = h_raw / h_proc if h_proc else 1.0
 
-        # -- 1. UPDATE existing trackers --
-        surviving: list[FaceTrack] = []
-        for trk in self._tracks:
-            trk.update(frame)
-            if trk.frames_missing <= config.TRACK_EXPIRATION_FRAMES:
-                surviving.append(trk)
-            else:
-                logger.debug("Track #%d expired.", trk.track_id)
-        self._tracks = surviving
+            start_time = time.perf_counter()
+            self._frame_count += 1
 
-        # -- 2. DETECT new faces (interval + motion gate) --
-        if self._frame_count % config.DETECTION_INTERVAL == 0:
-            if config.BYPASS_MOTION_DETECTION:
-                run_detection = True
-            else:
-                motion, self._prev_gray = detect_motion(
-                    self._prev_gray, frame,
-                )
-                run_detection = motion or (
-                    self._frame_count % config.NO_MOTION_DETECTION_INTERVAL == 0
-                )
-            if run_detection:
-                new_boxes = detect_and_associate(frame, self._tracks)
-                if config.DEBUG_MODE and new_boxes:
-                    logger.debug(
-                        "Frame %d: %d new face(s) detected, "
-                        "%d active track(s)",
-                        self._frame_count, len(new_boxes),
-                        len(self._tracks),
+            if self._frame_count > 1_000_000:
+                self._frame_count = 0
+
+            if self._frame_count % 1000 == 0:
+                cutoff = time.monotonic() - (config.RECOGNITION_COOLDOWN * 2)
+                with self._seen_lock:
+                    self._seen = {k: v for k, v in self._seen.items() if v > cutoff}
+
+            surviving: list[FaceTrack] = []
+            for trk in self._tracks:
+                trk.update(frame)
+                if trk.frames_missing <= config.TRACK_EXPIRATION_FRAMES:
+                    surviving.append(trk)
+                else:
+                    logger.debug("Track #%d expired.", trk.track_id)
+            self._tracks = surviving
+
+            if self._frame_count % config.DETECTION_INTERVAL == 0:
+                if config.BYPASS_MOTION_DETECTION:
+                    run_detection = True
+                else:
+                    motion, self._prev_gray = detect_motion(self._prev_gray, frame)
+                    run_detection = motion or (
+                        self._frame_count % config.NO_MOTION_DETECTION_INTERVAL == 0
                     )
-                for box in new_boxes:
-                    trk = self._create_track(frame, box, raw_frame=raw)
-                    self._tracks.append(trk)
+                if not self._tracks:
+                    run_detection = True
 
-        # -- 3. DRAW overlays for every active track --
-        for trk in self._tracks:
-            draw_track_overlay(
-                frame, trk,
-                self._seen, self._seen_lock,
+                if run_detection:
+                    new_boxes = detect_and_associate(frame, self._tracks)
+                    if config.DEBUG_MODE and new_boxes:
+                        logger.debug(
+                            "Frame %d: %d new face(s) detected, %d active track(s)",
+                            self._frame_count,
+                            len(new_boxes),
+                            len(self._tracks),
+                        )
+                    for box in new_boxes:
+                        raw_box = (
+                            int(box[0] * sx),
+                            int(box[1] * sy),
+                            int(box[2] * sx),
+                            int(box[3] * sy),
+                        )
+                        trk = self._create_track(
+                            frame,
+                            box,
+                            raw_frame=raw,
+                            raw_bbox_xywh=raw_box,
+                        )
+                        self._tracks.append(trk)
+
+            for trk in self._tracks:
+                draw_track_overlay(frame, trk, self._seen, self._seen_lock)
+
+            status_text = f"Tracks: {len(self._tracks)}  FPS: {tracker.metrics().get('fps', 0):.1f}"
+            cv2.putText(
+                frame,
+                status_text,
+                (10, 20),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                (255, 255, 0),
+                1,
             )
 
-        # -- 4. DEBUG overlay (top-left info panel) --
-        if config.DEBUG_MODE:
-            debug_lines = [
-                f"Tracks: {len(self._tracks)}",
-                f"Frame: {self._frame_count}",
-                f"Threshold: {config.RECOGNITION_THRESHOLD:.2f}",
-                f"Cache: {encoding_cache.size} students",
-            ]
-            if config.BYPASS_ANTISPOOF:
-                debug_lines.append("ANTISPOOF: OFF")
-            if config.BYPASS_QUALITY_GATE:
-                debug_lines.append("QUALITY GATE: OFF")
-            if config.BYPASS_MOTION_DETECTION:
-                debug_lines.append("MOTION GATE: OFF")
-            for i, line in enumerate(debug_lines):
-                cv2.putText(
-                    frame, line, (10, 20 + i * 20),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1,
-                )
+            if config.DEBUG_MODE:
+                debug_lines = [
+                    f"Frame: {self._frame_count}",
+                    f"Threshold: {config.RECOGNITION_THRESHOLD:.2f}",
+                    f"Cache: {encoding_cache.size} students",
+                ]
+                if config.BYPASS_ANTISPOOF:
+                    debug_lines.append("ANTISPOOF: OFF")
+                if config.BYPASS_QUALITY_GATE:
+                    debug_lines.append("QUALITY GATE: OFF")
+                if config.BYPASS_MOTION_DETECTION:
+                    debug_lines.append("MOTION GATE: OFF")
+                for i, line in enumerate(debug_lines):
+                    cv2.putText(
+                        frame,
+                        line,
+                        (10, 40 + i * 20),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.5,
+                        (0, 255, 255),
+                        1,
+                    )
 
-        elapsed = time.perf_counter() - start_time
-        tracker.record_frame_time(elapsed)
+            elapsed = time.perf_counter() - start_time
+            tracker.record_frame_time(elapsed)
 
-        # Emit metrics update via WebSocket periodically
-        if self._frame_count % 30 == 0:
-            _emit_event("metrics_update", tracker.metrics())
+            if self._frame_count % 30 == 0:
+                _emit_event("metrics_update", tracker.metrics())
 
-        _, jpeg = cv2.imencode(".jpg", frame)
-        result = jpeg.tobytes()
-        self._last_jpeg = result
-        return result
+            _, jpeg = cv2.imencode(".jpg", frame)
+            result = jpeg.tobytes()
+            with self._jpeg_lock:
+                self._last_jpeg = result
+            return result
+        finally:
+            self._process_lock.release()
+
+    def get_latest_jpeg(self) -> bytes | None:
+        """Return the most recently processed JPEG frame."""
+        with self._jpeg_lock:
+            return self._last_jpeg
 
 
 # ---------------------------------------------------------------------------

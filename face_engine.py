@@ -4,12 +4,15 @@ Face engine – encoding generation, in-memory cache, recognition.
 
 import threading
 
+import cv2
 import face_recognition
 import numpy as np
 import torch
 
 import config
 import database
+from pipeline import detect_faces_yunet
+from recognition import encode_face
 from utils import setup_logging
 
 logger = setup_logging()
@@ -37,6 +40,20 @@ def generate_encoding(image) -> np.ndarray:
     if isinstance(image, str):
         image = face_recognition.load_image_file(image)
 
+    # Keep enrollment consistent with runtime path: detect + quality gate +
+    # alignment + encoding from recognition.encode_face.
+    bgr_image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+    try:
+        boxes = detect_faces_yunet(bgr_image, process_width=config.FRAME_PROCESS_WIDTH)
+    except RuntimeError:
+        boxes = []
+
+    if len(boxes) == 1:
+        encoding = encode_face(bgr_image, boxes[0])
+        if encoding is not None:
+            return encoding
+
+    # Fallback for startup/tests where YuNet may not be initialised.
     locations = face_recognition.face_locations(image, model="hog")
     if len(locations) == 0:
         raise ValueError("No face detected in the image.")
@@ -47,6 +64,8 @@ def generate_encoding(image) -> np.ndarray:
         )
 
     encodings = face_recognition.face_encodings(image, known_face_locations=locations)
+    if not encodings:
+        raise ValueError("Failed to generate face encoding from the image.")
     return encodings[0]
 
 
@@ -234,9 +253,8 @@ def append_encoding(student_id, new_encoding: np.ndarray) -> bool:
     under varying conditions (lighting, angle, etc.).
 
     The encoding is first written to the database via
-    ``database.append_student_encoding`` and then the in-memory
-    ``encoding_cache`` is fully reloaded so that it stays consistent
-    with the persisted state.
+    ``database.append_student_encoding`` and then incrementally reflected
+    in the in-memory ``encoding_cache`` to avoid expensive full reloads.
 
     Parameters
     ----------
@@ -253,9 +271,9 @@ def append_encoding(student_id, new_encoding: np.ndarray) -> bool:
     """
     try:
         database.append_student_encoding(student_id, new_encoding)
-        encoding_cache.refresh()
+        encoding_cache.add_encoding_to_student(student_id, new_encoding)
         logger.info(
-            "Appended new encoding for student %s and refreshed cache.",
+            "Appended new encoding for student %s and updated cache.",
             student_id,
         )
         return True

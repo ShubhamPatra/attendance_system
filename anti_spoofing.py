@@ -85,6 +85,8 @@ def init_models():
     # The library's Detection class loads a caffe model using relative paths
     # ("./resources/detection_model/..."), so we must temporarily change the
     # working directory to the library root during construction.
+    # init_models() must run during single-threaded startup before worker
+    # threads begin, because os.chdir affects the entire process.
     prev_cwd = os.getcwd()
     try:
         os.chdir(SILENT_FACE_PATH)
@@ -117,10 +119,11 @@ def check_liveness(frame: np.ndarray) -> tuple[int, float]:
     Returns
     -------
     (label, confidence)
-        label : 1 = real face, 0 = spoof / no face detected
+        label : 1 = real face, 0 = spoof / no face detected, -1 = internal error
         confidence : float in [0, 1]
 
-    Returns ``(0, 0.0)`` when no face is detected or on internal error.
+    Returns ``(0, 0.0)`` when no face is detected.
+    Returns ``(-1, 0.0)`` on internal error.
     The function never raises; errors are logged and a safe default is
     returned so the system does not crash.
     """
@@ -172,4 +175,4 @@ def check_liveness(frame: np.ndarray) -> tuple[int, float]:
 
     except Exception:
         logger.exception("Anti-spoof check failed.")
-        return 0, 0.0
+        return -1, 0.0

@@ -6,6 +6,7 @@ import io
 import json
 import os
 import sys
+import types
 from unittest.mock import patch, MagicMock
 
 import numpy as np
@@ -19,6 +20,18 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 def _mock_config(monkeypatch):
     monkeypatch.setenv("MONGO_URI", "mongodb+srv://test:test@cluster.mongodb.net/test")
     monkeypatch.setenv("SECRET_KEY", "test-secret")
+    monkeypatch.setenv("SUBJECTS", "General,Mathematics")
+    fake_torch = types.SimpleNamespace(
+        cuda=types.SimpleNamespace(is_available=lambda: False)
+    )
+    fake_fr = types.SimpleNamespace(
+        face_locations=lambda *args, **kwargs: [],
+        face_encodings=lambda *args, **kwargs: [],
+        face_landmarks=lambda *args, **kwargs: [],
+        load_image_file=lambda *args, **kwargs: np.zeros((2, 2, 3), dtype=np.uint8),
+    )
+    monkeypatch.setitem(sys.modules, "torch", fake_torch)
+    monkeypatch.setitem(sys.modules, "face_recognition", fake_fr)
     import importlib, config
     importlib.reload(config)
 
@@ -88,7 +101,11 @@ def test_student_portal_login(client):
             "percentage": 80.0, "days_present": 24, "days_total": 30,
             "records": []
         }
-        resp = client.post("/student", data={"reg_no": "FA21-BCS-001"}, follow_redirects=True)
+        resp = client.post(
+            "/student",
+            data={"registration_number": "FA21-BCS-001"},
+            follow_redirects=True,
+        )
     assert resp.status_code == 200
 
 
@@ -146,7 +163,7 @@ def test_api_attendance_bulk(client):
 
 
 def test_api_subject(client):
-    with patch("routes.get_camera") as mock_cam_fn:
+    with patch("camera.get_camera") as mock_cam_fn:
         mock_cam = MagicMock()
         mock_cam_fn.return_value = mock_cam
         resp = client.post("/api/subject",
@@ -167,3 +184,29 @@ def test_report_xlsx(client):
         resp = client.get("/report/xlsx?date=2026-02-26")
     assert resp.status_code == 200
     assert "spreadsheetml" in resp.content_type or "xlsx" in resp.content_type or resp.status_code == 200
+
+
+def test_api_report_csv_async_date_mode(client):
+    fake_task = MagicMock(id="task-1")
+    with patch("celery_app.generate_csv_task") as mock_task:
+        mock_task.delay.return_value = fake_task
+        resp = client.post(
+            "/api/report/csv/async",
+            data=json.dumps({"date": "2026-02-26"}),
+            content_type="application/json",
+        )
+    assert resp.status_code == 202
+    mock_task.delay.assert_called_once_with("date", date_str="2026-02-26")
+
+
+def test_api_report_csv_async_student_mode(client):
+    fake_task = MagicMock(id="task-2")
+    with patch("celery_app.generate_csv_task") as mock_task:
+        mock_task.delay.return_value = fake_task
+        resp = client.post(
+            "/api/report/csv/async",
+            data=json.dumps({"reg_no": "FA21-BCS-001"}),
+            content_type="application/json",
+        )
+    assert resp.status_code == 202
+    mock_task.delay.assert_called_once_with("student", reg_no="FA21-BCS-001")

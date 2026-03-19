@@ -124,6 +124,31 @@ def test_get_all_students(mock_db):
     assert call_args[0][1] == {"face_encoding": 0, "encodings": 0}
 
 
+def test_get_student_by_id_excludes_encodings(mock_db):
+    import database
+    sid = bson.ObjectId()
+
+    database.get_student_by_id(sid)
+    args, _ = mock_db.students.find_one.call_args
+    assert args[1] == {"face_encoding": 0, "encodings": 0, "created_at": 0}
+
+
+def test_ensure_indexes_subject_aware(mock_db):
+    import database
+
+    database.ensure_indexes()
+
+    mock_db.attendance.create_index.assert_any_call(
+        [("student_id", 1), ("date", 1), ("subject", 1)],
+        unique=True,
+        name="uq_student_date_subject",
+    )
+    mock_db.attendance.create_index.assert_any_call(
+        [("date", 1)],
+        name="idx_date",
+    )
+
+
 # ── get_student_encodings ────────────────────────────────────────────────
 
 def test_get_student_encodings_new_format(mock_db):

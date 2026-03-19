@@ -6,6 +6,9 @@ Uses the Flask test client — no live server or webcam needed.
 import io
 import os
 import sys
+import base64
+import tempfile
+import types
 from unittest.mock import patch, MagicMock
 
 import numpy as np
@@ -20,6 +23,18 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 def _mock_config(monkeypatch):
     monkeypatch.setenv("MONGO_URI", "mongodb+srv://test:test@cluster.mongodb.net/test")
     monkeypatch.setenv("SECRET_KEY", "test-secret")
+    monkeypatch.setenv("SUBJECTS", "General,Mathematics")
+    fake_torch = types.SimpleNamespace(
+        cuda=types.SimpleNamespace(is_available=lambda: False)
+    )
+    fake_fr = types.SimpleNamespace(
+        face_locations=lambda *args, **kwargs: [],
+        face_encodings=lambda *args, **kwargs: [],
+        face_landmarks=lambda *args, **kwargs: [],
+        load_image_file=lambda *args, **kwargs: np.zeros((2, 2, 3), dtype=np.uint8),
+    )
+    monkeypatch.setitem(sys.modules, "torch", fake_torch)
+    monkeypatch.setitem(sys.modules, "face_recognition", fake_fr)
     import importlib, config
     importlib.reload(config)
 
@@ -304,6 +319,7 @@ def test_api_registration_numbers(client):
 
 def test_report_csv_by_student(client):
     with patch("routes.database") as mock_db:
+        mock_db.get_student_by_reg_no.return_value = {"_id": "x"}
         mock_db.get_attendance_csv_by_student.return_value = pd.DataFrame({
             "Name": ["Alice"], "Registration Number": ["FA21-BCS-001"],
             "Section": ["A"], "Semester": [3], "Date": ["2026-02-26"],
@@ -312,6 +328,13 @@ def test_report_csv_by_student(client):
         resp = client.get("/report/csv?reg_no=FA21-BCS-001")
     assert resp.status_code == 200
     assert resp.content_type.startswith("text/csv")
+
+
+def test_report_csv_by_student_not_found(client):
+    with patch("routes.database") as mock_db:
+        mock_db.get_student_by_reg_no.return_value = None
+        resp = client.get("/report/csv?reg_no=FA21-BCS-404")
+    assert resp.status_code == 404
 
 
 def test_report_csv_full(client):
@@ -323,3 +346,41 @@ def test_report_csv_full(client):
         resp = client.get("/report/csv?full=1")
     assert resp.status_code == 200
     assert resp.content_type.startswith("text/csv")
+
+
+def test_api_register_capture_rejects_non_jpeg(client):
+    payload = base64.b64encode(b"not-a-jpeg").decode("ascii")
+    resp = client.post(
+        "/api/register/capture",
+        json={"frame": payload},
+    )
+    assert resp.status_code == 400
+
+
+def test_api_register_capture_returns_upload_token(client):
+    # Minimal JPEG header + footer bytes for endpoint validation.
+    payload = base64.b64encode(b"\xff\xd8\xff\xd9").decode("ascii")
+    with tempfile.TemporaryDirectory() as tmpdir, \
+         patch("routes.config.UPLOAD_DIR", tmpdir), \
+         patch("routes.cv2.imdecode", return_value=np.zeros((2, 2, 3), dtype=np.uint8)):
+        resp = client.post(
+            "/api/register/capture",
+            json={"frame": payload},
+        )
+    assert resp.status_code == 200
+    assert "path" in resp.get_json()
+    assert os.path.basename(resp.get_json()["path"]) == resp.get_json()["path"]
+
+
+def test_api_students_create_rejects_outside_upload_dir(client):
+    resp = client.post(
+        "/api/students",
+        json={
+            "name": "Alice",
+            "semester": 3,
+            "registration_number": "FA21-BCS-123",
+            "section": "A",
+            "image_paths": ["C:/Windows/system32/drivers/etc/hosts"],
+        },
+    )
+    assert resp.status_code == 400

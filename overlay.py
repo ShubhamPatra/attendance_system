@@ -42,9 +42,16 @@ def draw_label_bg(
     x2 = x1 + box_w
     y2 = y1 + box_h
 
-    overlay = frame.copy()
-    cv2.rectangle(overlay, (x1, y1), (x2, y2), (0, 0, 0), -1)
-    cv2.addWeighted(overlay, 0.55, frame, 0.45, 0, frame)
+    fh, fw = frame.shape[:2]
+    x1 = max(0, min(x1, fw - 1))
+    y1 = max(0, min(y1, fh - 1))
+    x2 = max(x1 + 1, min(x2, fw))
+    y2 = max(y1 + 1, min(y2, fh))
+
+    roi = frame[y1:y2, x1:x2]
+    overlay = roi.copy()
+    cv2.rectangle(overlay, (0, 0), (overlay.shape[1], overlay.shape[0]), (0, 0, 0), -1)
+    cv2.addWeighted(overlay, 0.55, roi, 0.45, 0, roi)
 
     for i, (txt, color) in enumerate(texts):
         ty = y1 + padding + (i + 1) * line_height - 4
@@ -101,7 +108,7 @@ def draw_track_overlay(
         with seen_lock:
             last_seen = seen_dict.get(student_id, 0)
         in_cooldown = (now - last_seen < cooldown)
-        status = "Already Marked Today" if in_cooldown else "ATTENDANCE MARKED"
+        status = "Recently Marked" if in_cooldown else "ATTENDANCE MARKED"
 
         lines = [
             (name, (255, 255, 255)),
@@ -126,5 +133,6 @@ def draw_track_overlay(
         draw_label_bg(frame, lines, left, bottom + 6)
         return
 
-    # Track exists but recognition hasn't run yet (shouldn't happen)
+    # Track exists but recognition hasn't run yet (e.g., liveness uncertain)
     cv2.rectangle(frame, (left, top), (right, bottom), (200, 200, 200), 1)
+    draw_label_bg(frame, [("Checking...", (200, 200, 200))], left, bottom + 6)

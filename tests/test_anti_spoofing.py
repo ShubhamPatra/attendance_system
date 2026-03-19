@@ -218,7 +218,7 @@ def test_attendance_recorded_only_for_real():
 # ---------------------------------------------------------------------------
 
 def test_exception_returns_safe_default():
-    """If the predictor throws, return (0, 0.0) – no crash."""
+    """If the predictor throws, return (-1, 0.0) – no crash."""
     import anti_spoofing
 
     mock_predictor = MagicMock()
@@ -226,7 +226,7 @@ def test_exception_returns_safe_default():
     anti_spoofing._predictor = mock_predictor
 
     label, confidence = anti_spoofing.check_liveness(_make_frame())
-    assert label == 0
+    assert label == -1
     assert confidence == 0.0
 
 

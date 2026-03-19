@@ -107,7 +107,10 @@ def generate_csv_task(self, query_type, **kwargs):
     logger.info("generate_csv_task started: query_type=%s, kwargs=%s", query_type, kwargs)
 
     if query_type == "date":
-        df = database.get_attendance_csv(kwargs["date_str"])
+        date_str = kwargs.get("date_str") or kwargs.get("date")
+        if not date_str:
+            raise ValueError("'date_str' is required for query_type='date'.")
+        df = database.get_attendance_csv(date_str)
     elif query_type == "student":
         df = database.get_attendance_csv_by_student(kwargs["reg_no"])
     elif query_type == "range":

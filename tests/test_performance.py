@@ -74,9 +74,8 @@ def test_frame_time_and_fps(fresh_tracker):
     assert m["fps"] == 20.0
 
 
-def test_auto_tune_decreases_threshold(fresh_tracker):
-    """When accuracy drops below 95%, threshold should decrease."""
-    import config
+def test_auto_tune_disabled_keeps_threshold(fresh_tracker):
+    """Runtime auto-tuning is disabled; threshold must remain unchanged."""
     original = fresh_tracker.threshold
 
     # Create 200 recognitions with 50% accuracy (100 TP, 100 FP)
@@ -85,9 +84,9 @@ def test_auto_tune_decreases_threshold(fresh_tracker):
     for _ in range(100):
         fresh_tracker.record_recognition(False, True)  # false positives
 
-    # After 200 recognitions, auto-tune should have fired
+    # After 200 recognitions, _auto_tune is invoked but intentionally disabled.
     new_threshold = fresh_tracker.threshold
-    assert new_threshold < original
+    assert new_threshold == original
 
 
 def test_frame_time_buffer_limited(fresh_tracker):

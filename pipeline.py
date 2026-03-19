@@ -225,7 +225,7 @@ def detect_and_associate(
     """Run face detection and return bounding boxes for **new** faces
     that do not match any existing track.
 
-    A detection matches a track only if **both**:
+    A detection matches a track when **either**:
     * ``IoU > iou_threshold``
     * ``centroid distance < centroid_dist_threshold``
 

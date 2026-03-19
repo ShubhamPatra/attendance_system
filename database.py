@@ -58,10 +58,33 @@ def ensure_indexes():
         unique=True,
         name="uq_registration_number",
     )
+    # Backfill subject for older rows before subject-aware uniqueness.
+    db.attendance.update_many(
+        {
+            "$or": [
+                {"subject": {"$exists": False}},
+                {"subject": None},
+                {"subject": ""},
+            ]
+        },
+        {"$set": {"subject": "General"}},
+    )
+
+    # Replace legacy unique index (student_id, date) with
+    # subject-aware uniqueness.
+    try:
+        db.attendance.drop_index("uq_student_date")
+    except Exception:
+        pass
+
     db.attendance.create_index(
-        [("student_id", ASCENDING), ("date", ASCENDING)],
+        [("student_id", ASCENDING), ("date", ASCENDING), ("subject", ASCENDING)],
         unique=True,
-        name="uq_student_date",
+        name="uq_student_date_subject",
+    )
+    db.attendance.create_index(
+        [("date", ASCENDING)],
+        name="idx_date",
     )
     logger.info("Database indexes ensured.")
 
@@ -106,7 +129,7 @@ def get_student_by_id(student_id: bson.ObjectId) -> dict | None:
     db = get_db()
     return db.students.find_one(
         {"_id": student_id},
-        {"face_encoding": 0, "created_at": 0},
+        {"face_encoding": 0, "encodings": 0, "created_at": 0},
     )
 
 
@@ -217,6 +240,7 @@ def mark_attendance(student_id: bson.ObjectId, confidence: float) -> bool:
         "time": now_time_str(),
         "status": "Present",
         "confidence_score": round(confidence, 4),
+        "subject": "General",
     }
     try:
         db.attendance.insert_one(doc)
@@ -266,13 +290,18 @@ def bulk_upsert_attendance(entries: list[dict]) -> int:
     date = today_str()
     ops = []
     for entry in entries:
+        subject = entry.get("subject", "General") or "General"
         ops.append(UpdateOne(
-            {"student_id": entry["student_id"], "date": date},
+            {
+                "student_id": entry["student_id"],
+                "date": date,
+                "subject": subject,
+            },
             {"$set": {
                 "status": entry.get("status", "Present"),
                 "time": now_time_str(),
                 "confidence_score": entry.get("confidence_score", 0.0),
-                "subject": entry.get("subject", "General"),
+                "subject": subject,
             }},
             upsert=True,
         ))
@@ -480,6 +509,11 @@ def get_at_risk_students(days: int = 30, threshold: int | None = None) -> list[d
     start_str = start_date.strftime("%Y-%m-%d")
     end_str = end_date.strftime("%Y-%m-%d")
 
+    total_class_days = len(db.attendance.distinct(
+        "date",
+        {"date": {"$gte": start_str, "$lte": end_str}},
+    ))
+
     students = list(db.students.find({}, {"name": 1, "registration_number": 1}))
     results = []
     for student in students:
@@ -488,14 +522,14 @@ def get_at_risk_students(days: int = 30, threshold: int | None = None) -> list[d
             "date": {"$gte": start_str, "$lte": end_str},
             "status": "Present",
         })
-        pct = round(count / days * 100, 1) if days > 0 else 0
+        pct = round(count / total_class_days * 100, 1) if total_class_days > 0 else 0
         if pct < threshold:
             results.append({
                 "name": student["name"],
                 "reg_no": student["registration_number"],
                 "percentage": pct,
                 "days_present": count,
-                "days_total": days,
+                "days_total": total_class_days,
             })
     results.sort(key=lambda x: x["percentage"])
     return results

@@ -5,6 +5,7 @@ Flask application factory and entry point.
 import atexit
 import os
 import sys
+import time
 
 # Ensure the package directory is on sys.path so local imports work
 # when running `python app.py` from inside attendance_system/.
@@ -25,13 +26,33 @@ from utils import setup_logging
 socketio = SocketIO()
 
 
+def _cleanup_uploads(logger):
+    """Delete stale uploaded capture files older than retention window."""
+    cutoff = time.time() - config.UPLOAD_RETENTION_SECONDS
+    try:
+        for name in os.listdir(config.UPLOAD_DIR):
+            path = os.path.join(config.UPLOAD_DIR, name)
+            if not os.path.isfile(path):
+                continue
+            if os.path.getmtime(path) < cutoff:
+                os.remove(path)
+    except FileNotFoundError:
+        return
+    except Exception as exc:
+        logger.warning("Upload cleanup failed: %s", exc)
+
+
 def create_app() -> Flask:
     """Create and configure the Flask application."""
     app = Flask(__name__)
     app.secret_key = config.SECRET_KEY
     app.config["MAX_CONTENT_LENGTH"] = config.UPLOAD_MAX_SIZE
 
-    socketio.init_app(app, cors_allowed_origins="*", async_mode="threading")
+    socketio.init_app(
+        app,
+        cors_allowed_origins=config.SOCKETIO_CORS_ORIGINS,
+        async_mode="threading",
+    )
 
     swagger_config = {
         "headers": [],
@@ -61,6 +82,7 @@ def create_app() -> Flask:
     # Ensure required directories exist
     os.makedirs(config.UNKNOWN_FACES_DIR, exist_ok=True)
     os.makedirs(config.UPLOAD_DIR, exist_ok=True)
+    _cleanup_uploads(logger)
 
     # Database indexes
     database.ensure_indexes()
@@ -98,6 +120,7 @@ def create_app() -> Flask:
     def _cleanup():
         from camera import release_camera
         release_camera()
+        _cleanup_uploads(logger)
 
     logger.info("Application initialised.")
     return app

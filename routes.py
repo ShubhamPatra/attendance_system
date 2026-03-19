@@ -3,8 +3,10 @@ Flask routes blueprint -- all web endpoints.
 """
 
 import base64
+import collections
 import io
 import os
+import threading
 import tempfile
 import time
 import uuid
@@ -33,6 +35,42 @@ _IMAGE_SIGNATURES = {
     b"\xff\xd8\xff": "jpeg",
     b"\x89PNG": "png",
 }
+
+
+def _is_within_directory(path: str, root: str) -> bool:
+  """Return True when *path* is inside *root* after normalization."""
+  try:
+    return os.path.commonpath([os.path.abspath(path), os.path.abspath(root)]) == os.path.abspath(root)
+  except ValueError:
+    return False
+
+
+def _resolve_upload_reference(value: str) -> str | None:
+  """Resolve a client-supplied upload reference to a safe absolute path."""
+  raw = value.strip()
+  if not raw:
+    return None
+
+  upload_root = os.path.abspath(config.UPLOAD_DIR)
+  if os.path.isabs(raw):
+    candidate = os.path.abspath(raw)
+  else:
+    # Accept basename-style tokens returned by capture endpoint.
+    candidate = os.path.abspath(os.path.join(upload_root, os.path.basename(raw)))
+
+  if not _is_within_directory(candidate, upload_root):
+    return None
+  return candidate
+
+
+def _normalize_subject(value: str) -> str | None:
+  """Sanitize and validate subject against configured values."""
+  subject = sanitize_string(value or "General")
+  if not subject:
+    return None
+  if subject not in config.SUBJECTS:
+    return None
+  return subject
 
 
 def _validate_image_mime(file_storage) -> str | None:
@@ -66,6 +104,33 @@ from utils import (
 )
 
 logger = setup_logging()
+
+_rate_limit_lock = threading.Lock()
+_rate_limit_buckets: dict[str, collections.deque[float]] = {}
+
+
+def _rate_limit_key(endpoint: str) -> str:
+  client = request.headers.get("X-Forwarded-For", request.remote_addr or "unknown")
+  client = client.split(",", 1)[0].strip()
+  return f"{endpoint}:{client}"
+
+
+def _check_rate_limit(endpoint: str) -> bool:
+  """Return True if the current request is within endpoint rate limits."""
+  now = time.monotonic()
+  window = max(config.API_RATE_LIMIT_WINDOW_SEC, 1)
+  limit = max(config.API_RATE_LIMIT_MAX_REQUESTS, 1)
+  key = _rate_limit_key(endpoint)
+
+  with _rate_limit_lock:
+    bucket = _rate_limit_buckets.setdefault(key, collections.deque())
+    cutoff = now - window
+    while bucket and bucket[0] < cutoff:
+      bucket.popleft()
+    if len(bucket) >= limit:
+      return False
+    bucket.append(now)
+    return True
 
 bp = Blueprint("main", __name__)
 
@@ -112,9 +177,14 @@ def register():
         # Webcam-based multi-angle enrollment: look for saved frame paths
         webcam_paths: list[str] = []
         for i in range(5):
-            path = request.form.get(f"webcam_frame_{i}", "").strip()
-            if path and os.path.isfile(path):
-                webcam_paths.append(path)
+            ref = request.form.get(f"webcam_frame_{i}", "").strip()
+            if not ref:
+                continue
+            path = _resolve_upload_reference(ref)
+            if path is None or not os.path.isfile(path):
+                errors.append(f"Webcam frame {i}: invalid file path.")
+                continue
+            webcam_paths.append(path)
         if not webcam_paths:
             errors.append("No webcam frames provided or files not found.")
     else:
@@ -263,6 +333,9 @@ def api_register_capture():
       400:
         description: Missing or invalid frame data
     """
+    if not _check_rate_limit("register_capture"):
+      return jsonify({"error": "Rate limit exceeded."}), 429
+
     data = request.get_json(silent=True)
     if not data or "frame" not in data:
         return jsonify({"error": "Missing 'frame' in request body."}), 400
@@ -277,6 +350,13 @@ def api_register_capture():
     except Exception:
         return jsonify({"error": "Invalid base64 data."}), 400
 
+    if not raw_bytes.startswith(b"\xff\xd8\xff"):
+      return jsonify({"error": "Invalid image data: only JPEG is accepted."}), 400
+
+    arr = np.frombuffer(raw_bytes, dtype=np.uint8)
+    if cv2.imdecode(arr, cv2.IMREAD_COLOR) is None:
+      return jsonify({"error": "Invalid image data: JPEG decode failed."}), 400
+
     os.makedirs(config.UPLOAD_DIR, exist_ok=True)
     filename = f"webcam_{uuid.uuid4().hex}.jpg"
     filepath = os.path.join(config.UPLOAD_DIR, filename)
@@ -284,7 +364,7 @@ def api_register_capture():
     with open(filepath, "wb") as fh:
         fh.write(raw_bytes)
 
-    return jsonify({"path": filepath})
+    return jsonify({"path": filename})
 
 
 # ── Live Attendance (video feed page) ────────────────────────────────────
@@ -326,14 +406,10 @@ def video_feed():
     def generate():
         last_yield = 0.0
         while True:
-            jpeg = cam.process_frame()
+            jpeg = cam.get_latest_jpeg()
             if jpeg is None:
-                # No fresh frame -- re-send the last processed JPEG
-                # so the stream stays alive without reprocessing
-                jpeg = cam._last_jpeg
-                if jpeg is None:
-                    time.sleep(0.03)
-                    continue
+                time.sleep(0.03)
+                continue
             # Throttle to target FPS
             now = time.monotonic()
             elapsed = now - last_yield
@@ -438,8 +514,10 @@ def report_csv():
         df = database.get_attendance_csv_full()
         filename = "attendance_full_history.csv"
     elif reg_no:
-        df = database.get_attendance_csv_by_student(reg_no)
-        filename = f"attendance_{reg_no}.csv"
+      if database.get_student_by_reg_no(reg_no) is None:
+        return jsonify({"error": "Student not found."}), 404
+      df = database.get_attendance_csv_by_student(reg_no)
+      filename = f"attendance_{reg_no}.csv"
     elif start_date and end_date:
         sd, err1 = _validate_date_param(start_date, "start_date")
         ed, err2 = _validate_date_param(end_date, "end_date")
@@ -794,16 +872,21 @@ def api_attendance_bulk():
       400:
         description: Invalid request body
     """
+    if not _check_rate_limit("attendance_bulk"):
+      return jsonify({"error": "Rate limit exceeded."}), 429
+
     data = request.get_json(silent=True)
     if not data or "student_ids" not in data:
         return jsonify({"error": "Missing 'student_ids' in request body."}), 400
 
     reg_nos = data["student_ids"]
     status = data.get("status", "Present")
-    subject = data.get("subject", "General")
+    subject = _normalize_subject(data.get("subject", "General"))
 
     if status not in ("Present", "Absent"):
         return jsonify({"error": "status must be 'Present' or 'Absent'."}), 400
+    if subject is None:
+      return jsonify({"error": "subject must be one of configured subjects."}), 400
 
     entries = []
     not_found = []
@@ -998,9 +1081,12 @@ def api_students_create():
       409:
         description: Duplicate registration number
     """
+    if not _check_rate_limit("students_create"):
+      return jsonify({"error": "Rate limit exceeded."}), 429
+
     data = request.get_json(silent=True)
     if not data:
-        return jsonify({"error": "JSON body required."}), 400
+      return jsonify({"error": "JSON body required."}), 400
 
     name = sanitize_string(data.get("name", ""))
     semester_raw = data.get("semester")
@@ -1010,60 +1096,70 @@ def api_students_create():
 
     errors: list[str] = []
     if not name:
-        errors.append("name is required.")
+      errors.append("name is required.")
     if not reg_no:
-        errors.append("registration_number is required.")
+      errors.append("registration_number is required.")
     if not section:
-        errors.append("section is required.")
+      errors.append("section is required.")
     try:
-        semester = int(semester_raw)
-        if semester < 1 or semester > 12:
-            errors.append("semester must be between 1 and 12.")
+      semester = int(semester_raw)
+      if semester < 1 or semester > 12:
+        errors.append("semester must be between 1 and 12.")
     except (ValueError, TypeError):
-        errors.append("semester must be a valid integer.")
-        semester = None
+      errors.append("semester must be a valid integer.")
+      semester = None
     if not image_paths:
-        errors.append("image_paths is required (list of file paths).")
+      errors.append("image_paths is required (list of file paths).")
 
     if errors:
-        return jsonify({"errors": errors}), 400
+      return jsonify({"errors": errors}), 400
 
     encodings: list[np.ndarray] = []
     for i, path in enumerate(image_paths, 1):
-        if not os.path.isfile(path):
-            errors.append(f"Image {i}: file not found at '{path}'.")
-            continue
-        try:
-            img_bgr = cv2.imread(path)
-            if img_bgr is None:
-                errors.append(f"Image {i}: could not read image file.")
-                continue
-            ok, reason = check_image_quality(img_bgr)
-            if not ok:
-                errors.append(f"Image {i}: {reason}")
-                continue
-            enc = generate_encoding(path)
-            encodings.append(enc)
-        except ValueError as exc:
-            errors.append(f"Image {i}: {exc}")
-            continue
+      resolved = _resolve_upload_reference(str(path))
+      if resolved is None or not os.path.isfile(resolved):
+        errors.append(f"Image {i}: invalid file path.")
+        continue
+
+      try:
+        img_bgr = cv2.imread(resolved)
+        if img_bgr is None:
+          errors.append(f"Image {i}: could not read image file.")
+          continue
+
+        ok, reason = check_image_quality(img_bgr)
+        if not ok:
+          errors.append(f"Image {i}: {reason}")
+          continue
+
+        enc = generate_encoding(resolved)
+        encodings.append(enc)
+      except ValueError as exc:
+        errors.append(f"Image {i}: {exc}")
+        continue
 
     if errors:
-        return jsonify({"errors": errors}), 400
+      return jsonify({"errors": errors}), 400
 
     if not encodings:
-        return jsonify({"error": "No valid face encodings could be generated."}), 400
+      return jsonify({"error": "No valid face encodings could be generated."}), 400
 
     try:
-        student_id = database.insert_student(name, semester, reg_no, section, encodings)
+      student_id = database.insert_student(
+        name,
+        semester,
+        reg_no,
+        section,
+        encodings,
+      )
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 409
+      return jsonify({"error": str(exc)}), 409
 
     encoding_cache.refresh()
     return jsonify({
-        "id": str(student_id),
-        "name": name,
-        "encodings_count": len(encodings),
+      "id": str(student_id),
+      "name": name,
+      "encodings_count": len(encodings),
     }), 201
 
 
@@ -1282,16 +1378,21 @@ def api_attendance_mark():
       404:
         description: Student not found
     """
+    if not _check_rate_limit("attendance_mark"):
+      return jsonify({"error": "Rate limit exceeded."}), 429
+
     data = request.get_json(silent=True)
     if not data or "reg_no" not in data:
         return jsonify({"error": "Missing 'reg_no' in request body."}), 400
 
     reg_no = sanitize_string(data["reg_no"])
     status = data.get("status", "Present")
-    subject = data.get("subject", "General")
+    subject = _normalize_subject(data.get("subject", "General"))
 
     if status not in ("Present", "Absent"):
         return jsonify({"error": "status must be 'Present' or 'Absent'."}), 400
+    if subject is None:
+      return jsonify({"error": "subject must be one of configured subjects."}), 400
 
     student = database.get_student_by_reg_no(reg_no)
     if student is None:
@@ -1360,7 +1461,9 @@ def api_set_subject():
     if not data or "subject" not in data:
         return jsonify({"error": "Missing 'subject' in request body."}), 400
 
-    subject = data["subject"]
+    subject = _normalize_subject(data["subject"])
+    if subject is None:
+      return jsonify({"error": "subject must be one of configured subjects."}), 400
     cam_index = data.get("cam", 0)
     cam = get_camera(cam_index)
     cam.set_subject(subject)
@@ -1455,11 +1558,23 @@ def api_report_csv_async():
         return jsonify({"error": "Celery is not configured."}), 503
 
     data = request.get_json(silent=True) or {}
-    task = generate_csv_task.delay(
-        date=data.get("date", ""),
-        reg_no=data.get("reg_no", ""),
-        start_date=data.get("start_date", ""),
-        end_date=data.get("end_date", ""),
-        full=data.get("full", ""),
-    )
+    date = sanitize_string(str(data.get("date", "")).strip())
+    reg_no = sanitize_string(str(data.get("reg_no", "")).strip())
+    start_date = sanitize_string(str(data.get("start_date", "")).strip())
+    end_date = sanitize_string(str(data.get("end_date", "")).strip())
+    full = str(data.get("full", "")).strip()
+
+    if full == "1":
+      task = generate_csv_task.delay("full")
+    elif reg_no:
+      task = generate_csv_task.delay("student", reg_no=reg_no)
+    elif start_date and end_date:
+      task = generate_csv_task.delay(
+        "range",
+        start_date=start_date,
+        end_date=end_date,
+      )
+    else:
+      date_str = date or today_str()
+      task = generate_csv_task.delay("date", date_str=date_str)
     return jsonify({"task_id": task.id}), 202

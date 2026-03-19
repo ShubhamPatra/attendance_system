@@ -7,6 +7,7 @@ import base64
 import os
 import sys
 import tempfile
+import types
 from unittest.mock import patch, MagicMock
 
 import numpy as np
@@ -23,6 +24,17 @@ def _mock_config(monkeypatch):
     monkeypatch.setenv("SECRET_KEY", "test-secret")
     monkeypatch.setenv("SENDGRID_API_KEY", "")
     monkeypatch.setenv("NOTIFY_EMAIL", "")
+    fake_torch = types.SimpleNamespace(
+        cuda=types.SimpleNamespace(is_available=lambda: False)
+    )
+    fake_fr = types.SimpleNamespace(
+        face_locations=lambda *args, **kwargs: [],
+        face_encodings=lambda *args, **kwargs: [],
+        face_landmarks=lambda *args, **kwargs: [],
+        load_image_file=lambda *args, **kwargs: np.zeros((2, 2, 3), dtype=np.uint8),
+    )
+    monkeypatch.setitem(sys.modules, "torch", fake_torch)
+    monkeypatch.setitem(sys.modules, "face_recognition", fake_fr)
     import importlib, config
     importlib.reload(config)
 
@@ -55,8 +67,8 @@ def test_generate_csv_task_date():
     })
 
     with patch("database.get_attendance_csv", return_value=fake_df):
-        result = celery_app.generate_csv_task(
-            None, query_type="date", date_str="2026-01-01"
+        result = celery_app.generate_csv_task.run(
+            "date", date_str="2026-01-01"
         )
 
     assert isinstance(result, str)
@@ -90,7 +102,7 @@ def test_generate_csv_task_full():
     })
 
     with patch("database.get_attendance_csv_full", return_value=fake_df):
-        result = celery_app.generate_csv_task(None, query_type="full")
+        result = celery_app.generate_csv_task.run("full")
 
     assert isinstance(result, str)
     assert result.endswith(".csv")
@@ -104,6 +116,39 @@ def test_generate_csv_task_full():
     os.unlink(result)
 
 
+def test_generate_csv_task_student():
+    import celery_app
+
+    fake_df = pd.DataFrame({"Name": ["Alice"]})
+    with patch("database.get_attendance_csv_by_student", return_value=fake_df):
+        result = celery_app.generate_csv_task.run("student", reg_no="FA21-BCS-001")
+
+    assert os.path.exists(result)
+    os.unlink(result)
+
+
+def test_generate_csv_task_range():
+    import celery_app
+
+    fake_df = pd.DataFrame({"Name": ["Alice"]})
+    with patch("database.get_attendance_csv_by_date_range", return_value=fake_df):
+        result = celery_app.generate_csv_task.run(
+            "range",
+            start_date="2026-01-01",
+            end_date="2026-01-10",
+        )
+
+    assert os.path.exists(result)
+    os.unlink(result)
+
+
+def test_generate_csv_task_unknown_query_type():
+    import celery_app
+
+    with pytest.raises(ValueError, match="Unknown query_type"):
+        celery_app.generate_csv_task.run("bad_mode")
+
+
 # ── 4. compute_encodings_task – success ──────────────────────────────────
 
 def test_compute_encodings_task_success():
@@ -113,8 +158,8 @@ def test_compute_encodings_task_success():
     fake_encoding = np.random.rand(128).astype(np.float64)
 
     with patch("face_engine.generate_encoding", return_value=fake_encoding):
-        result = celery_app.compute_encodings_task(
-            None, image_paths=["/fake/img1.jpg", "/fake/img2.jpg"]
+        result = celery_app.compute_encodings_task.run(
+            image_paths=["/fake/img1.jpg", "/fake/img2.jpg"]
         )
 
     assert "encodings" in result
@@ -138,8 +183,8 @@ def test_compute_encodings_task_failure():
         "face_engine.generate_encoding",
         side_effect=ValueError("No face detected in image"),
     ):
-        result = celery_app.compute_encodings_task(
-            None, image_paths=["/fake/bad1.jpg", "/fake/bad2.jpg"]
+        result = celery_app.compute_encodings_task.run(
+            image_paths=["/fake/bad1.jpg", "/fake/bad2.jpg"]
         )
 
     assert "encodings" in result
@@ -173,7 +218,7 @@ def test_send_absence_notifications_no_api_key():
          patch("config.SENDGRID_API_KEY", ""), \
          patch("config.NOTIFY_EMAIL", ""), \
          patch("config.ABSENCE_THRESHOLD", 75):
-        result = celery_app.send_absence_notifications(None)
+        result = celery_app.send_absence_notifications.run()
 
     # Should return dict indicating email was NOT sent
     assert isinstance(result, dict)
@@ -195,7 +240,7 @@ def test_backup_mongodb():
         with patch("database.get_db", return_value=mock_db), \
              patch("config.BACKUP_DIR", tmpdir), \
              patch("config.BACKUP_RETENTION_DAYS", 30):
-            result = celery_app.backup_mongodb(None)
+            result = celery_app.backup_mongodb.run()
 
         assert isinstance(result, dict)
         assert "archive" in result

@@ -93,39 +93,8 @@ class PerformanceTracker:
     # ── auto-tuning ───────────────────────────────────────────────────────
 
     def _auto_tune(self):
-        """Adjust threshold if accuracy drifts, clamped to configured bounds.
-
-        The threshold is lowered when accuracy drops below 95 % (stricter
-        matching) and raised when accuracy exceeds 98 % (allows more
-        lenient matching).  It is always clamped to
-        ``[RECOGNITION_THRESHOLD_MIN, RECOGNITION_THRESHOLD_MAX]``.
-        """
-        total = self._tp + self._fp + self._fn + self._tn
-        if total == 0:
-            return
-        accuracy = (self._tp + self._tn) / total * 100
-
-        old = self._threshold
-        if accuracy < 95.0:
-            self._threshold -= 0.02
-        elif accuracy > 98.0:
-            self._threshold += 0.01
-
-        # Clamp to configured bounds
-        self._threshold = max(
-            config.RECOGNITION_THRESHOLD_MIN,
-            min(self._threshold, config.RECOGNITION_THRESHOLD_MAX),
-        )
-
-        if self._threshold != old:
-            config.RECOGNITION_THRESHOLD = self._threshold
-            logger.warning(
-                "Accuracy %.1f%%. Threshold adjusted: %.3f → %.3f "
-                "(bounds [%.2f, %.2f])",
-                accuracy, old, self._threshold,
-                config.RECOGNITION_THRESHOLD_MIN,
-                config.RECOGNITION_THRESHOLD_MAX,
-            )
+        """Disabled: runtime auto-tuning lacks ground-truth labels."""
+        return
 
     @property
     def threshold(self) -> float:

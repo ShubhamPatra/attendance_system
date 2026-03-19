@@ -4,6 +4,7 @@ Loads settings from environment variables and defines constants.
 """
 
 import os
+import secrets
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -23,12 +24,14 @@ DATABASE_NAME = "attendance_system"
 # ---------------------------------------------------------------------------
 # Flask
 # ---------------------------------------------------------------------------
-SECRET_KEY = os.environ.get("SECRET_KEY", "dev-fallback-change-me")
+SECRET_KEY = os.environ.get("SECRET_KEY")
+if not SECRET_KEY:
+    SECRET_KEY = secrets.token_hex(32)
 
 # ---------------------------------------------------------------------------
 # Face Recognition
 # ---------------------------------------------------------------------------
-RECOGNITION_THRESHOLD = 0.55  # Euclidean distance; lower = stricter
+RECOGNITION_THRESHOLD = 0.50  # Euclidean distance; lower = stricter
 FRAME_RESIZE_FACTOR = 0.25    # Resize frames to 1/4 for speed
 RECOGNITION_COOLDOWN = 30     # Seconds to skip re-processing a recognized student
 
@@ -36,7 +39,7 @@ RECOGNITION_COOLDOWN = 30     # Seconds to skip re-processing a recognized stude
 # Detect-Track-Recognize Pipeline
 # ---------------------------------------------------------------------------
 DETECTION_INTERVAL = 10        # Run face detection every N-th frame
-TRACK_EXPIRATION_FRAMES = 15   # Remove track after N consecutive failed updates
+TRACK_EXPIRATION_FRAMES = 30   # Remove track after N consecutive failed updates
 MOTION_THRESHOLD = 5000        # Min non-zero pixels to consider "motion detected"
 
 # ---------------------------------------------------------------------------
@@ -67,7 +70,7 @@ FRAME_PROCESS_WIDTH = 640          # Resize frames to this width before processi
 # ---------------------------------------------------------------------------
 # Motion & Detection Gating
 # ---------------------------------------------------------------------------
-NO_MOTION_DETECTION_INTERVAL = 50  # Run detection every N frames even without motion
+NO_MOTION_DETECTION_INTERVAL = 30  # Run detection every N frames even without motion
 
 # ---------------------------------------------------------------------------
 # Track Association
@@ -166,6 +169,31 @@ BACKUP_RETENTION_DAYS = int(os.environ.get("BACKUP_RETENTION_DAYS", "30"))
 # Upload Directory
 # ---------------------------------------------------------------------------
 UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
+UPLOAD_RETENTION_SECONDS = int(
+    os.environ.get("UPLOAD_RETENTION_SECONDS", "3600")
+)
+
+# ---------------------------------------------------------------------------
+# API Rate Limiting
+# ---------------------------------------------------------------------------
+API_RATE_LIMIT_WINDOW_SEC = int(
+    os.environ.get("API_RATE_LIMIT_WINDOW_SEC", "60")
+)
+API_RATE_LIMIT_MAX_REQUESTS = int(
+    os.environ.get("API_RATE_LIMIT_MAX_REQUESTS", "30")
+)
+
+# ---------------------------------------------------------------------------
+# SocketIO / CORS
+# ---------------------------------------------------------------------------
+SOCKETIO_CORS_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get(
+        "SOCKETIO_CORS_ORIGINS",
+        "http://localhost:5000,http://127.0.0.1:5000",
+    ).split(",")
+    if origin.strip()
+]
 
 # ---------------------------------------------------------------------------
 # Debug / Diagnostic Bypass Flags

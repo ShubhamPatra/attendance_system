@@ -103,7 +103,11 @@ def test_get_at_risk_students(mock_db):
     mock_db.students.find.return_value = [
         {"_id": sid, "name": "Alice", "registration_number": "FA21-BCS-001"}
     ]
-    mock_db.attendance.count_documents.return_value = 10  # 10/30 = 33%
+    mock_db.attendance.distinct.return_value = [
+        "2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04", "2026-01-05",
+        "2026-01-06", "2026-01-07", "2026-01-08", "2026-01-09", "2026-01-10",
+    ]
+    mock_db.attendance.count_documents.return_value = 3  # 3/10 = 30%
 
     result = database.get_at_risk_students(days=30, threshold=75)
     assert len(result) == 1
