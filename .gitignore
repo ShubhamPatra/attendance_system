@@ -38,8 +38,6 @@ backups/
 
 # Models (large binary files)
 models/*.onnx
-Silent-Face-Anti-Spoofing/resources/anti_spoof_models/*.pth
-Silent-Face-Anti-Spoofing/resources/detection_model/*.caffemodel
 
 # Test and coverage
 .pytest_cache/

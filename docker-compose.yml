@@ -1,8 +1,7 @@
-version: "3.8"
-
 services:
   app:
     build: .
+    image: autoattendance:latest
     ports:
       - "5000:5000"
     environment:
@@ -21,11 +20,12 @@ services:
       - ./logs:/app/logs
       - ./models:/app/models
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     restart: unless-stopped
 
   celery-worker:
-    build: .
+    image: autoattendance:latest
     command: celery -A celery_app.celery_app worker --loglevel=info
     environment:
       - MONGO_URI=${MONGO_URI}
@@ -35,26 +35,31 @@ services:
       - SENDGRID_API_KEY=${SENDGRID_API_KEY:-}
       - NOTIFY_EMAIL=${NOTIFY_EMAIL:-}
       - ABSENCE_THRESHOLD=${ABSENCE_THRESHOLD:-75}
+      - SUBJECTS=${SUBJECTS:-General}
     volumes:
       - ./uploads:/app/uploads
       - ./backups:/app/backups
       - ./logs:/app/logs
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     restart: unless-stopped
 
   celery-beat:
-    build: .
+    image: autoattendance:latest
     command: celery -A celery_app.celery_app beat --loglevel=info
     environment:
       - MONGO_URI=${MONGO_URI}
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - SENDGRID_API_KEY=${SENDGRID_API_KEY:-}
       - NOTIFY_EMAIL=${NOTIFY_EMAIL:-}
       - ABSENCE_THRESHOLD=${ABSENCE_THRESHOLD:-75}
+      - SUBJECTS=${SUBJECTS:-General}
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     restart: unless-stopped
 
   redis:
@@ -63,6 +68,12 @@ services:
       - "6379:6379"
     volumes:
       - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
     restart: unless-stopped
 
 volumes:

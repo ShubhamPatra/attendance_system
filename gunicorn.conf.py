@@ -4,9 +4,8 @@
 bind = "0.0.0.0:5000"
 
 # Worker processes
-workers = 4
-worker_class = "gevent"
-worker_connections = 1000
+workers = 2
+worker_class = "sync"
 
 # Timeout
 timeout = 120

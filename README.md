@@ -100,6 +100,49 @@ python app.py
 
 Open [http://localhost:5000](http://localhost:5000) in your browser.
 
+## Docker Deployment
+
+Run from the `attendance_system/` directory.
+
+1. Create a `.env` file with required values:
+
+```env
+MONGO_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net/attendance_system?retryWrites=true&w=majority
+SECRET_KEY=change-me-in-production
+SUBJECTS=General
+```
+
+2. Build and start services:
+
+```bash
+docker compose up --build -d
+```
+
+3. Check container status:
+
+```bash
+docker compose ps
+```
+
+4. View logs:
+
+```bash
+docker compose logs -f app
+```
+
+5. Stop services:
+
+```bash
+docker compose down
+```
+
+The stack includes:
+
+- `app` (Flask + Gunicorn on port 5000)
+- `celery-worker`
+- `celery-beat`
+- `redis`
+
 ### Usage
 
 1. **Register students** at `/register` -- provide student details and upload up to 5 clear, front-facing face images
@@ -275,7 +318,6 @@ All tests use mocks and do not require a live MongoDB connection or webcam. The 
 3. **Face thumbnails** -- Store cropped face images for audit trail
 4. **Notification system** -- Email or SMS alerts for absences
 5. **HTTPS deployment** -- Deploy behind Nginx with SSL certificates
-6. **Docker containerisation** -- Dockerfile and docker-compose for portable deployment
-7. **REST API** -- Full CRUD API for mobile application integration
-8. **Batch registration** -- Upload CSV and image archive for bulk student enrolment
-9. **Attendance analytics** -- Weekly and monthly trends, prediction models
+6. **REST API** -- Full CRUD API for mobile application integration
+7. **Batch registration** -- Upload CSV and image archive for bulk student enrolment
+8. **Attendance analytics** -- Weekly and monthly trends, prediction models
