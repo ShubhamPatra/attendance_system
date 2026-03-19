@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="flex flex-col gap-6">
+    <!-- Page Header -->
+    <div class="flex flex-col gap-1">
+        <h1 class="text-2xl font-semibold tracking-tight text-text-primary">Overview</h1>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div class="flex flex-col gap-2 rounded-lg border border-border-light bg-white p-5 shadow-sm">
+            <div class="flex items-center justify-between">
+                <p class="text-xs font-medium text-text-muted uppercase tracking-wider">Total Students</p>
+                <span class="material-symbols-outlined text-primary/70 text-xl">school</span>
+            </div>
+            <div class="flex items-baseline gap-2">
+                <p class="text-2xl font-bold text-text-primary">{{ total_students }}</p>
+            </div>
+        </div>
+        <div class="flex flex-col gap-2 rounded-lg border border-border-light bg-white p-5 shadow-sm">
+            <div class="flex items-center justify-between">
+                <p class="text-xs font-medium text-text-muted uppercase tracking-wider">Present Today</p>
+                <span class="material-symbols-outlined text-emerald-500/70 text-xl">check_circle</span>
+            </div>
+            <div class="flex items-baseline gap-2">
+                <p class="text-2xl font-bold text-text-primary">{{ today_count }}</p>
+            </div>
+        </div>
+        <div class="flex flex-col gap-2 rounded-lg border border-border-light bg-white p-5 shadow-sm">
+            <div class="flex items-center justify-between">
+                <p class="text-xs font-medium text-text-muted uppercase tracking-wider">Attendance Rate</p>
+                <span class="material-symbols-outlined text-secondary/70 text-xl">percent</span>
+            </div>
+            <div class="flex items-baseline gap-2">
+                <p class="text-2xl font-bold text-text-primary">{{ attendance_pct }}%</p>
+            </div>
+        </div>
+        <div class="flex flex-col gap-2 rounded-lg border border-border-light bg-white p-5 shadow-sm">
+            <div class="flex items-center justify-between">
+                <p class="text-xs font-medium text-text-muted uppercase tracking-wider">Absent Today</p>
+                <span class="material-symbols-outlined text-red-400/70 text-xl">cancel</span>
+            </div>
+            <div class="flex items-baseline gap-2">
+                <p class="text-2xl font-bold text-text-primary">{{ total_students - today_count }}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Grid: Chart + Metrics -->
+    <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <!-- Chart Area -->
+        <div class="flex flex-col gap-4 rounded-lg border border-border-light bg-white p-6 shadow-sm lg:col-span-2">
+            <div class="flex items-center justify-between">
+                <h3 class="text-sm font-semibold text-text-primary">Attendance Overview</h3>
+            </div>
+            <div class="flex flex-col gap-1">
+                <p class="text-3xl font-bold text-text-primary">{{ attendance_pct }}% <span class="text-base font-normal text-text-muted">Avg</span></p>
+                <p class="text-xs text-emerald-600">Current attendance rate</p>
+            </div>
+            <div class="relative h-64 w-full">
+                <svg class="h-full w-full overflow-visible" preserveAspectRatio="none" viewBox="0 0 500 150" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="chartGradient" x1="0" x2="0" y1="0" y2="1">
+                            <stop offset="0%" stop-color="#4A6FA5" stop-opacity="0.15"></stop>
+                            <stop offset="100%" stop-color="#4A6FA5" stop-opacity="0"></stop>
+                        </linearGradient>
+                    </defs>
+                    <path d="M0,120 Q50,90 100,100 T200,80 T300,60 T400,90 T500,70 V150 H0 Z" fill="url(#chartGradient)"></path>
+                    <path d="M0,120 Q50,90 100,100 T200,80 T300,60 T400,90 T500,70" fill="none" stroke="#4A6FA5" stroke-linecap="round" stroke-width="2.5"></path>
+                    <circle cx="300" cy="60" fill="#ffffff" r="4" stroke="#1E3A5F" stroke-width="2"></circle>
+                </svg>
+                <div class="flex justify-between pt-4 text-xs font-medium text-text-muted">
+                    <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Performance Metrics -->
+        <div class="flex flex-col gap-4 rounded-lg border border-border-light bg-white p-6 shadow-sm">
+            <div class="flex items-center justify-between">
+                <h3 class="text-sm font-semibold text-text-primary">System Metrics</h3>
+            </div>
+            <div id="metricsArea" class="flex flex-col gap-3 text-sm text-text-muted">Loading...</div>
+        </div>
+    </div>
+
+    <!-- Bulk Actions -->
+    <div class="bg-white border border-border-light rounded-lg shadow-sm overflow-hidden">
+        <div class="p-5 border-b border-border-light flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-text-primary">Today's Students</h3>
+            <div class="flex gap-2">
+                <button id="bulkPresentBtn" class="px-3 py-1.5 text-xs font-semibold rounded-md bg-emerald-100 text-emerald-800 hover:bg-emerald-200 transition-colors">Mark Present</button>
+                <button id="bulkAbsentBtn" class="px-3 py-1.5 text-xs font-semibold rounded-md bg-red-100 text-red-800 hover:bg-red-200 transition-colors">Mark Absent</button>
+            </div>
+        </div>
+        <div class="overflow-x-auto custom-scrollbar">
+            <table class="w-full min-w-[500px] text-left text-sm">
+                <thead class="bg-background-light text-xs uppercase text-text-muted tracking-wider">
+                    <tr>
+                        <th class="px-6 py-3.5 font-medium"><input type="checkbox" id="selectAll"></th>
+                        <th class="px-6 py-3.5 font-medium">Name</th>
+                        <th class="px-6 py-3.5 font-medium">Reg. No.</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-border-light" id="bulkBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Recent Attendance Table -->
+    <div class="bg-white border border-border-light rounded-lg shadow-sm overflow-hidden">
+        <div class="p-5 border-b border-border-light flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-text-primary">Recent Attendance Logs</h3>
+        </div>
+        <div class="overflow-x-auto custom-scrollbar">
+            <table class="w-full min-w-[700px] text-left text-sm">
+                <thead class="bg-background-light text-xs uppercase text-text-muted tracking-wider">
+                    <tr>
+                        <th class="px-6 py-3.5 font-medium">Name</th>
+                        <th class="px-6 py-3.5 font-medium">Reg. No.</th>
+                        <th class="px-6 py-3.5 font-medium">Section</th>
+                        <th class="px-6 py-3.5 font-medium">Date</th>
+                        <th class="px-6 py-3.5 font-medium">Time</th>
+                        <th class="px-6 py-3.5 font-medium text-right">Confidence</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-border-light">
+                    {% for r in recent %}
+                    <tr class="hover:bg-background-light transition-colors">
+                        <td class="px-6 py-3.5 font-medium text-text-primary">{{ r.name }}</td>
+                        <td class="px-6 py-3.5 text-text-muted">{{ r.registration_number }}</td>
+                        <td class="px-6 py-3.5 text-text-muted">{{ r.section }}</td>
+                        <td class="px-6 py-3.5 text-text-muted">{{ r.date }}</td>
+                        <td class="px-6 py-3.5 text-text-muted">{{ r.time }}</td>
+                        <td class="px-6 py-3.5 text-right text-text-muted font-mono text-xs">{{ "%.1f"|format(r.confidence_score * 100) }}%</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="px-6 py-8 text-center text-text-muted">No attendance records yet.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- At Risk Students -->
+    <div class="bg-white border border-border-light rounded-lg shadow-sm overflow-hidden">
+        <div class="p-5 border-b border-border-light flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-text-primary flex items-center gap-2">
+                <span class="material-symbols-outlined text-red-400 text-lg">warning</span>
+                At Risk Students
+            </h3>
+        </div>
+        <div class="overflow-x-auto custom-scrollbar">
+            <table class="w-full min-w-[600px] text-left text-sm">
+                <thead class="bg-background-light text-xs uppercase text-text-muted tracking-wider">
+                    <tr>
+                        <th class="px-6 py-3.5 font-medium">Name</th>
+                        <th class="px-6 py-3.5 font-medium">Reg. No.</th>
+                        <th class="px-6 py-3.5 font-medium">Days Present</th>
+                        <th class="px-6 py-3.5 font-medium text-right">Attendance %</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-border-light" id="atRiskBody">
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var socket = io();
+
+function renderMetrics(m) {
+    document.getElementById('metricsArea').innerHTML =
+        '<div class="flex flex-col gap-3">'
+        + '<div class="flex justify-between items-center py-2 border-b border-border-light"><span class="text-text-muted">Accuracy</span><span class="font-semibold text-text-primary">' + m.accuracy_pct + '%</span></div>'
+        + '<div class="flex justify-between items-center py-2 border-b border-border-light"><span class="text-text-muted">FAR</span><span class="font-medium text-text-primary">' + m.false_acceptance_rate_pct + '%</span></div>'
+        + '<div class="flex justify-between items-center py-2 border-b border-border-light"><span class="text-text-muted">FRR</span><span class="font-medium text-text-primary">' + m.false_rejection_rate_pct + '%</span></div>'
+        + '<div class="flex justify-between items-center py-2 border-b border-border-light"><span class="text-text-muted">Avg Frame</span><span class="font-medium text-text-primary">' + m.avg_frame_time_ms + ' ms</span></div>'
+        + '<div class="flex justify-between items-center py-2 border-b border-border-light"><span class="text-text-muted">FPS</span><span class="font-medium text-text-primary">' + m.fps + '</span></div>'
+        + '<div class="flex justify-between items-center py-2 border-b border-border-light"><span class="text-text-muted">Threshold</span><span class="font-medium text-text-primary">' + m.current_threshold + '</span></div>'
+        + '<div class="flex justify-between items-center py-2"><span class="text-text-muted">Recognitions</span><span class="font-medium text-text-primary">' + m.total_recognitions + '</span></div>'
+        + '</div>';
+}
+
+// Live updates via WebSocket
+socket.on('metrics_update', function(m) {
+    renderMetrics(m);
+});
+
+// Initial fetch
+fetch('{{ url_for("main.api_metrics") }}')
+    .then(function(r) { return r.json(); })
+    .then(function(m) {
+        renderMetrics(m);
+    })
+    .catch(function() {
+        document.getElementById('metricsArea').textContent = 'Could not load metrics.';
+    });
+
+// Load at-risk students
+fetch('/api/at_risk').then(function(r) { return r.json(); }).then(function(data) {
+    var body = document.getElementById('atRiskBody');
+    if (data && data.length) {
+        data.forEach(function(s) {
+            var tr = document.createElement('tr');
+            tr.className = 'hover:bg-background-light transition-colors';
+            tr.innerHTML = '<td class="px-6 py-3.5 font-medium text-text-primary">' + s.name + '</td>'
+                + '<td class="px-6 py-3.5 text-text-muted">' + s.registration_number + '</td>'
+                + '<td class="px-6 py-3.5 text-text-muted">' + s.days_present + '</td>'
+                + '<td class="px-6 py-3.5 text-right text-text-muted font-mono text-xs">' + s.attendance_pct + '%</td>';
+            body.appendChild(tr);
+        });
+    } else {
+        body.innerHTML = '<tr><td colspan="4" class="px-6 py-8 text-center text-text-muted">No at-risk students found.</td></tr>';
+    }
+}).catch(function() {});
+
+// Load all students for bulk actions
+fetch('/api/students').then(function(r) { return r.json(); }).then(function(students) {
+    var body = document.getElementById('bulkBody');
+    students.forEach(function(s) {
+        var tr = document.createElement('tr');
+        tr.className = 'hover:bg-background-light transition-colors';
+        tr.innerHTML = '<td class="px-6 py-3.5"><input type="checkbox" class="bulk-check" value="' + s.registration_number + '"></td>'
+            + '<td class="px-6 py-3.5 font-medium text-text-primary">' + s.name + '</td>'
+            + '<td class="px-6 py-3.5 text-text-muted">' + s.registration_number + '</td>';
+        body.appendChild(tr);
+    });
+}).catch(function() {});
+
+// Select all checkbox
+document.getElementById('selectAll').addEventListener('change', function() {
+    document.querySelectorAll('.bulk-check').forEach(function(cb) { cb.checked = this.checked; }.bind(this));
+});
+
+// Bulk present/absent handlers
+function bulkAction(status) {
+    var ids = [];
+    document.querySelectorAll('.bulk-check:checked').forEach(function(cb) { ids.push(cb.value); });
+    if (!ids.length) return;
+    fetch('/api/attendance/bulk', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({student_ids: ids, status: status})
+    }).then(function(r) { return r.json(); }).then(function(data) {
+        alert('Updated ' + data.updated + ' records');
+        location.reload();
+    });
+}
+document.getElementById('bulkPresentBtn').addEventListener('click', function() { bulkAction('Present'); });
+document.getElementById('bulkAbsentBtn').addEventListener('click', function() { bulkAction('Absent'); });
+</script>
+{% endblock %}

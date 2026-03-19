@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Recognition Logs{% endblock %}
+
+{% block content %}
+<div class="flex flex-col gap-6">
+    <div class="flex flex-col gap-1">
+        <h1 class="text-2xl font-semibold tracking-tight text-text-primary">Recognition Logs</h1>
+        <p class="text-text-muted text-sm">Real-time log of face recognition events. Updates automatically.</p>
+    </div>
+
+    <div class="bg-white border border-border-light rounded-lg shadow-sm overflow-hidden">
+        <div class="p-5 border-b border-border-light flex items-center justify-between">
+            <h3 class="text-text-primary text-sm font-semibold flex items-center gap-2">
+                <span class="material-symbols-outlined text-text-muted text-lg">history</span>
+                Recent Events
+            </h3>
+            <span class="text-xs text-text-muted" id="logCount">—</span>
+        </div>
+        <div class="overflow-x-auto custom-scrollbar">
+            <table class="w-full min-w-[700px] text-left text-sm border-collapse">
+                <thead class="bg-background-light">
+                    <tr>
+                        <th class="p-4 text-xs font-medium text-text-muted uppercase tracking-wider">Time</th>
+                        <th class="p-4 text-xs font-medium text-text-muted uppercase tracking-wider">Name</th>
+                        <th class="p-4 text-xs font-medium text-text-muted uppercase tracking-wider">Status</th>
+                        <th class="p-4 text-xs font-medium text-text-muted uppercase tracking-wider text-right">Confidence</th>
+                        <th class="p-4 text-xs font-medium text-text-muted uppercase tracking-wider text-right">Liveness</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-border-light text-text-primary" id="logBody">
+                    <tr>
+                        <td colspan="5" class="p-8 text-center text-text-muted">Waiting for recognition events...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var socket = io();
+var logEntries = [];
+
+// Initial load via API
+fetch('{{ url_for("main.api_logs") }}')
+    .then(function(r) { return r.json(); })
+    .then(function(logs) {
+        logEntries = logs;
+        renderLogs();
+    });
+
+// Live updates via WebSocket
+socket.on('log_event', function(ev) {
+    logEntries.push(ev);
+    if (logEntries.length > 200) logEntries.shift();
+    renderLogs();
+});
+
+function renderLogs() {
+    var tbody = document.getElementById('logBody');
+    if (logEntries.length === 0) return;
+
+    document.getElementById('logCount').textContent = logEntries.length + ' events';
+
+    var html = '';
+    // Show newest first
+    for (var i = logEntries.length - 1; i >= 0; i--) {
+        var ev = logEntries[i];
+        var statusClass, statusText;
+        if (ev.status === 'marked') {
+            statusClass = 'bg-emerald-100 text-emerald-800';
+            statusText = ev.attendance_marked ? 'Recognized' : 'Already Marked';
+        } else if (ev.status === 'spoof_detected') {
+            statusClass = 'bg-red-100 text-red-800';
+            statusText = 'Spoof';
+        } else {
+            statusClass = 'bg-amber-100 text-amber-800';
+            statusText = 'Unknown';
+        }
+        var conf = ev.confidence ? (ev.confidence * 100).toFixed(1) + '%' : '—';
+        var liveness = ev.liveness_confidence ? (ev.liveness_confidence * 100).toFixed(1) + '%' : '—';
+
+        html += '<tr class="hover:bg-background-light transition-colors">'
+            + '<td class="p-4 text-text-muted font-mono text-xs">' + (ev.time || '—') + '</td>'
+            + '<td class="p-4 font-medium">' + (ev.name || '—') + '</td>'
+            + '<td class="p-4"><span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ' + statusClass + '">' + statusText + '</span></td>'
+            + '<td class="p-4 text-right text-text-muted font-mono text-xs">' + conf + '</td>'
+            + '<td class="p-4 text-right text-text-muted font-mono text-xs">' + liveness + '</td>'
+            + '</tr>';
+    }
+    tbody.innerHTML = html;
+}
+</script>
+{% endblock %}

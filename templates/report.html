@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+{% block title %}Report{% endblock %}
+
+{% block content %}
+<!-- Header Section -->
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
+    <div class="flex flex-col gap-1">
+        <h1 class="text-2xl font-semibold tracking-tight text-text-primary">Attendance Records</h1>
+        <p class="text-text-muted text-sm">Review historical attendance data filtered by date.</p>
+    </div>
+    <div class="flex gap-3">
+        <a href="{{ url_for('main.report_csv', date=selected_date) }}" class="flex items-center justify-center gap-2 px-5 h-10 rounded-md bg-primary hover:bg-primary-dark text-white transition-colors text-sm font-semibold">
+            <span class="material-symbols-outlined text-[20px]">download</span>
+            <span>Export CSV</span>
+        </a>
+        <a href="{{ url_for('main.report_xlsx', date=selected_date) }}" class="flex items-center justify-center gap-2 px-5 h-10 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white transition-colors text-sm font-semibold">
+            <span class="material-symbols-outlined text-[20px]">table_chart</span>
+            <span>Export XLSX</span>
+        </a>
+    </div>
+</div>
+
+<!-- Filter Section -->
+<div class="bg-white rounded-lg shadow-sm border border-border-light p-6 mb-8">
+    <div class="flex items-center justify-between mb-4">
+        <h3 class="text-text-primary text-sm font-semibold flex items-center gap-2">
+            <span class="material-symbols-outlined text-secondary text-lg">filter_list</span>
+            Filters
+        </h3>
+    </div>
+    <form class="flex flex-col sm:flex-row gap-4 items-end" method="GET" action="{{ url_for('main.report') }}">
+        <label class="flex flex-col gap-1.5 flex-1 max-w-xs">
+            <span class="text-text-primary text-sm font-medium">Date</span>
+            <input type="date" class="w-full rounded-md border-border-light bg-background-light h-11 px-3 text-sm focus:ring-2 focus:ring-secondary/20 focus:border-secondary transition-all text-text-primary" name="date" value="{{ selected_date }}">
+        </label>
+        <label class="flex flex-col gap-1.5 flex-1 max-w-xs">
+            <span class="text-text-primary text-sm font-medium">Subject</span>
+            <select class="w-full rounded-md border-border-light bg-background-light h-11 px-3 text-sm focus:ring-2 focus:ring-secondary/20 focus:border-secondary transition-all text-text-primary" name="subject">
+                <option value="">All Subjects</option>
+                {% for s in config.SUBJECTS %}
+                <option value="{{ s }}" {% if selected_subject == s %}selected{% endif %}>{{ s }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <button type="submit" class="flex items-center justify-center gap-2 px-5 h-11 rounded-md bg-primary hover:bg-primary-dark text-white transition-colors text-sm font-semibold">
+            <span class="material-symbols-outlined text-[20px]">search</span>
+            <span>Filter</span>
+        </button>
+    </form>
+</div>
+
+<!-- CSV Export Options -->
+<div class="bg-white rounded-lg shadow-sm border border-border-light p-6 mb-8">
+    <div class="flex items-center justify-between mb-4">
+        <h3 class="text-text-primary text-sm font-semibold flex items-center gap-2">
+            <span class="material-symbols-outlined text-secondary text-lg">file_download</span>
+            Advanced CSV Export
+        </h3>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <!-- Export by Student -->
+        <div class="flex flex-col gap-2">
+            <span class="text-xs font-medium text-text-muted uppercase tracking-wider">By Student</span>
+            <select id="csvStudent" class="rounded-md border-border-light bg-background-light h-11 px-3 text-sm focus:ring-2 focus:ring-secondary/20 focus:border-secondary transition-all text-text-primary">
+                <option value="">Select student…</option>
+            </select>
+            <button type="button" id="exportStudentBtn" class="flex items-center justify-center gap-2 px-4 h-9 rounded-md bg-secondary/10 hover:bg-secondary/20 text-secondary transition-colors text-xs font-semibold">
+                <span class="material-symbols-outlined text-[16px]">download</span> Export
+            </button>
+        </div>
+        <!-- Export by Date Range -->
+        <div class="flex flex-col gap-2">
+            <span class="text-xs font-medium text-text-muted uppercase tracking-wider">By Date Range</span>
+            <div class="flex gap-2">
+                <input type="date" id="csvStart" class="flex-1 rounded-md border-border-light bg-background-light h-11 px-3 text-sm focus:ring-2 focus:ring-secondary/20 focus:border-secondary transition-all text-text-primary" placeholder="Start">
+                <input type="date" id="csvEnd" class="flex-1 rounded-md border-border-light bg-background-light h-11 px-3 text-sm focus:ring-2 focus:ring-secondary/20 focus:border-secondary transition-all text-text-primary" placeholder="End">
+            </div>
+            <button type="button" id="exportRangeBtn" class="flex items-center justify-center gap-2 px-4 h-9 rounded-md bg-secondary/10 hover:bg-secondary/20 text-secondary transition-colors text-xs font-semibold">
+                <span class="material-symbols-outlined text-[16px]">download</span> Export
+            </button>
+        </div>
+        <!-- Export Full History -->
+        <div class="flex flex-col gap-2">
+            <span class="text-xs font-medium text-text-muted uppercase tracking-wider">Full History</span>
+            <p class="text-xs text-text-muted">Download complete attendance records for all students.</p>
+            <a href="{{ url_for('main.report_csv', full=1) }}" class="flex items-center justify-center gap-2 px-4 h-9 rounded-md bg-secondary/10 hover:bg-secondary/20 text-secondary transition-colors text-xs font-semibold mt-auto">
+                <span class="material-symbols-outlined text-[16px]">download</span> Export All
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Data Table -->
+<div class="bg-white border border-border-light rounded-lg shadow-sm overflow-hidden">
+    <div class="p-5 border-b border-border-light flex items-center justify-between">
+        <h3 class="text-text-primary text-sm font-semibold">Student Records</h3>
+        <div class="flex items-center gap-4 text-sm">
+            <div class="flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                <span class="text-text-muted text-xs">Present</span>
+            </div>
+        </div>
+    </div>
+    <div class="overflow-x-auto custom-scrollbar">
+        <table class="w-full min-w-[800px] text-left text-sm border-collapse">
+            <thead class="bg-background-light">
+                <tr>
+                    <th class="p-4 text-xs font-medium text-text-muted uppercase tracking-wider">#</th>
+                    <th class="p-4 text-xs font-medium text-text-muted uppercase tracking-wider">Name</th>
+                    <th class="p-4 text-xs font-medium text-text-muted uppercase tracking-wider">Reg. No.</th>
+                    <th class="p-4 text-xs font-medium text-text-muted uppercase tracking-wider">Section</th>
+                    <th class="p-4 text-xs font-medium text-text-muted uppercase tracking-wider">Semester</th>
+                    <th class="p-4 text-xs font-medium text-text-muted uppercase tracking-wider">Date</th>
+                    <th class="p-4 text-xs font-medium text-text-muted uppercase tracking-wider">Time</th>
+                    <th class="p-4 text-xs font-medium text-text-muted uppercase tracking-wider">Status</th>
+                    <th class="p-4 text-xs font-medium text-text-muted uppercase tracking-wider">Subject</th>
+                    <th class="p-4 text-xs font-medium text-text-muted uppercase tracking-wider text-right">Confidence</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-border-light text-text-primary">
+                {% for r in records %}
+                <tr class="hover:bg-background-light transition-colors">
+                    <td class="p-4 text-text-muted text-xs">{{ loop.index }}</td>
+                    <td class="p-4 font-medium">{{ r.name }}</td>
+                    <td class="p-4 text-text-muted">{{ r.registration_number }}</td>
+                    <td class="p-4 text-text-muted">{{ r.section }}</td>
+                    <td class="p-4 text-text-muted">{{ r.semester }}</td>
+                    <td class="p-4 text-text-muted">{{ r.date }}</td>
+                    <td class="p-4 text-text-muted">{{ r.time }}</td>
+                    <td class="p-4">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">{{ r.status }}</span>
+                    </td>
+                    <td class="p-4 text-text-muted">{{ r.subject if r.subject else '—' }}</td>
+                    <td class="p-4 text-right text-text-muted font-mono text-xs">{{ "%.1f"|format(r.confidence_score * 100) }}%</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="10" class="p-8 text-center text-text-muted">No records for this date.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if records %}
+    <div class="px-5 py-4 border-t border-border-light flex items-center justify-between">
+        <p class="text-sm text-text-muted">Showing <span class="font-medium text-text-primary">{{ records|length }}</span> records for <span class="font-medium text-text-primary">{{ selected_date }}</span></p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    var csvBase = "{{ url_for('main.report_csv') }}";
+    // Populate student dropdown
+    fetch("{{ url_for('main.api_registration_numbers') }}")
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var sel = document.getElementById('csvStudent');
+            (data.registration_numbers || []).forEach(function(rn) {
+                var opt = document.createElement('option');
+                opt.value = rn;
+                opt.textContent = rn;
+                sel.appendChild(opt);
+            });
+        }).catch(function() {});
+
+    document.getElementById('exportStudentBtn').addEventListener('click', function() {
+        var rn = document.getElementById('csvStudent').value;
+        if (!rn) return;
+        window.location.href = csvBase + '?reg_no=' + encodeURIComponent(rn);
+    });
+    document.getElementById('exportRangeBtn').addEventListener('click', function() {
+        var s = document.getElementById('csvStart').value;
+        var e = document.getElementById('csvEnd').value;
+        if (!s || !e) return;
+        window.location.href = csvBase + '?start_date=' + encodeURIComponent(s) + '&end_date=' + encodeURIComponent(e);
+    });
+})();
+</script>
+{% endblock %}

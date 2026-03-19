@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environment
+venv/
+env/
+.venv/
+
+# Environment variables
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Logs
+logs/
+
+# Uploads and generated images
+uploads/
+unknown_faces/
+
+# Backups
+backups/
+
+# Models (large binary files)
+models/*.onnx
+Silent-Face-Anti-Spoofing/resources/anti_spoof_models/*.pth
+Silent-Face-Anti-Spoofing/resources/detection_model/*.caffemodel
+
+# Test and coverage
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# Distribution
+*.whl
+*.tar.gz

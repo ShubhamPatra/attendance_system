@@ -1,0 +1,69 @@
+version: "3.8"
+
+services:
+  app:
+    build: .
+    ports:
+      - "5000:5000"
+    environment:
+      - MONGO_URI=${MONGO_URI}
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - SENDGRID_API_KEY=${SENDGRID_API_KEY:-}
+      - NOTIFY_EMAIL=${NOTIFY_EMAIL:-}
+      - ABSENCE_THRESHOLD=${ABSENCE_THRESHOLD:-75}
+      - SUBJECTS=${SUBJECTS:-General}
+      - CAMERA_INDICES=${CAMERA_INDICES:-0}
+    volumes:
+      - ./uploads:/app/uploads
+      - ./backups:/app/backups
+      - ./logs:/app/logs
+      - ./models:/app/models
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  celery-worker:
+    build: .
+    command: celery -A celery_app.celery_app worker --loglevel=info
+    environment:
+      - MONGO_URI=${MONGO_URI}
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - SENDGRID_API_KEY=${SENDGRID_API_KEY:-}
+      - NOTIFY_EMAIL=${NOTIFY_EMAIL:-}
+      - ABSENCE_THRESHOLD=${ABSENCE_THRESHOLD:-75}
+    volumes:
+      - ./uploads:/app/uploads
+      - ./backups:/app/backups
+      - ./logs:/app/logs
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  celery-beat:
+    build: .
+    command: celery -A celery_app.celery_app beat --loglevel=info
+    environment:
+      - MONGO_URI=${MONGO_URI}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - SENDGRID_API_KEY=${SENDGRID_API_KEY:-}
+      - NOTIFY_EMAIL=${NOTIFY_EMAIL:-}
+      - ABSENCE_THRESHOLD=${ABSENCE_THRESHOLD:-75}
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+
+volumes:
+  redis-data:

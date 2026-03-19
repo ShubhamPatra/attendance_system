@@ -1,0 +1,286 @@
+"""
+Tests for the database layer.
+Uses unittest.mock to avoid requiring a live MongoDB Atlas connection.
+"""
+
+import datetime
+from unittest.mock import MagicMock, patch, PropertyMock
+
+import bson
+import numpy as np
+import pytest
+
+
+# We need to mock config before importing database, because config.py
+# raises EnvironmentError if MONGO_URI is not set.
+import sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+
+@pytest.fixture(autouse=True)
+def _mock_config(monkeypatch):
+    """Ensure config module has a dummy MONGO_URI for all tests."""
+    monkeypatch.setenv("MONGO_URI", "mongodb+srv://test:test@cluster.mongodb.net/test")
+    # Reload config so it picks up the env var
+    import importlib
+    import config
+    importlib.reload(config)
+
+
+@pytest.fixture
+def mock_db():
+    """Return a mock database object and patch database.get_db."""
+    db = MagicMock()
+    with patch("database.get_db", return_value=db):
+        yield db
+
+
+# ── Insert student ────────────────────────────────────────────────────────
+
+def test_insert_student_success(mock_db):
+    import database
+
+    fake_id = bson.ObjectId()
+    mock_db.students.insert_one.return_value = MagicMock(inserted_id=fake_id)
+
+    encodings = [np.random.rand(128).astype(np.float64) for _ in range(3)]
+    result = database.insert_student("Alice", 3, "FA21-BCS-001", "A", encodings)
+
+    assert result == fake_id
+    mock_db.students.insert_one.assert_called_once()
+    doc = mock_db.students.insert_one.call_args[0][0]
+    assert doc["name"] == "Alice"
+    assert doc["semester"] == 3
+    assert doc["registration_number"] == "FA21-BCS-001"
+    assert doc["section"] == "A"
+    assert isinstance(doc["encodings"], list)
+    assert len(doc["encodings"]) == 3
+    for b in doc["encodings"]:
+        assert isinstance(b, bson.Binary)
+
+
+# ── Reject duplicate registration_number ──────────────────────────────────
+
+def test_insert_student_duplicate_raises(mock_db):
+    import database
+    from pymongo.errors import DuplicateKeyError
+
+    mock_db.students.insert_one.side_effect = DuplicateKeyError("dup")
+
+    encodings = [np.random.rand(128).astype(np.float64)]
+    with pytest.raises(ValueError, match="already exists"):
+        database.insert_student("Bob", 2, "FA21-BCS-001", "B", encodings)
+
+
+# ── Mark attendance ───────────────────────────────────────────────────────
+
+def test_mark_attendance_success(mock_db):
+    import database
+
+    mock_db.attendance.insert_one.return_value = MagicMock()
+
+    sid = bson.ObjectId()
+    result = database.mark_attendance(sid, 0.87)
+
+    assert result is True
+    mock_db.attendance.insert_one.assert_called_once()
+    doc = mock_db.attendance.insert_one.call_args[0][0]
+    assert doc["student_id"] == sid
+    assert doc["status"] == "Present"
+    assert doc["confidence_score"] == 0.87
+
+
+# ── Prevent duplicate attendance per day ──────────────────────────────────
+
+def test_mark_attendance_duplicate_returns_false(mock_db):
+    import database
+    from pymongo.errors import DuplicateKeyError
+
+    mock_db.attendance.insert_one.side_effect = DuplicateKeyError("dup")
+
+    sid = bson.ObjectId()
+    result = database.mark_attendance(sid, 0.87)
+
+    assert result is False
+
+
+# ── get_all_students ──────────────────────────────────────────────────────
+
+def test_get_all_students(mock_db):
+    import database
+
+    mock_cursor = MagicMock()
+    mock_cursor.sort.return_value = [
+        {"_id": bson.ObjectId(), "name": "Alice", "semester": 3,
+         "registration_number": "FA21-BCS-001", "section": "A"},
+    ]
+    mock_db.students.find.return_value = mock_cursor
+
+    result = database.get_all_students()
+    assert len(result) == 1
+    assert result[0]["name"] == "Alice"
+    # Verify both encoding fields are excluded from projection
+    call_args = mock_db.students.find.call_args
+    assert call_args[0][1] == {"face_encoding": 0, "encodings": 0}
+
+
+# ── get_student_encodings ────────────────────────────────────────────────
+
+def test_get_student_encodings_new_format(mock_db):
+    """New multi-encoding format: 'encodings' field is a list of Binary."""
+    import database
+
+    enc1 = np.random.rand(128).astype(np.float64)
+    enc2 = np.random.rand(128).astype(np.float64)
+    sid = bson.ObjectId()
+    mock_db.students.find.return_value = [
+        {"_id": sid, "name": "Bob", "encodings": [
+            bson.Binary(enc1.tobytes()),
+            bson.Binary(enc2.tobytes()),
+        ]},
+    ]
+
+    result = database.get_student_encodings()
+    assert len(result) == 1
+    assert result[0][0] == sid
+    assert result[0][1] == "Bob"
+    assert len(result[0][2]) == 2
+    np.testing.assert_array_almost_equal(result[0][2][0], enc1)
+    np.testing.assert_array_almost_equal(result[0][2][1], enc2)
+
+
+def test_get_student_encodings_legacy_format(mock_db):
+    """Backward-compat: 'face_encoding' single Binary field."""
+    import database
+
+    enc = np.random.rand(128).astype(np.float64)
+    sid = bson.ObjectId()
+    mock_db.students.find.return_value = [
+        {"_id": sid, "name": "Bob", "face_encoding": bson.Binary(enc.tobytes())},
+    ]
+
+    result = database.get_student_encodings()
+    assert len(result) == 1
+    assert result[0][0] == sid
+    assert result[0][1] == "Bob"
+    assert len(result[0][2]) == 1
+    np.testing.assert_array_almost_equal(result[0][2][0], enc)
+
+
+# ── student_count ─────────────────────────────────────────────────────────
+
+def test_student_count(mock_db):
+    import database
+
+    mock_db.students.count_documents.return_value = 7
+    assert database.student_count() == 7
+
+
+# ── today_attendance_count ────────────────────────────────────────────────
+
+def test_today_attendance_count(mock_db):
+    import database
+
+    mock_db.attendance.count_documents.return_value = 3
+    assert database.today_attendance_count() == 3
+
+
+# ── get_attendance ────────────────────────────────────────────────────────
+
+def test_get_attendance(mock_db):
+    import database
+
+    mock_db.attendance.aggregate.return_value = [
+        {"name": "Alice", "registration_number": "FA21-BCS-001",
+         "section": "A", "semester": 3, "date": "2026-02-26",
+         "time": "09:00:00", "status": "Present", "confidence_score": 0.92},
+    ]
+
+    result = database.get_attendance("2026-02-26")
+    assert len(result) == 1
+    assert result[0]["name"] == "Alice"
+
+
+# ── get_attendance_csv ────────────────────────────────────────────────────
+
+def test_get_attendance_csv_empty(mock_db):
+    import database
+
+    mock_db.attendance.aggregate.return_value = []
+
+    df = database.get_attendance_csv("2026-02-26")
+    assert len(df) == 0
+    assert "Name" in df.columns
+
+
+def test_get_attendance_csv_with_data(mock_db):
+    import database
+
+    mock_db.attendance.aggregate.return_value = [
+        {"name": "Alice", "registration_number": "FA21-BCS-001",
+         "section": "A", "semester": 3, "date": "2026-02-26",
+         "time": "09:00:00", "status": "Present", "confidence_score": 0.92},
+    ]
+
+    df = database.get_attendance_csv("2026-02-26")
+    assert len(df) == 1
+    assert df.iloc[0]["Name"] == "Alice"
+
+
+# ── get_attendance_by_hour ────────────────────────────────────────────────
+
+def test_get_attendance_by_hour(mock_db):
+    import database
+
+    mock_db.attendance.aggregate.return_value = [
+        {"hour": 8, "count": 3},
+        {"hour": 9, "count": 5},
+    ]
+
+    result = database.get_attendance_by_hour("2026-02-26")
+    assert len(result) == 2
+    assert result[0]["hour"] == 8
+    assert result[1]["count"] == 5
+
+
+# ── get_all_registration_numbers ──────────────────────────────────────────
+
+def test_get_all_registration_numbers(mock_db):
+    import database
+
+    mock_db.students.find.return_value = [
+        {"registration_number": "FA21-BCS-002"},
+        {"registration_number": "FA21-BCS-001"},
+    ]
+
+    result = database.get_all_registration_numbers()
+    assert result == ["FA21-BCS-001", "FA21-BCS-002"]
+
+
+# ── get_attendance_csv_by_student ─────────────────────────────────────────
+
+def test_get_attendance_csv_by_student(mock_db):
+    import database
+
+    sid = bson.ObjectId()
+    mock_db.students.find_one.return_value = {"_id": sid}
+    mock_db.attendance.aggregate.return_value = [
+        {"name": "Alice", "registration_number": "FA21-BCS-001",
+         "section": "A", "semester": 3, "date": "2026-02-26",
+         "time": "09:00:00", "status": "Present", "confidence_score": 0.92},
+    ]
+
+    df = database.get_attendance_csv_by_student("FA21-BCS-001")
+    assert len(df) == 1
+    assert df.iloc[0]["Name"] == "Alice"
+
+
+# ── get_attendance_csv_full ───────────────────────────────────────────────
+
+def test_get_attendance_csv_full(mock_db):
+    import database
+
+    mock_db.attendance.aggregate.return_value = []
+    df = database.get_attendance_csv_full()
+    assert len(df) == 0
+    assert "Name" in df.columns

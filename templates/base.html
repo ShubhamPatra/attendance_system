@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}AutoAttendance{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.4/socket.io.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        "primary":          "#1E3A5F",
+                        "primary-dark":     "#162D4A",
+                        "secondary":        "#4A6FA5",
+                        "background-light": "#F7F9FB",
+                        "card-white":       "#FFFFFF",
+                        "text-primary":     "#1F2933",
+                        "text-muted":       "#6B7280",
+                        "border-light":     "#E5E7EB",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "2xl": "1rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-background-light text-text-primary font-display min-h-screen flex flex-col">
+    {% block layout %}
+    <!-- Header -->
+    <header class="sticky top-0 z-50 flex items-center justify-between border-b border-border-light bg-white/90 backdrop-blur-md px-6 md:px-10 py-3">
+        <div class="flex items-center gap-3">
+            <a href="{{ url_for('main.index') }}" class="flex items-center gap-3">
+                <div class="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <span class="material-symbols-outlined text-xl">school</span>
+                </div>
+                <h2 class="text-base font-bold leading-tight text-text-primary tracking-tight">AutoAttendance</h2>
+            </a>
+        </div>
+        <button id="mobileMenuBtn" class="md:hidden flex items-center justify-center rounded-lg p-2 text-text-muted hover:bg-gray-100">
+            <span class="material-symbols-outlined">menu</span>
+        </button>
+        <div class="hidden md:flex flex-1 justify-end gap-8">
+            <nav class="flex items-center gap-7">
+                <a class="text-sm font-medium text-text-muted hover:text-primary transition-colors" href="{{ url_for('main.index') }}">Home</a>
+                <a class="text-sm font-medium text-text-muted hover:text-primary transition-colors" href="{{ url_for('main.dashboard') }}">Dashboard</a>
+                <a class="text-sm font-medium text-text-muted hover:text-primary transition-colors" href="{{ url_for('main.attendance') }}">Attendance</a>
+                <a class="text-sm font-medium text-text-muted hover:text-primary transition-colors" href="{{ url_for('main.report') }}">Reports</a>
+                <a class="text-sm font-medium text-text-muted hover:text-primary transition-colors" href="{{ url_for('main.logs') }}">Logs</a>
+                <a class="text-sm font-medium text-text-muted hover:text-primary transition-colors" href="{{ url_for('main.metrics') }}">Metrics</a>
+                <a class="text-sm font-medium text-text-muted hover:text-primary transition-colors" href="{{ url_for('main.attendance_activity') }}">Activity</a>
+                <a class="text-sm font-medium text-text-muted hover:text-primary transition-colors" href="{{ url_for('main.heatmap') }}">Heatmap</a>
+                <a class="text-sm font-medium text-text-muted hover:text-primary transition-colors" href="{{ url_for('main.student_portal') }}">Student</a>
+                <a class="text-sm font-medium text-text-muted hover:text-primary transition-colors" href="/api/docs">API Docs</a>
+                <a class="text-sm font-medium text-text-muted hover:text-primary transition-colors" href="{{ url_for('main.register') }}">Register</a>
+            </nav>
+        </div>
+    </header>
+    <!-- Mobile Menu -->
+    <div id="mobileMenu" class="hidden md:hidden border-b border-border-light bg-white px-6 py-3">
+        <nav class="flex flex-col gap-1">
+            <a class="text-sm font-medium text-text-muted hover:text-primary transition-colors py-2" href="{{ url_for('main.index') }}">Home</a>
+            <a class="text-sm font-medium text-text-muted hover:text-primary transition-colors py-2" href="{{ url_for('main.dashboard') }}">Dashboard</a>
+            <a class="text-sm font-medium text-text-muted hover:text-primary transition-colors py-2" href="{{ url_for('main.attendance') }}">Attendance</a>
+            <a class="text-sm font-medium text-text-muted hover:text-primary transition-colors py-2" href="{{ url_for('main.report') }}">Reports</a>
+            <a class="text-sm font-medium text-text-muted hover:text-primary transition-colors py-2" href="{{ url_for('main.logs') }}">Logs</a>
+            <a class="text-sm font-medium text-text-muted hover:text-primary transition-colors py-2" href="{{ url_for('main.metrics') }}">Metrics</a>
+            <a class="text-sm font-medium text-text-muted hover:text-primary transition-colors py-2" href="{{ url_for('main.attendance_activity') }}">Activity</a>
+            <a class="text-sm font-medium text-text-muted hover:text-primary transition-colors py-2" href="{{ url_for('main.heatmap') }}">Heatmap</a>
+            <a class="text-sm font-medium text-text-muted hover:text-primary transition-colors py-2" href="{{ url_for('main.student_portal') }}">Student</a>
+            <a class="text-sm font-medium text-text-muted hover:text-primary transition-colors py-2" href="/api/docs">API Docs</a>
+            <a class="text-sm font-medium text-text-muted hover:text-primary transition-colors py-2" href="{{ url_for('main.register') }}">Register</a>
+        </nav>
+    </div>
+
+    <!-- Main Content -->
+    <main class="flex-1 w-full max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="mb-6 flex flex-col gap-3">
+            {% for category, message in messages %}
+                {% if category == 'success' %}
+                <div class="flash-msg relative flex items-start gap-4 rounded-lg border border-emerald-200 bg-white p-4 shadow-sm overflow-hidden">
+                    <div class="absolute left-0 top-0 bottom-0 w-1 bg-emerald-500"></div>
+                    <div class="ml-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                        <span class="material-symbols-outlined text-sm">check_circle</span>
+                    </div>
+                    <div class="flex-1">
+                        <p class="text-sm font-medium text-text-primary">{{ message }}</p>
+                    </div>
+                    <button onclick="this.closest('.flash-msg').remove()" class="text-text-muted hover:text-text-primary">
+                        <span class="material-symbols-outlined text-[18px]">close</span>
+                    </button>
+                </div>
+                {% elif category == 'danger' %}
+                <div class="flash-msg relative flex items-start gap-4 rounded-lg border border-red-200 bg-white p-4 shadow-sm overflow-hidden">
+                    <div class="absolute left-0 top-0 bottom-0 w-1 bg-red-500"></div>
+                    <div class="ml-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-50 text-red-600">
+                        <span class="material-symbols-outlined text-sm">error</span>
+                    </div>
+                    <div class="flex-1">
+                        <p class="text-sm font-medium text-text-primary">{{ message }}</p>
+                    </div>
+                    <button onclick="this.closest('.flash-msg').remove()" class="text-text-muted hover:text-text-primary">
+                        <span class="material-symbols-outlined text-[18px]">close</span>
+                    </button>
+                </div>
+                {% else %}
+                <div class="flash-msg relative flex items-start gap-4 rounded-lg border border-amber-200 bg-white p-4 shadow-sm overflow-hidden">
+                    <div class="absolute left-0 top-0 bottom-0 w-1 bg-amber-500"></div>
+                    <div class="ml-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-50 text-amber-600">
+                        <span class="material-symbols-outlined text-sm">warning</span>
+                    </div>
+                    <div class="flex-1">
+                        <p class="text-sm font-medium text-text-primary">{{ message }}</p>
+                    </div>
+                    <button onclick="this.closest('.flash-msg').remove()" class="text-text-muted hover:text-text-primary">
+                        <span class="material-symbols-outlined text-[18px]">close</span>
+                    </button>
+                </div>
+                {% endif %}
+            {% endfor %}
+            </div>
+        {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="site-footer">
+        <a href="#">Contact</a>
+        <span class="sep">&middot;</span>
+        <a href="#">Terms</a>
+        <span class="sep">&middot;</span>
+        <a href="#">Privacy</a>
+    </footer>
+    {% endblock %}
+
+    <script>
+    document.getElementById('mobileMenuBtn')?.addEventListener('click', function() {
+        document.getElementById('mobileMenu').classList.toggle('hidden');
+    });
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

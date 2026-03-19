@@ -1,0 +1,266 @@
+"""
+Face engine – encoding generation, in-memory cache, recognition.
+"""
+
+import threading
+
+import face_recognition
+import numpy as np
+import torch
+
+import config
+import database
+from utils import setup_logging
+
+logger = setup_logging()
+
+# ---------------------------------------------------------------------------
+# GPU acceleration detection
+# ---------------------------------------------------------------------------
+
+_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+logger.info("Face engine device: %s", _DEVICE)
+
+
+# ---------------------------------------------------------------------------
+# Encoding generation
+# ---------------------------------------------------------------------------
+
+def generate_encoding(image) -> np.ndarray:
+    """Generate a 128-D face encoding from an image.
+
+    *image* can be a numpy array (RGB) loaded via face_recognition.load_image_file
+    or a file path string.
+
+    Raises ValueError if no face or multiple faces are detected.
+    """
+    if isinstance(image, str):
+        image = face_recognition.load_image_file(image)
+
+    locations = face_recognition.face_locations(image, model="hog")
+    if len(locations) == 0:
+        raise ValueError("No face detected in the image.")
+    if len(locations) > 1:
+        raise ValueError(
+            f"Multiple faces detected ({len(locations)}). "
+            "Please upload an image with exactly one face."
+        )
+
+    encodings = face_recognition.face_encodings(image, known_face_locations=locations)
+    return encodings[0]
+
+
+# ---------------------------------------------------------------------------
+# Encoding cache (thread-safe)
+# ---------------------------------------------------------------------------
+
+class EncodingCache:
+    """In-memory cache of all student face encodings from MongoDB.
+
+    Each student may have multiple encodings (stored as a list).
+    A flattened ``(N, 128)`` array and parallel student-index array are
+    maintained for vectorised distance computation.
+    """
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._ids: list = []
+        self._names: list[str] = []
+        self._encodings: list[list[np.ndarray]] = []  # list-of-lists
+        # Flattened arrays for vectorised matching
+        self._flat_encodings: np.ndarray | None = None  # (N, 128)
+        self._flat_student_idx: np.ndarray | None = None  # (N,) → student index
+
+    def _rebuild_flat(self):
+        """Rebuild the flattened encoding matrix from per-student lists.
+
+        Must be called while holding ``_lock``.
+        """
+        all_enc: list[np.ndarray] = []
+        all_idx: list[int] = []
+        for idx, enc_list in enumerate(self._encodings):
+            for enc in enc_list:
+                all_enc.append(enc)
+                all_idx.append(idx)
+        if all_enc:
+            self._flat_encodings = np.array(all_enc, dtype=np.float64)
+            self._flat_student_idx = np.array(all_idx, dtype=np.intp)
+        else:
+            self._flat_encodings = None
+            self._flat_student_idx = None
+
+    def load(self):
+        """Load / reload all encodings from the database."""
+        rows = database.get_student_encodings()
+        with self._lock:
+            self._ids = [r[0] for r in rows]
+            self._names = [r[1] for r in rows]
+            self._encodings = [r[2] for r in rows]  # each r[2] is a list
+            self._rebuild_flat()
+        logger.info("Encoding cache loaded: %d students.", len(rows))
+
+    def refresh(self):
+        """Alias for load — call after new registration."""
+        self.load()
+
+    @property
+    def size(self) -> int:
+        with self._lock:
+            return len(self._ids)
+
+    def get_all(self) -> tuple[list, list[str], list[list[np.ndarray]]]:
+        """Return (ids, names, encodings) snapshot."""
+        with self._lock:
+            return list(self._ids), list(self._names), list(self._encodings)
+
+    def get_flat(self) -> tuple[np.ndarray | None, np.ndarray | None, list, list[str]]:
+        """Return ``(flat_encodings, flat_student_idx, ids, names)`` snapshot
+        for vectorised matching."""
+        with self._lock:
+            flat_enc = self._flat_encodings
+            flat_idx = self._flat_student_idx
+            return (
+                flat_enc.copy() if flat_enc is not None else None,
+                flat_idx.copy() if flat_idx is not None else None,
+                list(self._ids),
+                list(self._names),
+            )
+
+    def add_encoding_to_student(self, student_id, encoding: np.ndarray) -> None:
+        """Add a new encoding to an existing student's in-memory list.
+
+        This provides an immediate cache update without a full database
+        reload.  If the number of encodings for the student exceeds
+        ``config.MAX_ENCODINGS_PER_STUDENT``, the oldest encoding
+        (index 0) is dropped.
+
+        Parameters
+        ----------
+        student_id :
+            The ``bson.ObjectId`` of the student whose encoding list
+            should be updated.
+        encoding : np.ndarray
+            A 128-D face encoding vector.
+
+        Raises
+        ------
+        ValueError
+            If *student_id* is not present in the cache.
+        """
+        with self._lock:
+            try:
+                idx = self._ids.index(student_id)
+            except ValueError:
+                raise ValueError(
+                    f"Student {student_id} not found in encoding cache."
+                )
+
+            self._encodings[idx].append(encoding)
+
+            # Enforce the per-student encoding cap
+            if len(self._encodings[idx]) > config.MAX_ENCODINGS_PER_STUDENT:
+                self._encodings[idx] = self._encodings[idx][-config.MAX_ENCODINGS_PER_STUDENT:]
+
+            self._rebuild_flat()
+
+
+# Singleton cache instance
+encoding_cache = EncodingCache()
+
+
+# ---------------------------------------------------------------------------
+# Recognition
+# ---------------------------------------------------------------------------
+
+def recognize_face(
+    face_encoding: np.ndarray,
+    threshold: float | None = None,
+) -> tuple | None:
+    """Compare *face_encoding* against the cache using vectorised NumPy.
+
+    All stored encodings are pre-flattened into a single ``(N, 128)``
+    matrix so that distance computation is a single
+    ``np.linalg.norm(...)`` call.  For each student the **minimum**
+    distance across all their encodings is used.
+
+    Returns ``(student_id, name, confidence)`` for the best match
+    whose distance is below *threshold*, or ``None`` if unknown.
+
+    *confidence* is defined as ``1 − distance`` (higher = better).
+    """
+    if threshold is None:
+        threshold = config.RECOGNITION_THRESHOLD
+
+    flat_enc, flat_idx, ids, names = encoding_cache.get_flat()
+    if flat_enc is None or len(flat_enc) == 0:
+        logger.debug("recognize_face: encoding cache is empty — returning None")
+        return None
+
+    # Vectorised distance: one operation over all encodings
+    distances = np.linalg.norm(flat_enc - face_encoding, axis=1)
+
+    # Per-student minimum distance
+    num_students = len(ids)
+    min_dists = np.full(num_students, np.inf)
+    np.minimum.at(min_dists, flat_idx, distances)
+
+    best_idx = int(np.argmin(min_dists))
+    best_dist = float(min_dists[best_idx])
+
+    logger.debug(
+        "recognize_face: best_match=%s best_dist=%.4f threshold=%.4f "
+        "cache_students=%d cache_encodings=%d decision=%s",
+        names[best_idx], best_dist, threshold,
+        num_students, len(flat_enc),
+        "MATCH" if best_dist <= threshold else "REJECT",
+    )
+
+    if best_dist > threshold:
+        return None
+
+    confidence = float(1.0 - best_dist)
+    return ids[best_idx], names[best_idx], confidence
+
+
+# ---------------------------------------------------------------------------
+# Incremental learning
+# ---------------------------------------------------------------------------
+
+def append_encoding(student_id, new_encoding: np.ndarray) -> bool:
+    """Persist a new encoding for an existing student and update the cache.
+
+    This supports *incremental learning* — the system can accumulate
+    additional face encodings over time to improve recognition accuracy
+    under varying conditions (lighting, angle, etc.).
+
+    The encoding is first written to the database via
+    ``database.append_student_encoding`` and then the in-memory
+    ``encoding_cache`` is fully reloaded so that it stays consistent
+    with the persisted state.
+
+    Parameters
+    ----------
+    student_id : bson.ObjectId
+        The MongoDB ``_id`` of the student document.
+    new_encoding : np.ndarray
+        A 128-D face encoding vector to append.
+
+    Returns
+    -------
+    bool
+        ``True`` if the encoding was successfully appended and the
+        cache refreshed, ``False`` if any error occurred.
+    """
+    try:
+        database.append_student_encoding(student_id, new_encoding)
+        encoding_cache.refresh()
+        logger.info(
+            "Appended new encoding for student %s and refreshed cache.",
+            student_id,
+        )
+        return True
+    except Exception:
+        logger.exception(
+            "Failed to append encoding for student %s.", student_id
+        )
+        return False

@@ -1,0 +1,280 @@
+{% extends "base.html" %}
+{% block title %}Register Student{% endblock %}
+
+{% block content %}
+<div class="flex justify-center">
+    <div class="w-full max-w-2xl">
+        <!-- Page Header -->
+        <div class="flex flex-col gap-1 mb-6">
+            <h1 class="text-2xl font-semibold tracking-tight text-text-primary">Register New Student</h1>
+            <p class="text-sm text-text-muted">Add a student to the facial recognition attendance system.</p>
+        </div>
+
+        <!-- Form Card -->
+        <div class="bg-white rounded-lg border border-border-light shadow-sm overflow-hidden">
+            <div class="p-6 md:p-8">
+                <form method="POST" enctype="multipart/form-data" id="regForm" class="flex flex-col gap-6">
+                    <!-- Full Name -->
+                    <div class="flex flex-col gap-1.5">
+                        <label class="text-sm font-medium text-text-primary" for="name">Full Name</label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-text-muted">
+                                <span class="material-symbols-outlined text-[20px]">person</span>
+                            </div>
+                            <input type="text" class="w-full pl-10 pr-4 py-2.5 bg-background-light border border-border-light rounded-md focus:ring-2 focus:ring-secondary/20 focus:border-secondary outline-none transition-all text-text-primary placeholder-text-muted text-sm" id="name" name="name" required maxlength="200" placeholder="e.g. Ahmed Khan">
+                        </div>
+                    </div>
+
+                    <!-- Semester / Reg Number / Section Row -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-sm font-medium text-text-primary" for="semester">Semester</label>
+                            <div class="relative">
+                                <select class="w-full appearance-none rounded-md border border-border-light bg-background-light h-11 px-3 pr-10 text-sm text-text-primary focus:ring-2 focus:ring-secondary/20 focus:border-secondary outline-none transition-all cursor-pointer" id="semester" name="semester" required>
+                                    {% for s in range(1, 13) %}
+                                    <option value="{{ s }}">Semester {{ s }}</option>
+                                    {% endfor %}
+                                </select>
+                                <span class="material-symbols-outlined absolute right-3 top-3 text-text-muted pointer-events-none text-[20px]">expand_more</span>
+                            </div>
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-sm font-medium text-text-primary" for="registration_number">Reg. Number</label>
+                            <div class="relative">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-text-muted">
+                                    <span class="material-symbols-outlined text-[20px]">badge</span>
+                                </div>
+                                <input type="text" class="w-full pl-10 pr-4 py-2.5 bg-background-light border border-border-light rounded-md focus:ring-2 focus:ring-secondary/20 focus:border-secondary outline-none transition-all text-text-primary placeholder-text-muted text-sm" id="registration_number" name="registration_number" required maxlength="50" placeholder="e.g. FA21-BCS-001">
+                            </div>
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-sm font-medium text-text-primary" for="section">Section</label>
+                            <div class="relative">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-text-muted">
+                                    <span class="material-symbols-outlined text-[20px]">groups</span>
+                                </div>
+                                <input type="text" class="w-full pl-10 pr-4 py-2.5 bg-background-light border border-border-light rounded-md focus:ring-2 focus:ring-secondary/20 focus:border-secondary outline-none transition-all text-text-primary placeholder-text-muted text-sm" id="section" name="section" required maxlength="10" placeholder="e.g. A">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Enrollment Mode Toggle -->
+                    <div class="flex items-center gap-4 mb-4">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="enroll_mode" value="upload" checked id="modeUpload" class="text-primary">
+                            <span class="text-sm font-medium text-text-primary">Upload Images</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="enroll_mode" value="webcam" id="modeWebcam" class="text-primary">
+                            <span class="text-sm font-medium text-text-primary">Webcam Capture</span>
+                        </label>
+                    </div>
+
+                    <!-- Webcam Capture Section -->
+                    <div id="webcamSection" style="display:none" class="flex flex-col gap-4">
+                        <div class="relative w-full aspect-video bg-slate-900 rounded-lg overflow-hidden">
+                            <video id="webcamVideo" autoplay playsinline class="w-full h-full object-cover"></video>
+                            <div id="webcamPrompt" class="absolute bottom-4 left-1/2 -translate-x-1/2 bg-primary/90 text-white text-sm font-medium px-4 py-2 rounded-full backdrop-blur-md">
+                                Press Start to begin capture
+                            </div>
+                        </div>
+                        <button type="button" id="startCaptureBtn" class="w-full bg-secondary hover:bg-secondary/80 text-white font-semibold py-3 px-4 rounded-md transition-colors flex items-center justify-center gap-2 text-sm">
+                            <span class="material-symbols-outlined text-[20px]">camera</span>
+                            <span>Start Multi-Angle Capture</span>
+                        </button>
+                        <div id="capturedGrid" class="grid grid-cols-5 gap-3" style="display:none;"></div>
+                        <input type="hidden" name="webcam_mode" id="webcamModeFlag" value="0">
+                        <!-- Hidden fields for captured frame paths -->
+                        <input type="hidden" name="webcam_frame_0" id="wf0" value="">
+                        <input type="hidden" name="webcam_frame_1" id="wf1" value="">
+                        <input type="hidden" name="webcam_frame_2" id="wf2" value="">
+                        <input type="hidden" name="webcam_frame_3" id="wf3" value="">
+                        <input type="hidden" name="webcam_frame_4" id="wf4" value="">
+                    </div>
+
+                    <!-- Face Images Upload (Multiple) -->
+                    <div class="flex flex-col gap-2">
+                        <label class="text-sm font-medium text-text-primary">Face Images (3–5 recommended)</label>
+                        <p class="text-xs text-text-muted">Upload multiple clear, well-lit photos with exactly one face per image.</p>
+                        <div class="group relative flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-border-light bg-background-light px-4 py-8 text-center transition-colors hover:border-secondary hover:bg-secondary/5">
+                            <div class="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 text-primary">
+                                <span class="material-symbols-outlined">add_a_photo</span>
+                            </div>
+                            <p class="mb-1 text-sm font-medium text-text-primary" id="uploadLabel">Click to upload or drag and drop</p>
+                            <p class="text-xs text-text-muted">PNG, JPG or JPEG (max 5 MB each, up to 5 images)</p>
+                            <p class="mt-2 text-xs text-secondary font-medium">Used for facial recognition</p>
+                            <input type="file" class="absolute inset-0 cursor-pointer opacity-0" id="images" name="images" accept=".png,.jpg,.jpeg" multiple required>
+                        </div>
+                        <!-- Image Preview Grid -->
+                        <div id="previewGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mt-2" style="display:none;"></div>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit" class="w-full bg-primary hover:bg-primary-dark text-white font-semibold py-3 px-4 rounded-md transition-colors flex items-center justify-center gap-2 text-sm">
+                        <span class="material-symbols-outlined text-[20px]">person_add</span>
+                        <span>Register Student</span>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var imagesInput = document.getElementById('images');
+var previewGrid = document.getElementById('previewGrid');
+var uploadLabel = document.getElementById('uploadLabel');
+
+imagesInput.addEventListener('change', function() {
+    previewGrid.innerHTML = '';
+    var files = this.files;
+    if (!files || files.length === 0) {
+        previewGrid.style.display = 'none';
+        uploadLabel.textContent = 'Click to upload or drag and drop';
+        return;
+    }
+    uploadLabel.textContent = files.length + ' image(s) selected';
+    previewGrid.style.display = 'grid';
+
+    for (var i = 0; i < files.length; i++) {
+        (function(file, idx) {
+            var card = document.createElement('div');
+            card.className = 'relative rounded-lg border border-border-light overflow-hidden bg-white shadow-sm';
+
+            var img = document.createElement('img');
+            img.className = 'w-full h-28 object-cover';
+            img.alt = 'Preview ' + (idx + 1);
+
+            var label = document.createElement('div');
+            label.className = 'text-[10px] text-center py-1 text-text-muted font-medium';
+            label.textContent = 'Image ' + (idx + 1);
+
+            var reader = new FileReader();
+            reader.onload = function(e) { img.src = e.target.result; };
+            reader.readAsDataURL(file);
+
+            card.appendChild(img);
+            card.appendChild(label);
+            previewGrid.appendChild(card);
+        })(files[i], i);
+    }
+});
+
+document.getElementById('regForm').addEventListener('submit', function(e) {
+    var webcamMode = document.getElementById('webcamModeFlag').value === '1';
+    if (!webcamMode) {
+        var files = imagesInput.files;
+        if (files.length > 5) {
+            e.preventDefault();
+            alert('Maximum 5 images allowed.');
+            return;
+        }
+        for (var i = 0; i < files.length; i++) {
+            if (files[i].size > 5 * 1024 * 1024) {
+                e.preventDefault();
+                alert('Image ' + (i + 1) + ' exceeds 5 MB limit.');
+                return;
+            }
+        }
+    }
+});
+
+// Webcam capture functionality
+var PROMPTS = ["Look at the camera", "Look LEFT", "Look RIGHT", "Look UP", "Look at the camera"];
+var capturedPaths = [];
+var webcamStream = null;
+
+document.querySelectorAll('input[name="enroll_mode"]').forEach(function(radio) {
+    radio.addEventListener('change', function() {
+        var uploadSection = document.getElementById('images').closest('.flex.flex-col');
+        if (this.value === 'webcam') {
+            document.getElementById('webcamSection').style.display = 'block';
+            uploadSection.style.display = 'none';
+            document.getElementById('webcamModeFlag').value = '1';
+            document.getElementById('images').removeAttribute('required');
+            startWebcam();
+        } else {
+            document.getElementById('webcamSection').style.display = 'none';
+            uploadSection.style.display = 'block';
+            document.getElementById('webcamModeFlag').value = '0';
+            document.getElementById('images').setAttribute('required', '');
+            stopWebcam();
+        }
+    });
+});
+
+function startWebcam() {
+    navigator.mediaDevices.getUserMedia({video: true}).then(function(stream) {
+        webcamStream = stream;
+        document.getElementById('webcamVideo').srcObject = stream;
+    }).catch(function(err) {
+        alert('Could not access webcam: ' + err.message);
+    });
+}
+
+function stopWebcam() {
+    if (webcamStream) {
+        webcamStream.getTracks().forEach(function(t) { t.stop(); });
+        webcamStream = null;
+    }
+}
+
+document.getElementById('startCaptureBtn').addEventListener('click', function() {
+    capturedPaths = [];
+    var btn = this;
+    btn.disabled = true;
+    var idx = 0;
+
+    function captureNext() {
+        if (idx >= 5) {
+            btn.disabled = false;
+            document.getElementById('webcamPrompt').textContent = 'Capture complete!';
+            // Make file upload not required
+            document.getElementById('images').removeAttribute('required');
+            return;
+        }
+        document.getElementById('webcamPrompt').textContent = PROMPTS[idx];
+
+        setTimeout(function() {
+            var video = document.getElementById('webcamVideo');
+            var canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            var dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+            var base64 = dataUrl.split(',')[1];
+
+            fetch('/api/register/capture', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({frame: base64})
+            }).then(function(r) { return r.json(); }).then(function(data) {
+                capturedPaths.push(data.path);
+                document.getElementById('wf' + idx).value = data.path;
+
+                // Show preview
+                var grid = document.getElementById('capturedGrid');
+                grid.style.display = 'grid';
+                var card = document.createElement('div');
+                card.className = 'relative rounded-lg border border-border-light overflow-hidden bg-white shadow-sm';
+                var img = document.createElement('img');
+                img.className = 'w-full h-20 object-cover';
+                img.src = dataUrl;
+                var label = document.createElement('div');
+                label.className = 'text-[10px] text-center py-1 text-text-muted font-medium';
+                label.textContent = PROMPTS[idx];
+                card.appendChild(img);
+                card.appendChild(label);
+                grid.appendChild(card);
+
+                idx++;
+                captureNext();
+            });
+        }, 2000);
+    }
+    captureNext();
+});
+</script>
+{% endblock %}

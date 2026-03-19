@@ -1,0 +1,301 @@
+{% extends "base.html" %}
+{% block title %}Live Attendance{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+    <!-- Left Column: Video Feed & Logs -->
+    <section class="lg:col-span-8 flex flex-col gap-6">
+        <!-- Header -->
+        <div class="flex items-center justify-between">
+            <div>
+                <h2 class="text-xl font-semibold text-text-primary">Live Attendance</h2>
+                <p class="text-text-muted text-sm mt-1">Look at the camera to verify your identity and mark attendance.</p>
+            </div>
+            <div class="flex gap-3">
+                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-50 text-red-600 text-xs font-semibold border border-red-100">
+                    <span class="relative flex h-2 w-2">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                    </span>
+                    LIVE
+                </span>
+            </div>
+        </div>
+
+        <!-- Subject & Camera Selector -->
+        <div class="flex gap-4 mb-4">
+            <div class="flex flex-col gap-1.5 flex-1 max-w-xs">
+                <label class="text-sm font-medium text-text-primary" for="subjectSelect">Subject</label>
+                <select id="subjectSelect" class="w-full rounded-md border-border-light bg-background-light h-11 px-3 text-sm focus:ring-2 focus:ring-secondary/20 focus:border-secondary transition-all text-text-primary">
+                    {% for s in config.SUBJECTS %}
+                    <option value="{{ s }}">{{ s }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="flex flex-col gap-1.5 flex-1 max-w-xs">
+                <label class="text-sm font-medium text-text-primary" for="camSelect">Camera</label>
+                <select id="camSelect" class="w-full rounded-md border-border-light bg-background-light h-11 px-3 text-sm focus:ring-2 focus:ring-secondary/20 focus:border-secondary transition-all text-text-primary">
+                    {% for idx in config.CAMERA_INDICES %}
+                    <option value="{{ idx }}">Camera {{ idx }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <!-- Video Feed Container -->
+        <div class="relative w-full aspect-video bg-slate-900 rounded-lg overflow-hidden shadow-md ring-1 ring-border-light">
+            <img src="{{ url_for('main.video_feed') }}" alt="Live Video Feed" class="video-feed-img">
+            <!-- Overlay gradient -->
+            <div class="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-black/10 pointer-events-none"></div>
+            <!-- Scanning overlay -->
+            <div class="absolute inset-0 pointer-events-none flex items-center justify-center">
+                <div class="relative w-48 h-48 md:w-64 md:h-64 border-2 border-secondary/50 rounded-lg">
+                    <div class="absolute top-0 left-0 w-4 h-4 border-t-4 border-l-4 border-secondary -mt-1 -ml-1"></div>
+                    <div class="absolute top-0 right-0 w-4 h-4 border-t-4 border-r-4 border-secondary -mt-1 -mr-1"></div>
+                    <div class="absolute bottom-0 left-0 w-4 h-4 border-b-4 border-l-4 border-secondary -mb-1 -ml-1"></div>
+                    <div class="absolute bottom-0 right-0 w-4 h-4 border-b-4 border-r-4 border-secondary -mb-1 -mr-1"></div>
+                    <div class="absolute top-0 left-0 w-full h-1 bg-secondary/80 shadow-[0_0_12px_rgba(74,111,165,0.6)]" style="animation: scan 2s ease-in-out infinite;"></div>
+                    <div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-primary/90 text-white text-xs font-medium px-2 py-1 rounded backdrop-blur-md">
+                        Scanning Faces...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Event Logs -->
+        <div class="bg-white rounded-lg border border-border-light shadow-sm overflow-hidden flex flex-col h-[320px]">
+            <div class="px-6 py-3.5 border-b border-border-light flex items-center justify-between bg-background-light">
+                <h3 class="text-sm font-semibold text-text-primary flex items-center gap-2">
+                    <span class="material-symbols-outlined text-text-muted text-lg">history</span>
+                    Recent Logs
+                </h3>
+            </div>
+            <div class="overflow-y-auto flex-1 custom-scrollbar" id="eventLog">
+                <table class="w-full text-sm text-left">
+                    <thead class="text-xs text-text-muted uppercase tracking-wider bg-background-light sticky top-0">
+                        <tr>
+                            <th class="px-6 py-3 font-medium">Student Name</th>
+                            <th class="px-6 py-3 font-medium">Status</th>
+                            <th class="px-6 py-3 font-medium text-right">Confidence</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-border-light" id="eventBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- Right Column: Info & Stats -->
+    <aside class="lg:col-span-4 flex flex-col gap-6">
+        <!-- Student Details Card (hidden by default, shown on recognition) -->
+        <div id="studentDetailsPanel" style="display:none" class="bg-white rounded-lg border border-border-light shadow-sm p-6">
+            <div class="flex flex-col items-center text-center">
+                <div class="mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                    <span class="material-symbols-outlined text-2xl">verified</span>
+                </div>
+                <h3 class="text-base font-semibold text-text-primary mb-1">Student Verified</h3>
+                <p id="sdAttendanceBadge" class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 mb-4">
+                    Marked Present
+                </p>
+            </div>
+            <div class="w-full h-px bg-border-light my-2"></div>
+            <div class="grid grid-cols-1 gap-3 w-full mt-4">
+                <div class="bg-background-light p-3 rounded-md border border-border-light flex items-center gap-3">
+                    <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                        <span class="material-symbols-outlined text-sm">person</span>
+                    </div>
+                    <div class="text-left">
+                        <p class="text-[10px] text-text-muted uppercase tracking-wider font-medium">Name</p>
+                        <p class="text-sm text-text-primary font-semibold" id="sdName">—</p>
+                    </div>
+                </div>
+                <div class="bg-background-light p-3 rounded-md border border-border-light flex items-center gap-3">
+                    <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary/10 text-secondary">
+                        <span class="material-symbols-outlined text-sm">badge</span>
+                    </div>
+                    <div class="text-left">
+                        <p class="text-[10px] text-text-muted uppercase tracking-wider font-medium">Registration Number</p>
+                        <p class="text-sm text-text-primary font-semibold" id="sdRegNo">—</p>
+                    </div>
+                </div>
+                <div class="bg-background-light p-3 rounded-md border border-border-light flex items-center gap-3">
+                    <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                        <span class="material-symbols-outlined text-sm">school</span>
+                    </div>
+                    <div class="text-left">
+                        <p class="text-[10px] text-text-muted uppercase tracking-wider font-medium">Semester</p>
+                        <p class="text-sm text-text-primary font-semibold" id="sdSemester">—</p>
+                    </div>
+                </div>
+                <div class="bg-background-light p-3 rounded-md border border-border-light flex items-center gap-3">
+                    <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary/10 text-secondary">
+                        <span class="material-symbols-outlined text-sm">groups</span>
+                    </div>
+                    <div class="text-left">
+                        <p class="text-[10px] text-text-muted uppercase tracking-wider font-medium">Section</p>
+                        <p class="text-sm text-text-primary font-semibold" id="sdSection">—</p>
+                    </div>
+                </div>
+                <div class="bg-background-light p-3 rounded-md border border-border-light flex items-center gap-3">
+                    <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                        <span class="material-symbols-outlined text-sm">percent</span>
+                    </div>
+                    <div class="text-left">
+                        <p class="text-[10px] text-text-muted uppercase tracking-wider font-medium">Confidence</p>
+                        <p class="text-sm text-text-primary font-semibold" id="sdConfidence">—</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-2 gap-4">
+            <div class="bg-white p-4 rounded-lg border border-border-light shadow-sm flex flex-col justify-between h-28">
+                <div class="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+                    <span class="material-symbols-outlined text-lg">groups</span>
+                </div>
+                <div>
+                    <p class="text-2xl font-bold text-text-primary" id="presentCount">--</p>
+                    <p class="text-xs text-text-muted">Detected</p>
+                </div>
+            </div>
+            <div class="bg-white p-4 rounded-lg border border-border-light shadow-sm flex flex-col justify-between h-28">
+                <div class="h-8 w-8 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                    <span class="material-symbols-outlined text-lg">check_circle</span>
+                </div>
+                <div>
+                    <p class="text-2xl font-bold text-text-primary" id="markedCount">--</p>
+                    <p class="text-xs text-text-muted">Marked Present</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- How It Works Card (below stats) -->
+        <div id="howItWorksPanel" class="bg-white rounded-lg border border-border-light shadow-sm p-6">
+            <div class="flex flex-col items-center text-center">
+                <div class="mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <span class="material-symbols-outlined text-2xl">visibility</span>
+                </div>
+                <h3 class="text-base font-semibold text-text-primary mb-2">How It Works</h3>
+                <p class="text-sm text-text-muted mb-4">Stand in front of the camera. The system will automatically verify that you are a real person and identify you.</p>
+                <div class="w-full h-px bg-border-light my-2"></div>
+                <div class="grid grid-cols-1 gap-3 w-full mt-4">
+                    <div class="bg-background-light p-3 rounded-md border border-border-light flex items-center gap-3">
+                        <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                            <span class="material-symbols-outlined text-sm">face</span>
+                        </div>
+                        <p class="text-xs text-text-primary font-medium">Look directly at the camera</p>
+                    </div>
+                    <div class="bg-background-light p-3 rounded-md border border-border-light flex items-center gap-3">
+                        <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary/10 text-secondary">
+                            <span class="material-symbols-outlined text-sm">shield</span>
+                        </div>
+                        <p class="text-xs text-text-primary font-medium">Liveness verified automatically</p>
+                    </div>
+                    <div class="bg-background-light p-3 rounded-md border border-border-light flex items-center gap-3">
+                        <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                            <span class="material-symbols-outlined text-sm">check_circle</span>
+                        </div>
+                        <p class="text-xs text-text-primary font-medium">Attendance recorded automatically</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </aside>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var detectedCount = 0;
+var markedCount = 0;
+
+var howItWorksPanel = document.getElementById('howItWorksPanel');
+var studentDetailsPanel = document.getElementById('studentDetailsPanel');
+
+function showStudentDetails(ev) {
+    document.getElementById('sdName').textContent = ev.name || '—';
+    document.getElementById('sdRegNo').textContent = ev.registration_number || '—';
+    document.getElementById('sdSemester').textContent = ev.semester || '—';
+    document.getElementById('sdSection').textContent = ev.section || '—';
+    document.getElementById('sdConfidence').textContent = (ev.confidence * 100).toFixed(1) + '%';
+
+    var badge = document.getElementById('sdAttendanceBadge');
+    if (ev.attendance_marked) {
+        badge.textContent = 'Marked Present';
+        badge.className = 'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 mb-4';
+    } else {
+        badge.textContent = 'Already Marked';
+        badge.className = 'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 mb-4';
+    }
+
+    howItWorksPanel.style.display = 'none';
+    studentDetailsPanel.style.display = 'block';
+    studentDetailsPanel.classList.remove('panel-fade-in');
+    void studentDetailsPanel.offsetWidth;
+    studentDetailsPanel.classList.add('panel-fade-in');
+}
+
+function showHowItWorks() {
+    studentDetailsPanel.style.display = 'none';
+    howItWorksPanel.style.display = 'block';
+    howItWorksPanel.classList.remove('panel-fade-in');
+    void howItWorksPanel.offsetWidth;
+    howItWorksPanel.classList.add('panel-fade-in');
+}
+
+// Subject change handler
+document.getElementById('subjectSelect').addEventListener('change', function() {
+    var cam = document.getElementById('camSelect').value;
+    fetch('/api/subject', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({subject: this.value, cam: parseInt(cam)})
+    });
+});
+
+// Camera change handler
+document.getElementById('camSelect').addEventListener('change', function() {
+    var img = document.querySelector('.video-feed-img');
+    img.src = '/video_feed?cam=' + this.value;
+});
+
+// WebSocket for live attendance events
+var socket = io();
+socket.on('attendance_event', function(ev) {
+    var tbody = document.getElementById('eventBody');
+    detectedCount++;
+    if (ev.status === 'marked' && ev.attendance_marked) markedCount++;
+
+    var tr = document.createElement('tr');
+    tr.className = 'bg-white hover:bg-background-light transition-colors';
+    var statusClass, statusText, confValue;
+    if (ev.status === 'marked') {
+        statusClass = 'bg-green-100 text-green-800';
+        statusText = ev.attendance_marked ? 'Real Face Verified' : 'Already Marked';
+        confValue = (ev.confidence * 100).toFixed(1) + '%';
+    } else if (ev.status === 'spoof_detected') {
+        statusClass = 'bg-red-100 text-red-800';
+        statusText = 'Spoof Detected';
+        confValue = ((ev.liveness_confidence || 0) * 100).toFixed(1) + '%';
+    } else {
+        statusClass = 'bg-amber-100 text-amber-800';
+        statusText = ev.status;
+        confValue = (ev.confidence * 100).toFixed(1) + '%';
+    }
+    tr.innerHTML = '<td class="px-6 py-3.5 font-medium text-text-primary">' + ev.name + '</td>'
+        + '<td class="px-6 py-3.5"><span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ' + statusClass + '">' + statusText + '</span></td>'
+        + '<td class="px-6 py-3.5 text-right text-text-muted font-mono text-xs">' + confValue + '</td>';
+    tbody.prepend(tr);
+
+    if (ev.status === 'marked') {
+        showStudentDetails(ev);
+    } else {
+        showHowItWorks();
+    }
+
+    document.getElementById('presentCount').textContent = detectedCount;
+    document.getElementById('markedCount').textContent = markedCount;
+});
+</script>
+{% endblock %}

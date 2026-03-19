@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Home - AutoAttendance{% endblock %}
+
+{% block content %}
+<div class="flex flex-col lg:flex-row items-start gap-6 pt-4 md:pt-10">
+    <!-- Left: Welcome Card -->
+    <div class="w-full lg:w-[420px] shrink-0 bg-white rounded-lg border border-border-light shadow-sm p-8 md:p-10">
+        <!-- Logo / Icon -->
+        <div class="flex justify-center mb-6">
+            <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <span class="material-symbols-outlined text-3xl">school</span>
+            </div>
+        </div>
+        <!-- Heading -->
+        <h1 class="text-2xl font-semibold text-text-primary text-center mb-2 tracking-tight">Welcome to AutoAttendance</h1>
+        <p class="text-sm text-text-muted text-center mb-8 leading-relaxed">Real-time face recognition attendance system with blink-based liveness detection.</p>
+
+        <!-- Primary Actions -->
+        <div class="flex flex-col gap-3 mb-6">
+            <a href="{{ url_for('main.attendance') }}" class="w-full bg-primary hover:bg-primary-dark text-white font-semibold py-3 px-4 rounded-md transition-colors flex items-center justify-between text-sm">
+                <span>Start Attendance</span>
+                <span class="material-symbols-outlined text-lg">arrow_forward</span>
+            </a>
+            <a href="{{ url_for('main.register') }}" class="w-full bg-white hover:bg-background-light text-text-primary font-semibold py-3 px-4 rounded-md transition-colors flex items-center justify-between text-sm border border-border-light">
+                <span>Register Student</span>
+                <span class="material-symbols-outlined text-lg">arrow_forward</span>
+            </a>
+        </div>
+
+        <!-- Divider -->
+        <div class="relative my-6">
+            <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-border-light"></div></div>
+            <div class="relative flex justify-center"><span class="bg-white px-3 text-xs text-text-muted">Or explore the system</span></div>
+        </div>
+
+        <!-- Secondary Action -->
+        <a href="{{ url_for('main.dashboard') }}" class="w-full bg-background-light hover:bg-gray-100 text-text-muted font-semibold py-3 px-4 rounded-md transition-colors flex items-center justify-between text-sm border border-border-light">
+            <span>View Dashboard</span>
+            <span class="material-symbols-outlined text-lg">arrow_forward</span>
+        </a>
+    </div>
+
+    <!-- Right: Feature Cards grid -->
+    <div class="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="flex flex-col gap-3 rounded-lg border border-border-light bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
+            <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <span class="material-symbols-outlined text-xl">face</span>
+            </div>
+            <h5 class="text-sm font-semibold text-text-primary">Face Detection</h5>
+            <p class="text-xs text-text-muted leading-relaxed">Detect and recognise faces via webcam in real time with high accuracy.</p>
+        </div>
+        <div class="flex flex-col gap-3 rounded-lg border border-border-light bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
+            <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-secondary/10 text-secondary">
+                <span class="material-symbols-outlined text-xl">visibility</span>
+            </div>
+            <h5 class="text-sm font-semibold text-text-primary">Liveness Check</h5>
+            <p class="text-xs text-text-muted leading-relaxed">Blink-based anti-spoofing ensures real physical presence of each student.</p>
+        </div>
+        <div class="flex flex-col gap-3 rounded-lg border border-border-light bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
+            <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+                <span class="material-symbols-outlined text-xl">check_circle</span>
+            </div>
+            <h5 class="text-sm font-semibold text-text-primary">Auto Attendance</h5>
+            <p class="text-xs text-text-muted leading-relaxed">Duplicate-free attendance records stored securely in MongoDB Atlas.</p>
+        </div>
+        <div class="flex flex-col gap-3 rounded-lg border border-border-light bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
+            <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <span class="material-symbols-outlined text-xl">analytics</span>
+            </div>
+            <h5 class="text-sm font-semibold text-text-primary">Reports</h5>
+            <p class="text-xs text-text-muted leading-relaxed">Dashboard analytics, attendance trends, and CSV export for records.</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
