@@ -202,41 +202,83 @@ def send_absence_notifications(self):
     logger.info("send_absence_notifications started")
 
     db = database.get_db()
-    students = list(db.students.find({}, {"_id": 1, "name": 1, "registration_number": 1}))
-
-    if not students:
-        logger.info("No students registered – skipping absence check.")
-        return "no_students"
 
     today = datetime.now(timezone.utc).date()
     start_date = today - timedelta(days=30)
     total_possible_days = 30
 
-    flagged = []
-
-    for student in students:
-        count = db.attendance.count_documents({
-            "student_id": student["_id"],
-            "date": {
-                "$gte": start_date.isoformat(),
-                "$lte": today.isoformat(),
-            },
-        })
-        percentage = round((count / total_possible_days) * 100, 1)
-
-        if percentage < config.ABSENCE_THRESHOLD:
-            flagged.append({
-                "name": student["name"],
-                "registration_number": student["registration_number"],
-                "attended": count,
+    # Use aggregation pipeline instead of N+1 queries (count_documents per student)
+    flagged = list(db.attendance.aggregate([
+        {
+            "$match": {
+                "date": {
+                    "$gte": start_date.isoformat(),
+                    "$lte": today.isoformat(),
+                }
+            }
+        },
+        {
+            "$group": {
+                "_id": "$student_id",
+                "attended": {"$sum": 1},
+            }
+        },
+        {
+            "$lookup": {
+                "from": "students",
+                "localField": "_id",
+                "foreignField": "_id",
+                "as": "student_info",
+            }
+        },
+        {
+            "$unwind": {
+                "path": "$student_info",
+                "preserveNullAndEmptyArrays": False,
+            }
+        },
+        {
+            "$addFields": {
+                "percentage": {
+                    "$round": [
+                        {"$multiply": [
+                            {"$divide": ["$attended", total_possible_days]},
+                            100,
+                        ]},
+                        1,
+                    ]
+                },
                 "total": total_possible_days,
-                "percentage": percentage,
-            })
+            }
+        },
+        {
+            "$match": {
+                "percentage": {"$lt": config.ABSENCE_THRESHOLD}
+            }
+        },
+        {
+            "$project": {
+                "_id": 0,
+                "name": "$student_info.name",
+                "registration_number": "$student_info.registration_number",
+                "attended": 1,
+                "total": 1,
+                "percentage": 1,
+            }
+        },
+    ]))
+
+    # Ensure we got the total for logging
+    total_students = db.students.count_documents({})
+
+    if total_students == 0:
+        logger.info("No students registered – skipping absence check.")
+        return "no_students"
 
     logger.info(
         "Absence check complete: %d / %d students below %d%% threshold.",
         len(flagged),
-        len(students),
+        total_students,
         config.ABSENCE_THRESHOLD,
     )
 
@@ -340,44 +382,52 @@ def backup_mongodb(self):
     os.makedirs(backup_dir, exist_ok=True)
     logger.info("Created backup directory: %s", backup_dir)
 
-    # ── Export students (exclude binary encoding fields) ──────────────
-    students = []
-    for doc in db.students.find({}):
-        record = {}
-        for key, value in doc.items():
-            if key in ("encodings", "face_encoding"):
-                continue  # skip binary encoding fields
-            if key == "_id":
-                record[key] = str(value)
-            else:
-                record[key] = value
-        # Convert datetime objects to ISO strings for JSON serialization
-        if "created_at" in record and hasattr(record["created_at"], "isoformat"):
-            record["created_at"] = record["created_at"].isoformat()
-        students.append(record)
-
+    # ── Export students (exclude binary encoding fields, stream to avoid large memory use) ──────────────
     students_path = os.path.join(backup_dir, "students.json")
+    student_count = 0
     with open(students_path, "w", encoding="utf-8") as f:
-        json.dump(students, f, indent=2, default=str)
-    logger.info("Exported %d students to %s", len(students), students_path)
+        f.write("[\n")
+        for idx, doc in enumerate(db.students.find({})):
+            record = {}
+            for key, value in doc.items():
+                if key in ("encodings", "face_encoding"):
+                    continue  # skip binary encoding fields
+                if key == "_id":
+                    record[key] = str(value)
+                else:
+                    record[key] = value
+            # Convert datetime objects to ISO strings for JSON serialization
+            if "created_at" in record and hasattr(record["created_at"], "isoformat"):
+                record["created_at"] = record["created_at"].isoformat()
 
-    # ── Export attendance ─────────────────────────────────────────────
-    attendance = []
-    for doc in db.attendance.find({}):
-        record = {}
-        for key, value in doc.items():
-            if key == "_id":
-                record[key] = str(value)
-            elif key == "student_id":
-                record[key] = str(value)
-            else:
-                record[key] = value
-        attendance.append(record)
+            if idx > 0:
+                f.write(",\n")
+            json.dump(record, f, default=str)
+            student_count += 1
+        f.write("\n]")
+    logger.info("Exported %d students to %s (stream mode)", student_count, students_path)
 
+    # ── Export attendance (stream to avoid large memory use) ─────────────────────────────────────────
     attendance_path = os.path.join(backup_dir, "attendance.json")
+    attendance_count = 0
     with open(attendance_path, "w", encoding="utf-8") as f:
-        json.dump(attendance, f, indent=2, default=str)
-    logger.info("Exported %d attendance records to %s", len(attendance), attendance_path)
+        f.write("[\n")
+        for idx, doc in enumerate(db.attendance.find({})):
+            record = {}
+            for key, value in doc.items():
+                if key == "_id":
+                    record[key] = str(value)
+                elif key == "student_id":
+                    record[key] = str(value)
+                else:
+                    record[key] = value
+
+            if idx > 0:
+                f.write(",\n")
+            json.dump(record, f, default=str)
+            attendance_count += 1
+        f.write("\n]")
+    logger.info("Exported %d attendance records to %s (stream mode)", attendance_count, attendance_path)
 
     # ── Create .tar.gz archive ────────────────────────────────────────
     archive_path = os.path.join(backup_base, f"{today_str}.tar.gz")
@@ -413,4 +463,4 @@ def backup_mongodb(self):
         archive_path,
         removed,
     )
-    return {"archive": archive_path, "students": len(students), "attendance": len(attendance), "old_removed": removed}
+    return {"archive": archive_path, "students": student_count, "attendance": attendance_count, "old_removed": removed}

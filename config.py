@@ -79,12 +79,6 @@ IOU_THRESHOLD = 0.3                # Min IoU to match detection -> track
 CENTROID_DISTANCE_THRESHOLD = 100  # Max centroid distance (px) for match
 
 # ---------------------------------------------------------------------------
-# Auto-Tuning Bounds
-# ---------------------------------------------------------------------------
-RECOGNITION_THRESHOLD_MIN = 0.45   # Lower clamp for auto-tuned threshold
-RECOGNITION_THRESHOLD_MAX = 0.60   # Upper clamp for auto-tuned threshold
-
-# ---------------------------------------------------------------------------
 # MJPEG Streaming
 # ---------------------------------------------------------------------------
 MJPEG_TARGET_FPS = 12              # Cap MJPEG stream frame rate

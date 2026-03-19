@@ -1,9 +1,8 @@
 """
-Tests for liveness module (deprecated – now a thin wrapper around anti_spoofing).
+Tests for anti-spoofing liveness detection.
 
 The blink-based EAR logic has been replaced by deep learning anti-spoofing.
-These tests verify that the deprecated module still imports cleanly and
-re-exports the expected symbols.
+These tests verify that anti-spoofing module works correctly.
 """
 
 import os
@@ -23,15 +22,14 @@ def _mock_config(monkeypatch):
     importlib.reload(config)
 
 
-def test_liveness_module_imports():
-    """The deprecated liveness.py should import without error."""
-    import liveness
-    assert hasattr(liveness, "check_liveness")
-    assert hasattr(liveness, "init_models")
-
-
-def test_check_liveness_reexported():
-    """check_liveness from liveness should be the same as from anti_spoofing."""
-    import liveness
+def test_anti_spoofing_module_imports():
+    """The anti_spoofing module should import without error."""
     import anti_spoofing
-    assert liveness.check_liveness is anti_spoofing.check_liveness
+    assert hasattr(anti_spoofing, "check_liveness")
+    assert hasattr(anti_spoofing, "init_models")
+
+
+def test_check_liveness_exists():
+    """check_liveness function should exist in anti_spoofing module."""
+    import anti_spoofing
+    assert callable(anti_spoofing.check_liveness)

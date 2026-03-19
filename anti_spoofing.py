@@ -173,6 +173,10 @@ def check_liveness(frame: np.ndarray) -> tuple[int, float]:
 
         return label, confidence
 
-    except Exception:
-        logger.exception("Anti-spoof check failed.")
+    except Exception as exc:
+        logger.exception(
+            "Anti-spoof check failed with error: %s %s",
+            type(exc).__name__,
+            str(exc),
+        )
         return -1, 0.0

@@ -317,14 +317,13 @@ def get_attendance(date_str: str | None = None) -> list[dict]:
     Each record includes the student's name via aggregation.
     """
     db = get_db()
-    match_stage: dict = {}
+    match_filters: dict = {}
+
     if date_str:
-        match_stage = {"$match": {"date": date_str}}
-    else:
-        match_stage = {"$match": {}}
+        match_filters["date"] = date_str
 
     pipeline = [
-        match_stage,
+        {"$match": match_filters},
         {
             "$lookup": {
                 "from": "students",
@@ -500,6 +499,8 @@ def get_at_risk_students(days: int = 30, threshold: int | None = None) -> list[d
     Looks at the last *days* calendar days. Each entry contains
     ``name``, ``reg_no``, ``percentage``, ``days_present``, and ``days_total``.
     Results are sorted by percentage ascending (worst first).
+
+    Uses MongoDB aggregation pipeline for O(1) query cost instead of O(N).
     """
     if threshold is None:
         threshold = config.ABSENCE_THRESHOLD
@@ -509,29 +510,85 @@ def get_at_risk_students(days: int = 30, threshold: int | None = None) -> list[d
     start_str = start_date.strftime("%Y-%m-%d")
     end_str = end_date.strftime("%Y-%m-%d")
 
+    # Get total class days in the range
     total_class_days = len(db.attendance.distinct(
         "date",
         {"date": {"$gte": start_str, "$lte": end_str}},
     ))
 
-    students = list(db.students.find({}, {"name": 1, "registration_number": 1}))
-    results = []
-    for student in students:
-        count = db.attendance.count_documents({
-            "student_id": student["_id"],
-            "date": {"$gte": start_str, "$lte": end_str},
-            "status": "Present",
-        })
-        pct = round(count / total_class_days * 100, 1) if total_class_days > 0 else 0
-        if pct < threshold:
-            results.append({
-                "name": student["name"],
-                "reg_no": student["registration_number"],
-                "percentage": pct,
-                "days_present": count,
+    if total_class_days == 0:
+        return []
+
+    # Single aggregation query: group by student, count attendance,
+    # join with students collection, filter by threshold
+    pipeline = [
+        {
+            "$match": {
+                "date": {"$gte": start_str, "$lte": end_str},
+                "status": "Present",
+            }
+        },
+        {
+            "$group": {
+                "_id": "$student_id",
+                "days_present": {"$sum": 1},
+            }
+        },
+        {
+            "$lookup": {
+                "from": "students",
+                "localField": "_id",
+                "foreignField": "_id",
+                "as": "student_info",
+            }
+        },
+        {
+            "$unwind": {
+                "path": "$student_info",
+                "preserveNullAndEmptyArrays": False,
+            }
+        },
+        {
+            "$addFields": {
                 "days_total": total_class_days,
-            })
-    results.sort(key=lambda x: x["percentage"])
+                "percentage": {
+                    "$cond": [
+                        {"$gt": [total_class_days, 0]},
+                        {
+                            "$round": [
+                                {"$multiply": [
+                                    {"$divide": ["$days_present", total_class_days]},
+                                    100,
+                                ]},
+                                1,
+                            ]
+                        },
+                        0,
+                    ]
+                },
+            }
+        },
+        {
+            "$match": {
+                "percentage": {"$lt": threshold},
+            }
+        },
+        {
+            "$project": {
+                "_id": 0,
+                "name": "$student_info.name",
+                "reg_no": "$student_info.registration_number",
+                "percentage": 1,
+                "days_present": 1,
+                "days_total": 1,
+            }
+        },
+        {
+            "$sort": {"percentage": 1},
+        },
+    ]
+
+    results = list(db.attendance.aggregate(pipeline))
     return results
 
 

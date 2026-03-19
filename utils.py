@@ -96,8 +96,9 @@ def check_image_quality(image: np.ndarray) -> tuple[bool, str]:
 
     *image* is a BGR numpy array (as read by OpenCV).
     Returns ``(True, "")`` if acceptable, or ``(False, reason)``.
+    Uses same thresholds as check_face_quality_gate() for consistency.
     """
-    from config import BLUR_THRESHOLD, BRIGHTNESS_THRESHOLD
+    from config import BLUR_THRESHOLD, BRIGHTNESS_THRESHOLD, BRIGHTNESS_MAX
 
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
@@ -109,12 +110,17 @@ def check_image_quality(image: np.ndarray) -> tuple[bool, str]:
             f"minimum required {BLUR_THRESHOLD:.0f})."
         )
 
-    # Brightness check
+    # Brightness check (min and max for consistency with runtime pipeline)
     brightness = float(np.mean(gray))
     if brightness < BRIGHTNESS_THRESHOLD:
         return False, (
             f"Image is too dark (brightness {brightness:.0f}, "
             f"minimum required {BRIGHTNESS_THRESHOLD:.0f})."
+        )
+    if brightness > BRIGHTNESS_MAX:
+        return False, (
+            f"Image is too bright (brightness {brightness:.0f}, "
+            f"maximum allowed {BRIGHTNESS_MAX:.0f})."
         )
 
     return True, ""

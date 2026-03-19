@@ -1,18 +1,16 @@
 """
-Performance metrics tracker with auto-tuning.
+Performance metrics tracker for face recognition system.
 """
 
 import threading
-import time
 
-import config
 from utils import setup_logging
 
 logger = setup_logging()
 
 
 class PerformanceTracker:
-    """Collects recognition metrics and auto-tunes threshold."""
+    """Collects recognition metrics (TP, FP, FN, TN, frame times)."""
 
     def __init__(self):
         self._lock = threading.Lock()
@@ -21,9 +19,6 @@ class PerformanceTracker:
         self._fn = 0  # false negatives (known face, not matched)
         self._tn = 0  # true negatives (unknown face, correctly rejected)
         self._frame_times: list[float] = []
-        self._total_recognitions = 0
-        self._last_tune_at = 0
-        self._threshold = config.RECOGNITION_THRESHOLD
 
     # ── recording ─────────────────────────────────────────────────────────
 
@@ -38,11 +33,6 @@ class PerformanceTracker:
                 self._fn += 1
             else:
                 self._tn += 1
-            self._total_recognitions += 1
-
-            if self._total_recognitions - self._last_tune_at >= 200:
-                self._auto_tune()
-                self._last_tune_at = self._total_recognitions
 
     def record_frame_time(self, elapsed: float):
         with self._lock:
@@ -87,19 +77,7 @@ class PerformanceTracker:
                 "false_rejection_rate_pct": round(frr, 2),
                 "avg_frame_time_ms": round(avg_frame * 1000, 2),
                 "fps": round(fps, 1),
-                "current_threshold": self._threshold,
             }
-
-    # ── auto-tuning ───────────────────────────────────────────────────────
-
-    def _auto_tune(self):
-        """Disabled: runtime auto-tuning lacks ground-truth labels."""
-        return
-
-    @property
-    def threshold(self) -> float:
-        with self._lock:
-            return self._threshold
 
 
 # Singleton

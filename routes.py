@@ -1329,6 +1329,8 @@ def api_attendance_list():
     if subject:
         records = [r for r in records if r.get("subject", "General") == subject]
 
+    # Note: subject filtering is done client-side.
+
     return jsonify(records)
 
 

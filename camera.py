@@ -277,7 +277,8 @@ class Camera:
 
         if liveness_label == -1:
             logger.warning(
-                "Track #%d: anti-spoof error, proceeding in degraded mode.",
+                "Track #%d: anti-spoof ERROR (proceeding in degraded mode). "
+                "Will treat face as real assuming camera is operational.",
                 tid,
             )
             liveness_label = 1
@@ -292,7 +293,7 @@ class Camera:
 
         logger.debug(
             "Track #%d: liveness_label=%d liveness_conf=%.4f "
-            "threshold=%.2f is_real=%s",
+            "threshold=%.2f is_real=%s (0=spoof/no_face, 1=real, -1=error)",
             tid, liveness_label, liveness_conf,
             config.LIVENESS_CONFIDENCE_THRESHOLD, is_real,
         )
@@ -332,9 +333,15 @@ class Camera:
                 trk.is_unknown = True
                 logger.debug(
                     "Track #%d: encode_face returned None "
-                    "(quality gate or encoding failure)",
+                    "(likely quality gate rejection or encoding failure)",
                     tid,
                 )
+                self._push_event({
+                    "name": "Unknown",
+                    "status": "quality_rejection",
+                    "confidence": 0.0,
+                    "details": "Face quality check failed (blurry, too dark, or too bright)",
+                })
                 tracker.record_recognition(False, False)
         else:
             if liveness_label == 0 and liveness_conf >= config.LIVENESS_CONFIDENCE_THRESHOLD:
@@ -386,6 +393,9 @@ class Camera:
             if now - last_seen < config.RECOGNITION_COOLDOWN:
                 tracker.record_recognition(True, True)
                 return
+            # Update timestamp IMMEDIATELY to prevent race condition where
+            # another frame passes cooldown check before we mark attendance
+            self._seen[student_id] = now
 
         student_doc = database.get_student_by_id(student_id)
         student_meta = {}
@@ -398,8 +408,6 @@ class Camera:
 
         subject = self.get_subject()
         marked = database.mark_attendance_with_subject(student_id, confidence, subject)
-        with self._seen_lock:
-            self._seen[student_id] = time.monotonic()
 
         self._push_event({
             "name": name,
@@ -430,9 +438,11 @@ class Camera:
                         min_dist = float(
                             np.min(np.linalg.norm(flat_enc[student_rows] - encoding, axis=1))
                         )
-                        if min_dist < 0.15:
+                        # Increased threshold from 0.15 to 0.20 to reduce duplicate encodings
+                        # while still skipping very similar faces
+                        if min_dist < 0.20:
                             logger.debug(
-                                "Incremental learning skipped for %s (too similar: dist=%.4f)",
+                                "Incremental learning skipped for %s (duplicate: dist=%.4f < threshold 0.20)",
                                 name,
                                 min_dist,
                             )
