@@ -20,7 +20,7 @@ env/
 .idea/
 *.swp
 *.swo
-
+.github
 # OS
 Thumbs.db
 Desktop.ini

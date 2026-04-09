@@ -39,15 +39,15 @@ def test_append_student_encoding(mock_db):
     mock_db.students.update_one.assert_called_once()
 
 
-def test_mark_attendance_with_subject(mock_db):
+def test_mark_attendance(mock_db):
     import database
     sid = bson.ObjectId()
     mock_db.attendance.insert_one.return_value = MagicMock()
 
-    result = database.mark_attendance_with_subject(sid, 0.92, "Mathematics")
+    result = database.mark_attendance(sid, 0.92)
     assert result is True
     doc = mock_db.attendance.insert_one.call_args[0][0]
-    assert doc["subject"] == "Mathematics"
+    assert doc["confidence_score"] == 0.92
 
 
 def test_bulk_upsert_attendance(mock_db):

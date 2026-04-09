@@ -6,6 +6,7 @@ import atexit
 import os
 import sys
 import time
+from urllib.parse import urlparse
 
 # Ensure the package directory is on sys.path so local imports work
 # when running `python app.py` from inside attendance_system/.
@@ -14,6 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from flask import Flask
 from flask_socketio import SocketIO
 from flasgger import Swagger
+from redis import Redis
 
 import anti_spoofing
 import config
@@ -40,6 +42,71 @@ def _cleanup_uploads(logger):
         return
     except Exception as exc:
         logger.warning("Upload cleanup failed: %s", exc)
+
+
+def _startup_diagnostics(logger):
+    """Run startup checks so deployments fail fast when misconfigured."""
+    errors: list[str] = []
+
+    if not os.path.isfile(config.YUNET_MODEL_PATH):
+        errors.append(f"YuNet model missing: {config.YUNET_MODEL_PATH}")
+
+    if not os.path.isdir(config.ANTI_SPOOF_MODEL_DIR):
+        errors.append(f"Anti-spoof model directory missing: {config.ANTI_SPOOF_MODEL_DIR}")
+    else:
+        pth_files = [
+            name for name in os.listdir(config.ANTI_SPOOF_MODEL_DIR)
+            if name.lower().endswith(".pth")
+        ]
+        if not pth_files:
+            errors.append(
+                f"No anti-spoof .pth model files found in: {config.ANTI_SPOOF_MODEL_DIR}"
+            )
+
+    # MongoDB is required for this app.
+    try:
+        database.get_client().admin.command("ping")
+    except Exception as exc:
+        errors.append(f"MongoDB ping failed: {exc}")
+
+    # Redis is strongly recommended in production but not always required for local runs.
+    try:
+        redis_url = urlparse(config.CELERY_BROKER_URL)
+        redis_client = Redis(
+            host=redis_url.hostname or "localhost",
+            port=redis_url.port or 6379,
+            db=int((redis_url.path or "/0").strip("/") or "0"),
+            password=redis_url.password,
+            socket_connect_timeout=2,
+            socket_timeout=2,
+        )
+        redis_client.ping()
+    except Exception as exc:
+        logger.warning("Redis ping failed at startup: %s", exc)
+
+    if config.STARTUP_CAMERA_PROBE:
+        try:
+            import cv2
+
+            cap = cv2.VideoCapture(config.CAMERA_HEALTHCHECK_INDEX)
+            try:
+                if not cap.isOpened():
+                    errors.append(
+                        "Camera probe failed: could not open camera index "
+                        f"{config.CAMERA_HEALTHCHECK_INDEX}"
+                    )
+            finally:
+                cap.release()
+        except Exception as exc:
+            errors.append(f"Camera probe failed: {exc}")
+
+    if errors:
+        for item in errors:
+            logger.error("Startup check failed: %s", item)
+        if config.STRICT_STARTUP_CHECKS:
+            raise RuntimeError("Startup diagnostics failed. See logs for details.")
+    else:
+        logger.info("Startup diagnostics passed.")
 
 
 def create_app() -> Flask:
@@ -84,6 +151,8 @@ def create_app() -> Flask:
     os.makedirs(config.UPLOAD_DIR, exist_ok=True)
     _cleanup_uploads(logger)
 
+    _startup_diagnostics(logger)
+
     # Database indexes
     database.ensure_indexes()
 
@@ -94,19 +163,10 @@ def create_app() -> Flask:
     anti_spoofing.init_models()
 
     # Load YuNet face detector
-    if os.path.isfile(config.YUNET_MODEL_PATH):
-        pipeline.init_yunet(
-            config.YUNET_MODEL_PATH,
-            config.FRAME_PROCESS_WIDTH,
-        )
-    else:
-        logger.error(
-            "YuNet model not found at %s.  Download it from "
-            "https://github.com/opencv/opencv_zoo/tree/main/models/"
-            "face_detection_yunet and place the .onnx file in "
-            "the models/ directory.",
-            config.YUNET_MODEL_PATH,
-        )
+    pipeline.init_yunet(
+        config.YUNET_MODEL_PATH,
+        config.FRAME_PROCESS_WIDTH,
+    )
 
     # Register blueprint
     app.register_blueprint(main_bp)
@@ -128,4 +188,10 @@ def create_app() -> Flask:
 
 if __name__ == "__main__":
     app = create_app()
-    socketio.run(app, host="0.0.0.0", port=5000, debug=True, use_reloader=False)
+    socketio.run(
+        app,
+        host=config.APP_HOST,
+        port=config.APP_PORT,
+        debug=config.APP_DEBUG,
+        use_reloader=False,
+    )

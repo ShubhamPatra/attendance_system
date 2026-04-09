@@ -7,13 +7,18 @@ services:
     environment:
       - MONGO_URI=${MONGO_URI}
       - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - APP_HOST=0.0.0.0
+      - APP_PORT=5000
+      - APP_DEBUG=0
+      - STRICT_STARTUP_CHECKS=${STRICT_STARTUP_CHECKS:-1}
+      - STARTUP_CAMERA_PROBE=${STARTUP_CAMERA_PROBE:-0}
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - SENDGRID_API_KEY=${SENDGRID_API_KEY:-}
       - NOTIFY_EMAIL=${NOTIFY_EMAIL:-}
       - ABSENCE_THRESHOLD=${ABSENCE_THRESHOLD:-75}
-      - SUBJECTS=${SUBJECTS:-General}
       - CAMERA_INDICES=${CAMERA_INDICES:-0}
+      - SOCKETIO_CORS_ORIGINS=${SOCKETIO_CORS_ORIGINS:-http://localhost:5000,http://127.0.0.1:5000}
     volumes:
       - ./uploads:/app/uploads
       - ./backups:/app/backups
@@ -22,6 +27,12 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:5000/healthz', timeout=3).getcode()==200 else 1)"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 25s
     restart: unless-stopped
 
   celery-worker:
@@ -30,12 +41,12 @@ services:
     environment:
       - MONGO_URI=${MONGO_URI}
       - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - STRICT_STARTUP_CHECKS=${STRICT_STARTUP_CHECKS:-1}
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - SENDGRID_API_KEY=${SENDGRID_API_KEY:-}
       - NOTIFY_EMAIL=${NOTIFY_EMAIL:-}
       - ABSENCE_THRESHOLD=${ABSENCE_THRESHOLD:-75}
-      - SUBJECTS=${SUBJECTS:-General}
     volumes:
       - ./uploads:/app/uploads
       - ./backups:/app/backups
@@ -43,6 +54,12 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "celery", "-A", "celery_app.celery_app", "inspect", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     restart: unless-stopped
 
   celery-beat:
@@ -51,12 +68,12 @@ services:
     environment:
       - MONGO_URI=${MONGO_URI}
       - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - STRICT_STARTUP_CHECKS=${STRICT_STARTUP_CHECKS:-1}
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - SENDGRID_API_KEY=${SENDGRID_API_KEY:-}
       - NOTIFY_EMAIL=${NOTIFY_EMAIL:-}
       - ABSENCE_THRESHOLD=${ABSENCE_THRESHOLD:-75}
-      - SUBJECTS=${SUBJECTS:-General}
     depends_on:
       redis:
         condition: service_healthy

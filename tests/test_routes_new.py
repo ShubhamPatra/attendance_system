@@ -20,7 +20,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 def _mock_config(monkeypatch):
     monkeypatch.setenv("MONGO_URI", "mongodb+srv://test:test@cluster.mongodb.net/test")
     monkeypatch.setenv("SECRET_KEY", "test-secret")
-    monkeypatch.setenv("SUBJECTS", "General,Mathematics")
     fake_torch = types.SimpleNamespace(
         cuda=types.SimpleNamespace(is_available=lambda: False)
     )
@@ -162,24 +161,12 @@ def test_api_attendance_bulk(client):
     assert "updated" in data
 
 
-def test_api_subject(client):
-    with patch("camera.get_camera") as mock_cam_fn:
-        mock_cam = MagicMock()
-        mock_cam_fn.return_value = mock_cam
-        resp = client.post("/api/subject",
-            data=json.dumps({"subject": "Mathematics", "cam": 0}),
-            content_type="application/json"
-        )
-    assert resp.status_code == 200
-
-
 def test_report_xlsx(client):
     with patch("routes.database") as mock_db:
         mock_db.get_attendance_csv.return_value = pd.DataFrame({
             "Name": ["Alice"], "Registration Number": ["FA21-BCS-001"],
             "Section": ["A"], "Semester": [3], "Date": ["2026-02-26"],
             "Time": ["09:00:00"], "Status": ["Present"], "Confidence": [0.92],
-            "Subject": ["General"],
         })
         resp = client.get("/report/xlsx?date=2026-02-26")
     assert resp.status_code == 200

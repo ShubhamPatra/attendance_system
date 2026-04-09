@@ -22,26 +22,6 @@
             </div>
         </div>
 
-        <!-- Subject & Camera Selector -->
-        <div class="flex gap-4 mb-4">
-            <div class="flex flex-col gap-1.5 flex-1 max-w-xs">
-                <label class="text-sm font-medium text-text-primary" for="subjectSelect">Subject</label>
-                <select id="subjectSelect" class="w-full rounded-md border-border-light bg-background-light h-11 px-3 text-sm focus:ring-2 focus:ring-secondary/20 focus:border-secondary transition-all text-text-primary">
-                    {% for s in config.SUBJECTS %}
-                    <option value="{{ s }}">{{ s }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="flex flex-col gap-1.5 flex-1 max-w-xs">
-                <label class="text-sm font-medium text-text-primary" for="camSelect">Camera</label>
-                <select id="camSelect" class="w-full rounded-md border-border-light bg-background-light h-11 px-3 text-sm focus:ring-2 focus:ring-secondary/20 focus:border-secondary transition-all text-text-primary">
-                    {% for idx in config.CAMERA_INDICES %}
-                    <option value="{{ idx }}">Camera {{ idx }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-        </div>
-
         <!-- Video Feed Container -->
         <div class="relative w-full aspect-video bg-slate-900 rounded-lg overflow-hidden shadow-md ring-1 ring-border-light">
             <img src="{{ url_for('main.video_feed') }}" alt="Live Video Feed" class="video-feed-img">
@@ -243,22 +223,6 @@ function showHowItWorks() {
     void howItWorksPanel.offsetWidth;
     howItWorksPanel.classList.add('panel-fade-in');
 }
-
-// Subject change handler
-document.getElementById('subjectSelect').addEventListener('change', function() {
-    var cam = document.getElementById('camSelect').value;
-    fetch('/api/subject', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({subject: this.value, cam: parseInt(cam)})
-    });
-});
-
-// Camera change handler
-document.getElementById('camSelect').addEventListener('change', function() {
-    var img = document.querySelector('.video-feed-img');
-    img.src = '/video_feed?cam=' + this.value;
-});
 
 // WebSocket for live attendance events
 var socket = io();

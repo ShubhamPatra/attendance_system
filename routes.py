@@ -6,6 +6,7 @@ import base64
 import collections
 import io
 import os
+from urllib.parse import urlparse
 import threading
 import tempfile
 import time
@@ -29,6 +30,7 @@ from flask import (
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
+from redis import Redis
 
 # Magic bytes for image MIME validation
 _IMAGE_SIGNATURES = {
@@ -61,16 +63,6 @@ def _resolve_upload_reference(value: str) -> str | None:
   if not _is_within_directory(candidate, upload_root):
     return None
   return candidate
-
-
-def _normalize_subject(value: str) -> str | None:
-  """Sanitize and validate subject against configured values."""
-  subject = sanitize_string(value or "General")
-  if not subject:
-    return None
-  if subject not in config.SUBJECTS:
-    return None
-  return subject
 
 
 def _validate_image_mime(file_storage) -> str | None:
@@ -109,6 +101,44 @@ _rate_limit_lock = threading.Lock()
 _rate_limit_buckets: dict[str, collections.deque[float]] = {}
 
 
+def _check_model_artifacts() -> dict[str, bool]:
+  anti_spoof_ok = False
+  if os.path.isdir(config.ANTI_SPOOF_MODEL_DIR):
+    anti_spoof_ok = any(
+      name.lower().endswith(".pth")
+      for name in os.listdir(config.ANTI_SPOOF_MODEL_DIR)
+    )
+  return {
+    "yunet_model": os.path.isfile(config.YUNET_MODEL_PATH),
+    "anti_spoof_models": anti_spoof_ok,
+  }
+
+
+def _check_mongo_ready() -> bool:
+  try:
+    database.get_client().admin.command("ping")
+    return True
+  except Exception:
+    return False
+
+
+def _check_redis_ready() -> bool:
+  try:
+    parsed = urlparse(config.CELERY_BROKER_URL)
+    client = Redis(
+      host=parsed.hostname or "localhost",
+      port=parsed.port or 6379,
+      db=int((parsed.path or "/0").strip("/") or "0"),
+      password=parsed.password,
+      socket_connect_timeout=2,
+      socket_timeout=2,
+    )
+    client.ping()
+    return True
+  except Exception:
+    return False
+
+
 def _rate_limit_key(endpoint: str) -> str:
   client = request.headers.get("X-Forwarded-For", request.remote_addr or "unknown")
   client = client.split(",", 1)[0].strip()
@@ -133,6 +163,34 @@ def _check_rate_limit(endpoint: str) -> bool:
     return True
 
 bp = Blueprint("main", __name__)
+
+
+# ── Health Endpoints ─────────────────────────────────────────────────────
+
+@bp.route("/health")
+def health():
+  """Simple liveness endpoint for process-level checks."""
+  return jsonify({"status": "ok", "service": "autoattendance"})
+
+
+@bp.route("/ready")
+@bp.route("/healthz")
+def ready():
+  """Readiness endpoint for container orchestration and probes."""
+  checks = {
+    "mongo": _check_mongo_ready(),
+    "redis": _check_redis_ready(),
+    **_check_model_artifacts(),
+  }
+
+  # Redis is optional for pure recognition flows, but critical for async jobs.
+  critical_ok = checks["mongo"] and checks["yunet_model"] and checks["anti_spoof_models"]
+  status_code = 200 if critical_ok else 503
+  payload = {
+    "status": "ready" if critical_ok else "degraded",
+    "checks": checks,
+  }
+  return jsonify(payload), status_code
 
 
 # ── Home ──────────────────────────────────────────────────────────────────
@@ -380,13 +438,6 @@ def video_feed():
     ---
     tags:
       - Video
-    parameters:
-      - name: cam
-        in: query
-        type: integer
-        required: false
-        default: 0
-        description: Camera device index
     responses:
       200:
         description: MJPEG video stream
@@ -398,8 +449,7 @@ def video_feed():
     """
     from camera import get_camera
 
-    cam_index = request.args.get("cam", 0, type=int)
-    cam = get_camera(cam_index)
+    cam = get_camera()
 
     min_interval = 1.0 / config.MJPEG_TARGET_FPS
 
@@ -454,16 +504,11 @@ def dashboard():
 @bp.route("/report")
 def report():
     date = request.args.get("date", today_str())
-    subject = request.args.get("subject", "").strip()
     records = database.get_attendance(date)
-    if subject:
-        records = [r for r in records if r.get("subject", "General") == subject]
     return render_template(
         "report.html",
         records=records,
         selected_date=date,
-        selected_subject=subject,
-        subjects=config.SUBJECTS,
     )
 
 
@@ -856,9 +901,6 @@ def api_attendance_bulk():
               type: string
               enum: [Present, Absent]
               default: Present
-            subject:
-              type: string
-              default: General
           required:
             - student_ids
     responses:
@@ -881,12 +923,8 @@ def api_attendance_bulk():
 
     reg_nos = data["student_ids"]
     status = data.get("status", "Present")
-    subject = _normalize_subject(data.get("subject", "General"))
-
     if status not in ("Present", "Absent"):
         return jsonify({"error": "status must be 'Present' or 'Absent'."}), 400
-    if subject is None:
-      return jsonify({"error": "subject must be one of configured subjects."}), 400
 
     entries = []
     not_found = []
@@ -899,7 +937,6 @@ def api_attendance_bulk():
             "student_id": student["_id"],
             "status": status,
             "confidence_score": 0.0,
-            "subject": subject,
         })
 
     updated = 0
@@ -1268,11 +1305,6 @@ def api_attendance_list():
         type: string
         required: false
         description: End of date range (YYYY-MM-DD)
-      - name: subject
-        in: query
-        type: string
-        required: false
-        description: Filter by subject
     responses:
       200:
         description: List of attendance records
@@ -1297,8 +1329,6 @@ def api_attendance_list():
                 type: string
               confidence_score:
                 type: number
-              subject:
-                type: string
       400:
         description: Invalid parameters
     """
@@ -1306,7 +1336,6 @@ def api_attendance_list():
     start_date = request.args.get("start_date", "").strip()
     end_date = request.args.get("end_date", "").strip()
     date = request.args.get("date", "").strip()
-    subject = request.args.get("subject", "").strip()
 
     if reg_no:
         records = database.get_attendance_by_student(reg_no)
@@ -1325,11 +1354,6 @@ def api_attendance_list():
         records = database.get_attendance(date)
     else:
         records = database.get_attendance()
-
-    if subject:
-        records = [r for r in records if r.get("subject", "General") == subject]
-
-    # Note: subject filtering is done client-side.
 
     return jsonify(records)
 
@@ -1356,9 +1380,6 @@ def api_attendance_mark():
               type: string
               enum: [Present, Absent]
               default: Present
-            subject:
-              type: string
-              default: General
           required:
             - reg_no
     responses:
@@ -1372,8 +1393,6 @@ def api_attendance_mark():
             reg_no:
               type: string
             status:
-              type: string
-            subject:
               type: string
       400:
         description: Invalid request body
@@ -1389,12 +1408,9 @@ def api_attendance_mark():
 
     reg_no = sanitize_string(data["reg_no"])
     status = data.get("status", "Present")
-    subject = _normalize_subject(data.get("subject", "General"))
 
     if status not in ("Present", "Absent"):
         return jsonify({"error": "status must be 'Present' or 'Absent'."}), 400
-    if subject is None:
-      return jsonify({"error": "subject must be one of configured subjects."}), 400
 
     student = database.get_student_by_reg_no(reg_no)
     if student is None:
@@ -1404,7 +1420,6 @@ def api_attendance_mark():
         "student_id": student["_id"],
         "status": status,
         "confidence_score": 0.0,
-        "subject": subject,
     }]
     count = database.bulk_upsert_attendance(entries)
 
@@ -1412,64 +1427,7 @@ def api_attendance_mark():
         "marked": count > 0,
         "reg_no": reg_no,
         "status": status,
-        "subject": subject,
     })
-
-
-# ── Subject Setter for Attendance Page ────────────────────────────────────
-
-@bp.route("/api/subject", methods=["POST"])
-def api_set_subject():
-    """Set the active subject for a camera's attendance recording.
-    ---
-    tags:
-      - Attendance
-    consumes:
-      - application/json
-    parameters:
-      - name: body
-        in: body
-        required: true
-        schema:
-          type: object
-          properties:
-            subject:
-              type: string
-              description: The subject name to set
-            cam:
-              type: integer
-              default: 0
-              description: Camera device index
-          required:
-            - subject
-    responses:
-      200:
-        description: Subject set successfully
-        schema:
-          type: object
-          properties:
-            ok:
-              type: boolean
-            subject:
-              type: string
-            cam:
-              type: integer
-      400:
-        description: Missing subject parameter
-    """
-    from camera import get_camera
-
-    data = request.get_json(silent=True)
-    if not data or "subject" not in data:
-        return jsonify({"error": "Missing 'subject' in request body."}), 400
-
-    subject = _normalize_subject(data["subject"])
-    if subject is None:
-      return jsonify({"error": "subject must be one of configured subjects."}), 400
-    cam_index = data.get("cam", 0)
-    cam = get_camera(cam_index)
-    cam.set_subject(subject)
-    return jsonify({"ok": True, "subject": subject, "cam": cam_index})
 
 
 # ── Celery Task Status ────────────────────────────────────────────────────

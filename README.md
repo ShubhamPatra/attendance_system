@@ -19,7 +19,7 @@ Real-time face recognition attendance system with deep learning anti-spoofing, M
 ## Tech Stack
 
 | Component | Technology |
-|---|---|
+| --- | --- |
 | Language | Python 3.11 |
 | Web Framework | Flask 3.0.2 |
 | Face Detection | YuNet (ONNX) |
@@ -34,7 +34,7 @@ Real-time face recognition attendance system with deep learning anti-spoofing, M
 ## Prerequisites
 
 1. **Python 3.11** (not 3.12 -- dlib compatibility)
-2. **CMake** (required by dlib) -- install via `pip install cmake` or from https://cmake.org
+2. **CMake** (required by dlib) -- install via `pip install cmake` or from [https://cmake.org](https://cmake.org)
 3. **MongoDB Atlas** free-tier cluster (see setup instructions below)
 4. A webcam
 
@@ -66,7 +66,7 @@ pip install -r requirements.txt
 
 Create a `.env` file in the project root:
 
-```
+```env
 MONGO_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net/attendance_system?retryWrites=true&w=majority
 SECRET_KEY=your-random-secret-key
 ```
@@ -78,12 +78,28 @@ $env:MONGO_URI = "mongodb+srv://user:pass@cluster.mongodb.net/attendance_system?
 $env:SECRET_KEY = "change-me"
 ```
 
+Tip: start from `.env.example` and adjust values per environment.
+
+### Cross-Device Runtime Model
+
+To run reliably on different devices and operating systems, treat this project as:
+
+- **Client device**: browser UI (desktop/mobile)
+- **Server device**: camera + recognition pipeline (OpenCV/dlib/torch)
+
+Important behavior:
+
+- `/attendance` streams the **server camera** (`/video_feed`) to clients.
+- `/register` supports browser camera capture via `getUserMedia` and uploads frames to the server.
+
+This separation avoids device-specific ML/runtime differences on end-user clients.
+
 ### Configurable Parameters
 
 Key thresholds can be adjusted in `config.py`:
 
 | Parameter | Default | Description |
-|---|---|---|
+| --- | --- | --- |
 | `RECOGNITION_THRESHOLD` | 0.55 | Euclidean distance cutoff for face matching (lower = stricter) |
 | `LIVENESS_CONFIDENCE_THRESHOLD` | 0.80 | Minimum anti-spoof confidence to accept as real |
 | `DETECTION_INTERVAL` | 10 | Run face detection every N frames |
@@ -109,28 +125,29 @@ Run from the `attendance_system/` directory.
 ```env
 MONGO_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net/attendance_system?retryWrites=true&w=majority
 SECRET_KEY=change-me-in-production
-SUBJECTS=General
+SOCKETIO_CORS_ORIGINS=https://your-domain.example
+STRICT_STARTUP_CHECKS=1
 ```
 
-2. Build and start services:
+1. Build and start services:
 
 ```bash
 docker compose up --build -d
 ```
 
-3. Check container status:
+1. Check container status:
 
 ```bash
 docker compose ps
 ```
 
-4. View logs:
+1. View logs:
 
 ```bash
 docker compose logs -f app
 ```
 
-5. Stop services:
+1. Stop services:
 
 ```bash
 docker compose down
@@ -142,6 +159,24 @@ The stack includes:
 - `celery-worker`
 - `celery-beat`
 - `redis`
+
+Health checks are built in:
+
+- `GET /health` for process liveness
+- `GET /healthz` (alias of readiness) for dependency checks (MongoDB, Redis, model artifacts)
+
+To inspect health quickly:
+
+```bash
+curl http://localhost:5000/health
+curl http://localhost:5000/healthz
+```
+
+Run deployment smoke test:
+
+```bash
+python scripts/smoke_test.py --base-url http://localhost:5000 --check-video
+```
 
 ### Usage
 
@@ -157,7 +192,7 @@ The stack includes:
 ### Pages
 
 | Route | Description |
-|---|---|
+| --- | --- |
 | `/` | Landing page |
 | `/register` | Student registration form |
 | `/attendance` | Live video feed with real-time recognition |
@@ -170,13 +205,15 @@ The stack includes:
 ### API Endpoints
 
 | Route | Description |
-|---|---|
+| --- | --- |
 | `GET /video_feed` | MJPEG stream of annotated camera frames |
 | `GET /api/metrics` | JSON performance metrics (accuracy, FAR, FRR, FPS, threshold) |
 | `GET /api/events` | JSON recent attendance events |
 | `GET /api/logs` | JSON recognition log buffer |
 | `GET /api/attendance_activity` | JSON hourly attendance counts |
 | `GET /api/registration_numbers` | JSON list of all registration numbers |
+| `GET /health` | Liveness health check |
+| `GET /healthz` / `GET /ready` | Readiness health check |
 | `GET /report/csv` | CSV export with optional date, reg_no, and date range parameters |
 
 ## Pipeline Architecture
@@ -188,17 +225,17 @@ The core processing pipeline operates in four phases per frame:
 2. **Detection (gated)** -- Every 10 frames, motion detection (Gaussian blur + frame differencing) gates YuNet face detection. If no motion is detected, a fallback detection still runs every 50 frames. New detections are associated to existing tracks via IoU and centroid distance thresholds.
 
 3. **Recognition** -- For each newly created track:
-   - Anti-spoof inference runs on the full-resolution frame using two MiniFASNet models with aggregated predictions.
-   - If classified as real (confidence >= 0.8), eye-based affine alignment is applied and a 128-D encoding is generated.
-   - The encoding is matched against the in-memory cache using vectorised Euclidean distance.
-   - On match, attendance is recorded in MongoDB (subject to a 30-second cooldown).
-   - Spoofed faces are flagged and logged. Unknown faces are saved to `unknown_faces/`.
+    - Anti-spoof inference runs on the full-resolution frame using two MiniFASNet models with aggregated predictions.
+    - If classified as real (confidence >= 0.8), eye-based affine alignment is applied and a 128-D encoding is generated.
+    - The encoding is matched against the in-memory cache using vectorised Euclidean distance.
+    - On match, attendance is recorded in MongoDB (with a 30-second cooldown).
+    - Spoofed faces are flagged and logged. Unknown faces are saved to `unknown_faces/`.
 
 4. **Overlay** -- Bounding boxes and labels are drawn per track: green for recognized students, red for spoofed or unknown faces, with name, confidence, and liveness score annotations.
 
 ## Project Structure
 
-```
+```text
 attendance_system/
 ├── app.py                # Flask application entry point
 ├── config.py             # Environment variables and constants
@@ -248,7 +285,7 @@ attendance_system/
 The system tracks and exposes the following metrics at `/api/metrics`:
 
 | Metric | Description |
-|---|---|
+| --- | --- |
 | Accuracy | (TP + TN) / Total |
 | FAR | False Acceptance Rate -- proportion of impostors incorrectly accepted |
 | FRR | False Rejection Rate -- proportion of genuine users incorrectly rejected |
@@ -268,7 +305,7 @@ The recognition threshold is automatically adjusted every 200 recognitions:
 ### students
 
 | Field | Type | Description |
-|---|---|---|
+| --- | --- | --- |
 | `name` | String | Student name |
 | `semester` | String | Current semester |
 | `registration_number` | String | Unique identifier (indexed) |
@@ -279,7 +316,7 @@ The recognition threshold is automatically adjusted every 200 recognitions:
 ### attendance
 
 | Field | Type | Description |
-|---|---|---|
+| --- | --- | --- |
 | `student_id` | ObjectId | Reference to students collection |
 | `date` | String | Date in YYYY-MM-DD format |
 | `time` | String | Time in HH:MM:SS format |
@@ -310,6 +347,15 @@ pytest tests/ -v
 ```
 
 All tests use mocks and do not require a live MongoDB connection or webcam. The test suite covers anti-spoofing, database operations, recognition, performance metrics, route handling, and utility functions.
+
+## Production Hardening Checklist
+
+1. Keep Python at 3.11 everywhere.
+2. Use Docker-based deployment path for all environments.
+3. Set `SOCKETIO_CORS_ORIGINS` to your actual domain(s), not wildcard origins.
+4. Enable HTTPS at the reverse proxy level (Nginx/Ingress).
+5. Keep `STRICT_STARTUP_CHECKS=1` in production.
+6. Run `python scripts/smoke_test.py` in CI/CD after deploy.
 
 ## Improvement Roadmap
 

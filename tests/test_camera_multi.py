@@ -95,24 +95,6 @@ def test_release_camera():
 
 
 # ---------------------------------------------------------------------------
-# 4. Subject management
-# ---------------------------------------------------------------------------
-
-def test_set_subject():
-    """set_subject / get_subject round-trip through the Camera instance."""
-    import camera
-
-    with patch("camera.cv2.VideoCapture") as mock_vc:
-        mock_vc.return_value = MagicMock()
-
-        cam = camera.Camera(source=0)
-        assert cam.get_subject() == "General", "Default subject should be 'General'"
-
-        cam.set_subject("Mathematics")
-        assert cam.get_subject() == "Mathematics"
-
-
-# ---------------------------------------------------------------------------
 # 5. set_socketio + _emit_event
 # ---------------------------------------------------------------------------
 

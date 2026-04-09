@@ -33,15 +33,6 @@
             <span class="text-text-primary text-sm font-medium">Date</span>
             <input type="date" class="w-full rounded-md border-border-light bg-background-light h-11 px-3 text-sm focus:ring-2 focus:ring-secondary/20 focus:border-secondary transition-all text-text-primary" name="date" value="{{ selected_date }}">
         </label>
-        <label class="flex flex-col gap-1.5 flex-1 max-w-xs">
-            <span class="text-text-primary text-sm font-medium">Subject</span>
-            <select class="w-full rounded-md border-border-light bg-background-light h-11 px-3 text-sm focus:ring-2 focus:ring-secondary/20 focus:border-secondary transition-all text-text-primary" name="subject">
-                <option value="">All Subjects</option>
-                {% for s in config.SUBJECTS %}
-                <option value="{{ s }}" {% if selected_subject == s %}selected{% endif %}>{{ s }}</option>
-                {% endfor %}
-            </select>
-        </label>
         <button type="submit" class="flex items-center justify-center gap-2 px-5 h-11 rounded-md bg-primary hover:bg-primary-dark text-white transition-colors text-sm font-semibold">
             <span class="material-symbols-outlined text-[20px]">search</span>
             <span>Filter</span>
@@ -113,7 +104,6 @@
                     <th class="p-4 text-xs font-medium text-text-muted uppercase tracking-wider">Date</th>
                     <th class="p-4 text-xs font-medium text-text-muted uppercase tracking-wider">Time</th>
                     <th class="p-4 text-xs font-medium text-text-muted uppercase tracking-wider">Status</th>
-                    <th class="p-4 text-xs font-medium text-text-muted uppercase tracking-wider">Subject</th>
                     <th class="p-4 text-xs font-medium text-text-muted uppercase tracking-wider text-right">Confidence</th>
                 </tr>
             </thead>
@@ -130,12 +120,11 @@
                     <td class="p-4">
                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">{{ r.status }}</span>
                     </td>
-                    <td class="p-4 text-text-muted">{{ r.subject if r.subject else '—' }}</td>
                     <td class="p-4 text-right text-text-muted font-mono text-xs">{{ "%.1f"|format(r.confidence_score * 100) }}%</td>
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="10" class="p-8 text-center text-text-muted">No records for this date.</td>
+                    <td colspan="9" class="p-8 text-center text-text-muted">No records for this date.</td>
                 </tr>
                 {% endfor %}
             </tbody>

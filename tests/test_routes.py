@@ -23,7 +23,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 def _mock_config(monkeypatch):
     monkeypatch.setenv("MONGO_URI", "mongodb+srv://test:test@cluster.mongodb.net/test")
     monkeypatch.setenv("SECRET_KEY", "test-secret")
-    monkeypatch.setenv("SUBJECTS", "General,Mathematics")
     fake_torch = types.SimpleNamespace(
         cuda=types.SimpleNamespace(is_available=lambda: False)
     )
@@ -66,6 +65,20 @@ def test_index_page(client):
     resp = client.get("/")
     assert resp.status_code == 200
     assert b"Attendance" in resp.data
+
+
+def test_health_endpoint(client):
+    resp = client.get("/health")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["status"] == "ok"
+
+
+def test_ready_endpoint(client):
+    resp = client.get("/healthz")
+    assert resp.status_code in (200, 503)
+    data = resp.get_json()
+    assert "checks" in data
 
 
 # ── Registration POST ─────────────────────────────────────────────────────

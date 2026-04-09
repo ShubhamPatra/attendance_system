@@ -83,10 +83,6 @@ class Camera:
         self._thread: threading.Thread | None = None
         self._process_thread: threading.Thread | None = None
 
-        # Active subject for per-subject attendance
-        self._subject: str = "General"
-        self._subject_lock = threading.Lock()
-
         # Latest attendance events (for UI overlay / SSE -- consumed on read)
         self._events: collections.deque[dict] = collections.deque(
             maxlen=config.EVENT_BUFFER_MAX,
@@ -118,18 +114,6 @@ class Camera:
         self._frame_count: int = 0
         self._next_track_id: int = 0
         self._prev_gray: np.ndarray | None = None
-
-    # -- subject management -------------------------------------------------
-
-    def set_subject(self, subject: str):
-        """Set the active subject for attendance recording."""
-        with self._subject_lock:
-            self._subject = subject
-        logger.info("Active subject set to: %s (camera %d)", subject, self._source)
-
-    def get_subject(self) -> str:
-        with self._subject_lock:
-            return self._subject
 
     # -- lifecycle -----------------------------------------------------------
 
@@ -406,8 +390,7 @@ class Camera:
                 "section": student_doc.get("section", ""),
             }
 
-        subject = self.get_subject()
-        marked = database.mark_attendance_with_subject(student_id, confidence, subject)
+        marked = database.mark_attendance(student_id, confidence)
 
         self._push_event({
             "name": name,
@@ -415,7 +398,6 @@ class Camera:
             "confidence": round(confidence, 4),
             "liveness_confidence": round(liveness_conf, 4),
             "attendance_marked": marked,
-            "subject": subject,
             **student_meta,
         })
         tracker.record_recognition(True, True)
@@ -423,8 +405,8 @@ class Camera:
         if marked:
             logger.info(
                 "Attendance marked: student=%s confidence=%.4f "
-                "liveness_confidence=%.4f subject=%s",
-                name, confidence, liveness_conf, subject,
+                "liveness_confidence=%.4f",
+                name, confidence, liveness_conf,
             )
 
         if (encoding is not None

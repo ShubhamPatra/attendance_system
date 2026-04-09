@@ -133,15 +133,15 @@ def test_get_student_by_id_excludes_encodings(mock_db):
     assert args[1] == {"face_encoding": 0, "encodings": 0, "created_at": 0}
 
 
-def test_ensure_indexes_subject_aware(mock_db):
+def test_ensure_indexes(mock_db):
     import database
 
     database.ensure_indexes()
 
     mock_db.attendance.create_index.assert_any_call(
-        [("student_id", 1), ("date", 1), ("subject", 1)],
+        [("student_id", 1), ("date", 1)],
         unique=True,
-        name="uq_student_date_subject",
+        name="uq_student_date",
     )
     mock_db.attendance.create_index.assert_any_call(
         [("date", 1)],

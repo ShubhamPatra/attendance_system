@@ -58,29 +58,16 @@ def ensure_indexes():
         unique=True,
         name="uq_registration_number",
     )
-    # Backfill subject for older rows before subject-aware uniqueness.
-    db.attendance.update_many(
-        {
-            "$or": [
-                {"subject": {"$exists": False}},
-                {"subject": None},
-                {"subject": ""},
-            ]
-        },
-        {"$set": {"subject": "General"}},
-    )
-
-    # Replace legacy unique index (student_id, date) with
-    # subject-aware uniqueness.
+    # Ensure legacy attendance index variant is removed if present.
     try:
-        db.attendance.drop_index("uq_student_date")
+        db.attendance.drop_index("uq_student_date_subject")
     except Exception:
         pass
 
     db.attendance.create_index(
-        [("student_id", ASCENDING), ("date", ASCENDING), ("subject", ASCENDING)],
+        [("student_id", ASCENDING), ("date", ASCENDING)],
         unique=True,
-        name="uq_student_date_subject",
+        name="uq_student_date",
     )
     db.attendance.create_index(
         [("date", ASCENDING)],
@@ -240,7 +227,6 @@ def mark_attendance(student_id: bson.ObjectId, confidence: float) -> bool:
         "time": now_time_str(),
         "status": "Present",
         "confidence_score": round(confidence, 4),
-        "subject": "General",
     }
     try:
         db.attendance.insert_one(doc)
@@ -252,37 +238,11 @@ def mark_attendance(student_id: bson.ObjectId, confidence: float) -> bool:
         return False
 
 
-def mark_attendance_with_subject(
-    student_id: bson.ObjectId, confidence: float, subject: str = "General"
-) -> bool:
-    """Mark attendance for *student_id* today with an associated subject.
-
-    Returns True if a new record was inserted, False if already present.
-    """
-    db = get_db()
-    date = today_str()
-    doc = {
-        "student_id": student_id,
-        "date": date,
-        "time": now_time_str(),
-        "status": "Present",
-        "confidence_score": round(confidence, 4),
-        "subject": subject,
-    }
-    try:
-        db.attendance.insert_one(doc)
-        logger.info("Attendance marked for student %s on %s (subject=%s).", student_id, date, subject)
-        return True
-    except DuplicateKeyError:
-        return False
-
-
 def bulk_upsert_attendance(entries: list[dict]) -> int:
     """Bulk upsert attendance records for today.
 
     *entries* is a list of dicts with keys: ``student_id`` (ObjectId),
-    ``status`` ("Present"/"Absent"), ``confidence_score`` (float, optional),
-    ``subject`` (str, optional).
+    ``status`` ("Present"/"Absent"), ``confidence_score`` (float, optional).
 
     Returns the total number of upserted + modified documents.
     """
@@ -290,18 +250,15 @@ def bulk_upsert_attendance(entries: list[dict]) -> int:
     date = today_str()
     ops = []
     for entry in entries:
-        subject = entry.get("subject", "General") or "General"
         ops.append(UpdateOne(
             {
                 "student_id": entry["student_id"],
                 "date": date,
-                "subject": subject,
             },
             {"$set": {
                 "status": entry.get("status", "Present"),
                 "time": now_time_str(),
                 "confidence_score": entry.get("confidence_score", 0.0),
-                "subject": subject,
             }},
             upsert=True,
         ))
@@ -344,7 +301,6 @@ def get_attendance(date_str: str | None = None) -> list[dict]:
                 "time": 1,
                 "status": 1,
                 "confidence_score": 1,
-                "subject": {"$ifNull": ["$subject", "General"]},
             }
         },
         {"$sort": {"date": -1, "time": -1}},
@@ -405,7 +361,6 @@ def get_attendance_by_date_range(
                 "time": 1,
                 "status": 1,
                 "confidence_score": 1,
-                "subject": {"$ifNull": ["$subject", "General"]},
             }
         },
         {"$sort": {"date": -1, "time": -1}},
@@ -447,7 +402,6 @@ def get_attendance_filtered(
                 "time": 1,
                 "status": 1,
                 "confidence_score": 1,
-                "subject": {"$ifNull": ["$subject", "General"]},
             }
         },
         {"$sort": {"date": -1, "time": -1}},
@@ -613,7 +567,7 @@ def get_student_attendance_summary(reg_no: str, days: int = 30) -> dict | None:
 
     records = list(db.attendance.find(
         {"student_id": student["_id"], "date": {"$gte": start_str, "$lte": end_str}},
-        {"_id": 0, "date": 1, "time": 1, "status": 1, "confidence_score": 1, "subject": 1}
+        {"_id": 0, "date": 1, "time": 1, "status": 1, "confidence_score": 1}
     ).sort("date", -1))
 
     # Count distinct class dates (days where attendance was recorded for any student)
@@ -664,7 +618,7 @@ def get_attendance_heatmap_data(days: int = 90) -> list[dict]:
 
 _CSV_COLUMNS = [
     "Name", "Registration Number", "Section",
-    "Semester", "Date", "Time", "Status", "Confidence", "Subject",
+    "Semester", "Date", "Time", "Status", "Confidence",
 ]
 
 _CSV_RENAME_MAP = {
@@ -676,7 +630,6 @@ _CSV_RENAME_MAP = {
     "time": "Time",
     "status": "Status",
     "confidence_score": "Confidence",
-    "subject": "Subject",
 }
 
 

@@ -28,6 +28,10 @@ SECRET_KEY = os.environ.get("SECRET_KEY")
 if not SECRET_KEY:
     SECRET_KEY = secrets.token_hex(32)
 
+APP_HOST = os.environ.get("APP_HOST", "0.0.0.0")
+APP_PORT = int(os.environ.get("APP_PORT", "5000"))
+APP_DEBUG = os.environ.get("APP_DEBUG", "0") == "1"
+
 # ---------------------------------------------------------------------------
 # Face Recognition
 # ---------------------------------------------------------------------------
@@ -144,14 +148,12 @@ NOTIFY_EMAIL = os.environ.get("NOTIFY_EMAIL", "")
 ABSENCE_THRESHOLD = int(os.environ.get("ABSENCE_THRESHOLD", "75"))
 
 # ---------------------------------------------------------------------------
-# Subjects
-# ---------------------------------------------------------------------------
-SUBJECTS = [s.strip() for s in os.environ.get("SUBJECTS", "General").split(",")]
-
-# ---------------------------------------------------------------------------
 # Multi-Camera
 # ---------------------------------------------------------------------------
 CAMERA_INDICES = [int(x) for x in os.environ.get("CAMERA_INDICES", "0").split(",")]
+CAMERA_HEALTHCHECK_INDEX = int(
+    os.environ.get("CAMERA_HEALTHCHECK_INDEX", str(CAMERA_INDICES[0] if CAMERA_INDICES else 0))
+)
 
 # ---------------------------------------------------------------------------
 # Backup
@@ -196,3 +198,9 @@ DEBUG_MODE = os.environ.get("DEBUG_MODE", "0") == "1"
 BYPASS_ANTISPOOF = os.environ.get("BYPASS_ANTISPOOF", "0") == "1"
 BYPASS_MOTION_DETECTION = os.environ.get("BYPASS_MOTION_DETECTION", "0") == "1"
 BYPASS_QUALITY_GATE = os.environ.get("BYPASS_QUALITY_GATE", "0") == "1"
+
+# ---------------------------------------------------------------------------
+# Startup Diagnostics
+# ---------------------------------------------------------------------------
+STRICT_STARTUP_CHECKS = os.environ.get("STRICT_STARTUP_CHECKS", "1") == "1"
+STARTUP_CAMERA_PROBE = os.environ.get("STARTUP_CAMERA_PROBE", "0") == "1"
