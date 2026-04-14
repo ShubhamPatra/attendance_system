@@ -36,6 +36,9 @@ unknown_faces/
 # Backups
 backups/
 
+# Celery runtime data (filesystem broker/result backend)
+celery_data/
+
 # Models (large binary files)
 models/*.onnx
 

@@ -116,72 +116,6 @@ python app.py
 
 Open [http://localhost:5000](http://localhost:5000) in your browser.
 
-## Docker Deployment
-
-Run from the `attendance_system/` directory.
-
-1. Create a `.env` file with required values:
-
-```env
-MONGO_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net/attendance_system?retryWrites=true&w=majority
-SECRET_KEY=change-me-in-production
-SOCKETIO_CORS_ORIGINS=https://your-domain.example
-STRICT_STARTUP_CHECKS=1
-MONGO_SERVER_SELECTION_TIMEOUT_MS=5000
-MONGO_CONNECT_TIMEOUT_MS=5000
-MONGO_CONNECT_RETRIES=3
-MONGO_CONNECT_RETRY_DELAY_SECONDS=1.0
-```
-
-1. Build and start services:
-
-```bash
-docker compose up --build -d
-```
-
-1. Check container status:
-
-```bash
-docker compose ps
-```
-
-1. View logs:
-
-```bash
-docker compose logs -f app
-```
-
-1. Stop services:
-
-```bash
-docker compose down
-```
-
-The stack includes:
-
-- `app` (Flask + Gunicorn on port 5000)
-- `celery-worker`
-- `celery-beat`
-- `celery broker/storage` (filesystem transport by default)
-
-Health checks are built in:
-
-- `GET /health` for process liveness
-- `GET /healthz` (alias of readiness) for dependency checks (MongoDB, Celery, model artifacts)
-
-To inspect health quickly:
-
-```bash
-curl http://localhost:5000/health
-curl http://localhost:5000/healthz
-```
-
-Run deployment smoke test:
-
-```bash
-python scripts/smoke_test.py --base-url http://localhost:5000 --check-video
-```
-
 ### Usage
 
 1. **Register students** at `/register` -- provide student details and upload up to 5 clear, front-facing face images
@@ -230,7 +164,7 @@ The core processing pipeline operates in four phases per frame:
 
 3. **Recognition** -- For each newly created track:
     - Anti-spoof inference runs on the full-resolution frame using two MiniFASNet models with aggregated predictions.
-    - If classified as real (confidence >= 0.8), eye-based affine alignment is applied and a 128-D encoding is generated.
+    - If classified as real (confidence >= configured liveness threshold; default 0.55), eye-based affine alignment is applied and a 128-D encoding is generated.
     - The encoding is matched against the in-memory cache using vectorised Euclidean distance.
     - On match, attendance is recorded in MongoDB (with a 30-second cooldown).
     - Spoofed faces are flagged and logged. Unknown faces are saved to `unknown_faces/`.
@@ -248,7 +182,6 @@ attendance_system/
 ├── face_engine.py        # Encoding generation, thread-safe cache, vectorised matching
 ├── recognition.py        # Eye-based affine alignment for camera-path encoding
 ├── anti_spoofing.py      # Deep learning liveness via Silent-Face-Anti-Spoofing
-├── liveness.py           # Compatibility re-exports from anti_spoofing
 ├── overlay.py            # Bounding box and label rendering on frames
 ├── database.py           # MongoDB Atlas connection, CRUD, aggregation, CSV export
 ├── routes.py             # Flask blueprint with all web and API routes
@@ -355,9 +288,9 @@ All tests use mocks and do not require a live MongoDB connection or webcam. The 
 ## Production Hardening Checklist
 
 1. Keep Python at 3.11 everywhere.
-2. Use Docker-based deployment path for all environments.
+2. Use a managed process supervisor (for example systemd, Supervisor, or PM2) for production uptime.
 3. Set `SOCKETIO_CORS_ORIGINS` to your actual domain(s), not wildcard origins.
-4. Enable HTTPS at the reverse proxy level (Nginx/Ingress).
+4. Enable HTTPS at the network edge or your platform load balancer.
 5. Keep `STRICT_STARTUP_CHECKS=1` in production.
 6. Run `python scripts/smoke_test.py` in CI/CD after deploy.
 
@@ -367,7 +300,6 @@ All tests use mocks and do not require a live MongoDB connection or webcam. The 
 2. **Multi-camera support** -- Queue-based architecture for multiple attendance stations
 3. **Face thumbnails** -- Store cropped face images for audit trail
 4. **Notification system** -- Email or SMS alerts for absences
-5. **HTTPS deployment** -- Deploy behind Nginx with SSL certificates
-6. **REST API** -- Full CRUD API for mobile application integration
-7. **Batch registration** -- Upload CSV and image archive for bulk student enrolment
-8. **Attendance analytics** -- Weekly and monthly trends, prediction models
+5. **REST API** -- Full CRUD API for mobile application integration
+6. **Batch registration** -- Upload CSV and image archive for bulk student enrolment
+7. **Attendance analytics** -- Weekly and monthly trends, prediction models

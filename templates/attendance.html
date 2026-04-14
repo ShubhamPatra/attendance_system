@@ -1,17 +1,19 @@
 {% extends "base.html" %}
 {% block title %}Live Attendance{% endblock %}
+{% from "partials/ui.html" import stat_card, panel_section %}
 
 {% block content %}
 <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
     <!-- Left Column: Video Feed & Logs -->
     <section class="lg:col-span-8 flex flex-col gap-6">
         <!-- Header -->
-        <div class="flex items-center justify-between">
+        <div class="rounded-xl border border-border-light bg-white/90 p-5 shadow-panel sm:p-6">
             <div>
-                <h2 class="text-xl font-semibold text-text-primary">Live Attendance</h2>
-                <p class="text-text-muted text-sm mt-1">Look at the camera to verify your identity and mark attendance.</p>
+                <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-text-muted">Realtime Monitoring</p>
+                <h1 class="font-serif text-3xl font-semibold text-text-primary">Live Attendance</h1>
+                <p class="text-text-muted text-sm mt-1">Look at the camera to verify identity and mark attendance automatically.</p>
             </div>
-            <div class="flex gap-3">
+            <div class="mt-3 flex gap-3 sm:mt-0">
                 <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-50 text-red-600 text-xs font-semibold border border-red-100">
                     <span class="relative flex h-2 w-2">
                         <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
@@ -23,7 +25,7 @@
         </div>
 
         <!-- Video Feed Container -->
-        <div class="relative w-full aspect-video bg-slate-900 rounded-lg overflow-hidden shadow-md ring-1 ring-border-light">
+        <div class="relative w-full aspect-video bg-slate-900 rounded-xl overflow-hidden shadow-panel ring-1 ring-border-light">
             <img src="{{ url_for('main.video_feed') }}" alt="Live Video Feed" class="video-feed-img">
             <!-- Overlay gradient -->
             <div class="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-black/10 pointer-events-none"></div>
@@ -43,15 +45,9 @@
         </div>
 
         <!-- Recent Event Logs -->
-        <div class="bg-white rounded-lg border border-border-light shadow-sm overflow-hidden flex flex-col h-[320px]">
-            <div class="px-6 py-3.5 border-b border-border-light flex items-center justify-between bg-background-light">
-                <h3 class="text-sm font-semibold text-text-primary flex items-center gap-2">
-                    <span class="material-symbols-outlined text-text-muted text-lg">history</span>
-                    Recent Logs
-                </h3>
-            </div>
+        {% call panel_section('Recent Logs', 'history', body_class='p-0', panel_class='flex h-[320px]') %}
             <div class="overflow-y-auto flex-1 custom-scrollbar" id="eventLog">
-                <table class="w-full text-sm text-left">
+                <table class="w-full min-w-[520px] md:min-w-0 text-sm text-left">
                     <thead class="text-xs text-text-muted uppercase tracking-wider bg-background-light sticky top-0">
                         <tr>
                             <th class="px-6 py-3 font-medium">Student Name</th>
@@ -59,21 +55,20 @@
                             <th class="px-6 py-3 font-medium text-right">Confidence</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-border-light" id="eventBody"></tbody>
+                    <tbody class="divide-y divide-border-light" id="eventBody" aria-live="polite"></tbody>
                 </table>
             </div>
-        </div>
+        {% endcall %}
     </section>
 
     <!-- Right Column: Info & Stats -->
     <aside class="lg:col-span-4 flex flex-col gap-6">
         <!-- Student Details Card (hidden by default, shown on recognition) -->
-        <div id="studentDetailsPanel" style="display:none" class="bg-white rounded-lg border border-border-light shadow-sm p-6">
+        {% call panel_section('Student Verified', 'verified', body_class='p-6', outer_id='studentDetailsPanel', outer_style='display:none') %}
             <div class="flex flex-col items-center text-center">
                 <div class="mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
                     <span class="material-symbols-outlined text-2xl">verified</span>
                 </div>
-                <h3 class="text-base font-semibold text-text-primary mb-1">Student Verified</h3>
                 <p id="sdAttendanceBadge" class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 mb-4">
                     Marked Present
                 </p>
@@ -126,37 +121,20 @@
                     </div>
                 </div>
             </div>
-        </div>
+        {% endcall %}
 
         <!-- Stats Cards -->
         <div class="grid grid-cols-2 gap-4">
-            <div class="bg-white p-4 rounded-lg border border-border-light shadow-sm flex flex-col justify-between h-28">
-                <div class="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center">
-                    <span class="material-symbols-outlined text-lg">groups</span>
-                </div>
-                <div>
-                    <p class="text-2xl font-bold text-text-primary" id="presentCount">--</p>
-                    <p class="text-xs text-text-muted">Detected</p>
-                </div>
-            </div>
-            <div class="bg-white p-4 rounded-lg border border-border-light shadow-sm flex flex-col justify-between h-28">
-                <div class="h-8 w-8 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                    <span class="material-symbols-outlined text-lg">check_circle</span>
-                </div>
-                <div>
-                    <p class="text-2xl font-bold text-text-primary" id="markedCount">--</p>
-                    <p class="text-xs text-text-muted">Marked Present</p>
-                </div>
-            </div>
+            {{ stat_card('Detected', '--', 'groups', value_id='presentCount') }}
+            {{ stat_card('Marked Present', '--', 'check_circle', 'text-emerald-600', value_id='markedCount') }}
         </div>
 
         <!-- How It Works Card (below stats) -->
-        <div id="howItWorksPanel" class="bg-white rounded-lg border border-border-light shadow-sm p-6">
+        {% call panel_section('How It Works', 'visibility', body_class='p-6', outer_id='howItWorksPanel') %}
             <div class="flex flex-col items-center text-center">
                 <div class="mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-primary/10 text-primary">
                     <span class="material-symbols-outlined text-2xl">visibility</span>
                 </div>
-                <h3 class="text-base font-semibold text-text-primary mb-2">How It Works</h3>
                 <p class="text-sm text-text-muted mb-4">Stand in front of the camera. The system will automatically verify that you are a real person and identify you.</p>
                 <div class="w-full h-px bg-border-light my-2"></div>
                 <div class="grid grid-cols-1 gap-3 w-full mt-4">
@@ -180,7 +158,7 @@
                     </div>
                 </div>
             </div>
-        </div>
+        {% endcall %}
     </aside>
 </div>
 {% endblock %}

@@ -17,14 +17,15 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 def _mock_config(monkeypatch):
     monkeypatch.setenv("MONGO_URI", "mongodb+srv://test:test@cluster.mongodb.net/test")
     monkeypatch.setenv("RECOGNITION_MIN_CONFIDENCE", "0.60")
-    import importlib, config
+    import importlib
+    import app_core.config as config
     importlib.reload(config)
 
 
 @pytest.fixture
 def loaded_cache():
     """Set up an EncodingCache with two known students (each with a list of encodings)."""
-    import face_engine
+    import app_vision.face_engine as face_engine
     import bson
 
     enc1 = np.random.rand(128).astype(np.float64)
@@ -44,7 +45,7 @@ def loaded_cache():
 # ── Match known encoding ─────────────────────────────────────────────────
 
 def test_recognize_known_face(loaded_cache):
-    import face_engine
+    import app_vision.face_engine as face_engine
 
     cache, id1, id2, enc1, enc2 = loaded_cache
 
@@ -62,7 +63,7 @@ def test_recognize_known_face(loaded_cache):
 # ── Reject distant / unknown encoding ────────────────────────────────────
 
 def test_reject_unknown_face(loaded_cache):
-    import face_engine
+    import app_vision.face_engine as face_engine
 
     # A completely random encoding far from both stored
     probe = np.ones(128, dtype=np.float64) * 999.0
@@ -74,7 +75,7 @@ def test_reject_unknown_face(loaded_cache):
 # ── Threshold boundary ────────────────────────────────────────────────────
 
 def test_threshold_boundary(loaded_cache):
-    import face_engine
+    import app_vision.face_engine as face_engine
 
     cache, id1, id2, enc1, enc2 = loaded_cache
 
@@ -90,7 +91,7 @@ def test_threshold_boundary(loaded_cache):
 
 
 def test_reject_low_confidence_even_within_distance_threshold(loaded_cache):
-    import face_engine
+    import app_vision.face_engine as face_engine
 
     cache, id1, id2, enc1, enc2 = loaded_cache
     # Distance ~= 0.46 gives confidence ~= 0.54, below min confidence 0.60.
@@ -101,7 +102,7 @@ def test_reject_low_confidence_even_within_distance_threshold(loaded_cache):
 
 
 def test_reject_ambiguous_match_by_gap():
-    import face_engine
+    import app_vision.face_engine as face_engine
     import bson
 
     base = np.zeros(128, dtype=np.float64)
@@ -121,7 +122,7 @@ def test_reject_ambiguous_match_by_gap():
 # ── Empty cache ───────────────────────────────────────────────────────────
 
 def test_recognize_empty_cache():
-    import face_engine
+    import app_vision.face_engine as face_engine
     import bson
 
     cache = face_engine.encoding_cache
@@ -138,7 +139,7 @@ def test_recognize_empty_cache():
 # ── Cache size property ───────────────────────────────────────────────────
 
 def test_cache_size(loaded_cache):
-    import face_engine
+    import app_vision.face_engine as face_engine
     cache = loaded_cache[0]
     assert cache.size == 2
 
@@ -146,7 +147,7 @@ def test_cache_size(loaded_cache):
 # ── Cache get_all returns copies ──────────────────────────────────────────
 
 def test_cache_get_all(loaded_cache):
-    import face_engine
+    import app_vision.face_engine as face_engine
     cache, id1, id2, enc1, enc2 = loaded_cache
 
     ids, names, encodings = cache.get_all()
@@ -157,9 +158,9 @@ def test_cache_get_all(loaded_cache):
 # ── generate_encoding mocked ─────────────────────────────────────────────
 
 def test_generate_encoding_no_face():
-    import face_engine
+    import app_vision.face_engine as face_engine
 
-    with patch("face_engine.face_recognition") as mock_fr:
+    with patch("app_vision.face_engine.face_recognition") as mock_fr:
         mock_fr.load_image_file.return_value = np.zeros((100, 100, 3), dtype=np.uint8)
         mock_fr.face_locations.return_value = []  # no faces
 
@@ -168,9 +169,9 @@ def test_generate_encoding_no_face():
 
 
 def test_generate_encoding_multiple_faces():
-    import face_engine
+    import app_vision.face_engine as face_engine
 
-    with patch("face_engine.face_recognition") as mock_fr:
+    with patch("app_vision.face_engine.face_recognition") as mock_fr:
         mock_fr.load_image_file.return_value = np.zeros((100, 100, 3), dtype=np.uint8)
         mock_fr.face_locations.return_value = [(10, 50, 60, 10), (70, 120, 120, 70)]
 
@@ -179,10 +180,10 @@ def test_generate_encoding_multiple_faces():
 
 
 def test_generate_encoding_success():
-    import face_engine
+    import app_vision.face_engine as face_engine
 
     fake_enc = np.random.rand(128).astype(np.float64)
-    with patch("face_engine.face_recognition") as mock_fr:
+    with patch("app_vision.face_engine.face_recognition") as mock_fr:
         mock_fr.load_image_file.return_value = np.zeros((100, 100, 3), dtype=np.uint8)
         mock_fr.face_locations.return_value = [(10, 50, 60, 10)]
         mock_fr.face_encodings.return_value = [fake_enc]

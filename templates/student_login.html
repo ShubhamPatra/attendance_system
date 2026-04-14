@@ -1,17 +1,17 @@
 {% extends "base.html" %}
 {% block title %}Student Portal{% endblock %}
+{% from "partials/ui.html" import page_header %}
 
 {% block content %}
 <div class="flex justify-center">
     <div class="w-full max-w-md">
         <!-- Page Header -->
-        <div class="flex flex-col gap-1 mb-6">
-            <h1 class="text-2xl font-semibold tracking-tight text-text-primary">Student Portal</h1>
-            <p class="text-sm text-text-muted">Enter your registration number to view your attendance records.</p>
+        <div class="mb-6">
+            {{ page_header('Self Service', 'Student Portal', 'Enter your registration number to view attendance history and performance.') }}
         </div>
 
         <!-- Login Card -->
-        <div class="bg-white rounded-lg border border-border-light shadow-sm overflow-hidden">
+        <div class="bg-white rounded-xl border border-border-light shadow-panel overflow-hidden">
             <div class="p-6 md:p-8">
                 <div class="flex justify-center mb-6">
                     <div class="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary">
@@ -21,13 +21,14 @@
                 <form method="POST" action="{{ url_for('main.student_portal') }}" class="flex flex-col gap-6">
                     <!-- Registration Number -->
                     <div class="flex flex-col gap-1.5">
-                        <label class="text-sm font-medium text-text-primary" for="registration_number">Registration Number</label>
+                        <label class="text-sm font-medium text-text-primary" for="registration_number">Registration Number <span class="text-red-600">*</span></label>
                         <div class="relative">
                             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-text-muted">
                                 <span class="material-symbols-outlined text-[20px]">badge</span>
                             </div>
-                            <input type="text" class="w-full pl-10 pr-4 py-2.5 bg-background-light border border-border-light rounded-md focus:ring-2 focus:ring-secondary/20 focus:border-secondary outline-none transition-all text-text-primary placeholder-text-muted text-sm" id="registration_number" name="registration_number" required maxlength="50" placeholder="e.g. FA21-BCS-001">
+                            <input type="text" class="w-full pl-10 pr-4 py-2.5 bg-background-light border border-border-light rounded-md focus:ring-2 focus:ring-secondary/20 focus:border-secondary outline-none transition-all text-text-primary placeholder-text-muted text-sm" id="registration_number" name="registration_number" required maxlength="50" placeholder="e.g. FA21-BCS-001" aria-describedby="regHint">
                         </div>
+                        <p id="regHint" class="text-xs text-text-muted">Use the same registration number used during enrollment.</p>
                     </div>
 
                     <!-- Submit Button -->

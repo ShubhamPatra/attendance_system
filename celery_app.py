@@ -27,7 +27,7 @@ from celery import Celery
 from celery.schedules import crontab
 from dotenv import load_dotenv
 
-from utils import setup_logging
+from app_core.utils import setup_logging
 
 load_dotenv()
 
@@ -122,7 +122,7 @@ def generate_csv_task(self, query_type, **kwargs):
     str
         Absolute path to the generated temporary CSV file.
     """
-    import database  # lazy import to avoid circular / missing-env issues
+    import app_core.database as database  # lazy import to avoid circular / missing-env issues
 
     logger.info("generate_csv_task started: query_type=%s, kwargs=%s", query_type, kwargs)
 
@@ -175,7 +175,7 @@ def compute_encodings_task(self, image_paths):
         image).  *errors* contains ``{"path": ..., "error": ...}`` entries
         for images that could not be processed.
     """
-    from face_engine import generate_encoding  # lazy import
+    from app_vision.face_engine import generate_encoding  # lazy import
 
     logger.info("compute_encodings_task started: %d images", len(image_paths))
 
@@ -218,8 +218,8 @@ def backup_mongodb(self):
     import json
     import tarfile
     import shutil
-    import config
-    import database
+    import app_core.config as config
+    import app_core.database as database
     from datetime import datetime, timedelta, timezone
 
     logger.info("backup_mongodb started")

@@ -2,34 +2,128 @@
 
 /* ─── Design Tokens ─── */
 :root {
-    --color-primary:    #1E3A5F;
-    --color-primary-hover: #162D4A;
-    --color-secondary:  #4A6FA5;
-    --color-bg:         #F7F9FB;
+    --color-primary:    #133A63;
+    --color-primary-hover: #0D2A47;
+    --color-secondary:  #2E6F8F;
+    --color-accent:     #C98242;
+    --color-bg:         #F4F6F8;
     --color-card:       #FFFFFF;
-    --color-text:       #1F2933;
-    --color-text-muted: #6B7280;
-    --color-border:     #E5E7EB;
+    --color-text:       #1D2734;
+    --color-text-muted: #5F6C7B;
+    --color-border:     #DCE3EA;
 }
 
 /* ─── Base ─── */
 body {
-    font-family: 'Inter', sans-serif;
-    /* Subtle academic grid background */
+    font-family: 'Manrope', sans-serif;
     background-color: var(--color-bg);
     background-image:
+        radial-gradient(circle at 0% 0%, rgba(19, 58, 99, 0.08), transparent 55%),
+        radial-gradient(circle at 100% 0%, rgba(201, 130, 66, 0.08), transparent 50%),
         linear-gradient(var(--color-border) 1px, transparent 1px),
         linear-gradient(90deg, var(--color-border) 1px, transparent 1px);
-    background-size: 48px 48px;
-    background-position: center center;
+    background-size: auto, auto, 56px 56px, 56px 56px;
+    background-position: top left, top right, center center, center center;
+    color: var(--color-text);
+    line-height: 1.5;
+}
+
+h1,
+h2,
+h3,
+h4 {
+    line-height: 1.25;
+}
+
+.skip-link {
+    position: absolute;
+    left: -9999px;
+    top: 0;
+    z-index: 70;
+    border-radius: 0.5rem;
+    background: var(--color-primary);
+    color: #fff;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.skip-link:focus {
+    left: 1rem;
+    top: 1rem;
+}
+
+:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+}
+
+.nav-link {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 0.375rem;
+    padding: 0.375rem 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.nav-link:hover,
+.nav-link:focus-visible {
+    color: var(--color-primary);
+    background: rgba(19, 58, 99, 0.08);
+}
+
+.nav-link-muted {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 0.375rem;
+    padding: 0.35rem 0.5rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.nav-link-muted:hover,
+.nav-link-muted:focus-visible {
+    color: var(--color-primary);
+    background: rgba(19, 58, 99, 0.08);
+}
+
+.mobile-nav-link,
+.mobile-nav-link-muted {
+    display: block;
+    border-radius: 0.5rem;
+    padding: 0.6rem 0.7rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.mobile-nav-link {
+    color: var(--color-text);
+}
+
+.mobile-nav-link-muted {
+    color: var(--color-text-muted);
+}
+
+.mobile-nav-link:hover,
+.mobile-nav-link:focus-visible,
+.mobile-nav-link-muted:hover,
+.mobile-nav-link-muted:focus-visible {
+    color: var(--color-primary);
+    background: rgba(19, 58, 99, 0.08);
 }
 
 /* ─── Academic Card Utility ─── */
 .academic-card {
     background: var(--color-card);
     border: 1px solid var(--color-border);
-    border-radius: 0.5rem;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    border-radius: 0.75rem;
+    box-shadow: 0 8px 24px -18px rgba(13, 42, 71, 0.45);
 }
 
 /* ─── Scan animation for live camera overlay ─── */
@@ -108,7 +202,7 @@ body {
     font-weight: 600;
     font-size: 0.875rem;
     line-height: 1.25rem;
-    border-radius: 0.375rem;
+    border-radius: 0.5rem;
     transition: background-color 0.15s ease;
     border: none;
     cursor: pointer;
@@ -128,10 +222,32 @@ body {
     font-weight: 600;
     font-size: 0.875rem;
     line-height: 1.25rem;
-    border-radius: 0.375rem;
+    border-radius: 0.5rem;
     border: 1px solid var(--color-border);
     transition: background-color 0.15s ease, border-color 0.15s ease;
     cursor: pointer;
+}
+
+.btn-danger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1.25rem;
+    background-color: #fff;
+    color: #b42318;
+    font-weight: 600;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    border-radius: 0.5rem;
+    border: 1px solid #fecaca;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+    cursor: pointer;
+}
+
+.btn-danger:hover {
+    background-color: #fef2f2;
+    border-color: #fca5a5;
 }
 .btn-secondary:hover {
     background-color: #F7F9FB;
@@ -141,7 +257,7 @@ body {
 /* ─── Footer ─── */
 .site-footer {
     border-top: 1px solid var(--color-border);
-    background: var(--color-card);
+    background: rgba(255, 255, 255, 0.9);
     padding: 1.25rem 0;
     text-align: center;
     font-size: 0.8125rem;

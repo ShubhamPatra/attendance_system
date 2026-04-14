@@ -15,14 +15,14 @@ from flask import Flask
 from flask_socketio import SocketIO
 from flasgger import Swagger
 
-import anti_spoofing
-import config
-import database
-import pipeline
-import ppe_detection
-from face_engine import encoding_cache
-from routes import bp as main_bp
-from utils import setup_logging
+import app_core.config as config
+import app_core.database as database
+import app_vision.anti_spoofing as anti_spoofing
+import app_vision.pipeline as pipeline
+import app_vision.ppe_detection as ppe_detection
+from app_vision.face_engine import encoding_cache
+from app_web.routes import bp as main_bp
+from app_core.utils import setup_logging
 
 socketio = SocketIO()
 
@@ -174,13 +174,13 @@ def create_app() -> Flask:
     app.register_blueprint(main_bp)
 
     # Wire SocketIO to camera module
-    from camera import set_socketio
+    from app_camera.camera import set_socketio
     set_socketio(socketio)
 
     # Clean up camera on shutdown
     @atexit.register
     def _cleanup():
-        from camera import release_camera
+        from app_camera.camera import release_camera
         release_camera()
         _cleanup_uploads(logger)
 

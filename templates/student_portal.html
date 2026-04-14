@@ -1,12 +1,15 @@
 {% extends "base.html" %}
 {% block title %}{{ student.name }} - Attendance{% endblock %}
+{% from "partials/ui.html" import stat_card, panel_section %}
 
 {% block content %}
 <div class="flex flex-col gap-6">
     <!-- Page Header -->
+    <div class="rounded-xl border border-border-light bg-white/90 p-5 shadow-panel sm:p-6">
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div class="flex flex-col gap-1">
-            <h1 class="text-2xl font-semibold tracking-tight text-text-primary">{{ student.name }}</h1>
+            <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-text-muted">My Attendance</p>
+            <h1 class="font-serif text-3xl font-semibold tracking-tight text-text-primary">{{ student.name }}</h1>
             <p class="text-text-muted text-sm">{{ student.registration_number }} &middot; Semester {{ student.semester }} &middot; Section {{ student.section }}</p>
         </div>
         <a href="{{ url_for('main.student_logout') }}" class="flex items-center gap-2 px-4 h-10 rounded-md border border-border-light bg-white hover:bg-background-light text-text-muted hover:text-text-primary transition-colors text-sm font-medium w-fit">
@@ -14,41 +17,17 @@
             <span>Logout</span>
         </a>
     </div>
+    </div>
 
     <!-- KPI Cards -->
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div class="flex flex-col gap-2 rounded-lg border border-border-light bg-white p-5 shadow-sm">
-            <div class="flex items-center justify-between">
-                <p class="text-xs font-medium text-text-muted uppercase tracking-wider">Attendance</p>
-                <span class="material-symbols-outlined text-secondary/70 text-xl">percent</span>
-            </div>
-            <p class="text-2xl font-bold text-text-primary">{{ student.percentage }}%</p>
-        </div>
-        <div class="flex flex-col gap-2 rounded-lg border border-border-light bg-white p-5 shadow-sm">
-            <div class="flex items-center justify-between">
-                <p class="text-xs font-medium text-text-muted uppercase tracking-wider">Days Present</p>
-                <span class="material-symbols-outlined text-emerald-500/70 text-xl">check_circle</span>
-            </div>
-            <p class="text-2xl font-bold text-text-primary">{{ student.days_present }}</p>
-        </div>
-        <div class="flex flex-col gap-2 rounded-lg border border-border-light bg-white p-5 shadow-sm">
-            <div class="flex items-center justify-between">
-                <p class="text-xs font-medium text-text-muted uppercase tracking-wider">Total Days</p>
-                <span class="material-symbols-outlined text-primary/70 text-xl">calendar_today</span>
-            </div>
-            <p class="text-2xl font-bold text-text-primary">{{ student.days_total }}</p>
-        </div>
+        {{ stat_card('Attendance', student.percentage ~ '%', 'percent', 'text-secondary/70') }}
+        {{ stat_card('Days Present', student.days_present, 'check_circle', 'text-emerald-500/70') }}
+        {{ stat_card('Total Days', student.days_total, 'calendar_today') }}
     </div>
 
     <!-- Mini Heatmap (Last 30 Days) -->
-    <div class="bg-white rounded-lg shadow-sm border border-border-light p-6">
-        <div class="flex items-center justify-between mb-4">
-            <h3 class="text-sm font-semibold text-text-primary flex items-center gap-2">
-                <span class="material-symbols-outlined text-secondary text-lg">calendar_month</span>
-                Last 30 Days
-            </h3>
-        </div>
-
+    {% call panel_section('Last 30 Days', 'calendar_month') %}
         <!-- Day-of-week labels + grid -->
         <div class="flex gap-3">
             <div class="flex flex-col gap-[2px] text-[10px] text-text-muted font-medium shrink-0 w-7">
@@ -66,53 +45,47 @@
         <!-- Mini Legend -->
         <div class="flex flex-wrap items-center gap-4 mt-4 text-[10px] text-text-muted">
             <div class="flex items-center gap-1">
-                <span class="inline-block w-3 h-3 rounded-sm" style="background-color: #22c55e;"></span>
+    {% endcall %}
                 Present
             </div>
-            <div class="flex items-center gap-1">
-                <span class="inline-block w-3 h-3 rounded-sm" style="background-color: #e5e7eb;"></span>
-                Absent / No data
-            </div>
-        </div>
+    {% set portal_records_right %}<span class="text-xs text-text-muted" role="status" aria-live="polite">{{ student.records|length }} records</span>{% endset %}
+    {% call panel_section('Attendance Records', 'list_alt', body_class='p-0', header_right=portal_records_right) %}
+    <div class="overflow-x-auto custom-scrollbar">
+        <table class="w-full min-w-[540px] md:min-w-0 text-left text-sm border-collapse">
+            <thead class="bg-background-light">
+                <tr>
+                    <th class="p-4 text-xs font-medium text-text-muted uppercase tracking-wider">#</th>
+                    <th class="p-4 text-xs font-medium text-text-muted uppercase tracking-wider">Date</th>
+                    <th class="p-4 text-xs font-medium text-text-muted uppercase tracking-wider">Time</th>
+                    <th class="p-4 text-xs font-medium text-text-muted uppercase tracking-wider">Status</th>
+                    <th class="p-4 text-xs font-medium text-text-muted uppercase tracking-wider text-right">Confidence</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-border-light text-text-primary">
+                {% for r in student.records %}
+                <tr class="hover:bg-background-light transition-colors">
+                    <td class="p-4 text-xs text-text-muted">{{ loop.index }}</td>
+                    <td class="p-4 text-text-muted">{{ r.date }}</td>
+                    <td class="p-4 text-text-muted">{{ r.time }}</td>
+                    <td class="p-4">
+                        <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium text-emerald-800 bg-emerald-100">{{ r.status }}</span>
+                    </td>
+                    <td class="p-4 text-right font-mono text-xs text-text-muted">{{ "%.1f"|format(r.confidence_score * 100) }}%</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5" class="p-8 text-center text-text-muted">No attendance records found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
-
-    <!-- Attendance Records Table -->
-    <div class="bg-white border border-border-light rounded-lg shadow-sm overflow-hidden">
-        <div class="p-5 border-b border-border-light flex items-center justify-between">
-            <h3 class="text-text-primary text-sm font-semibold flex items-center gap-2">
-                <span class="material-symbols-outlined text-secondary text-lg">list_alt</span>
-                Attendance Records
-            </h3>
-            <span class="text-xs text-text-muted">{{ student.records|length }} records</span>
-        </div>
-        <div class="overflow-x-auto custom-scrollbar">
-            <table class="w-full min-w-[600px] text-left text-sm border-collapse">
-                <thead class="bg-background-light">
-                    <tr>
-                        <th class="p-4 text-xs font-medium text-text-muted uppercase tracking-wider">#</th>
-                        <th class="p-4 text-xs font-medium text-text-muted uppercase tracking-wider">Date</th>
-                        <th class="p-4 text-xs font-medium text-text-muted uppercase tracking-wider">Time</th>
-                        <th class="p-4 text-xs font-medium text-text-muted uppercase tracking-wider">Status</th>
-                        <th class="p-4 text-xs font-medium text-text-muted uppercase tracking-wider text-right">Confidence</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-border-light text-text-primary">
-                    {% for r in student.records %}
-                    <tr class="hover:bg-background-light transition-colors">
-                        <td class="p-4 text-text-muted text-xs">{{ loop.index }}</td>
-                        <td class="p-4 text-text-muted">{{ r.date }}</td>
-                        <td class="p-4 text-text-muted">{{ r.time }}</td>
-                        <td class="p-4">
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">{{ r.status }}</span>
-                        </td>
-                        <td class="p-4 text-right text-text-muted font-mono text-xs">{{ "%.1f"|format(r.confidence_score * 100) }}%</td>
-                    </tr>
-                    {% else %}
-                    <tr>
-                        <td colspan="5" class="p-8 text-center text-text-muted">No attendance records found.</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
+    {% if student.records %}
+    <div class="border-t border-border-light px-5 py-4">
+        <p class="text-sm text-text-muted">Showing <span class="font-medium text-text-primary">{{ student.records|length }}</span> total records</p>
+    </div>
+    {% endif %}
+    {% endcall %}
             </table>
         </div>
         {% if student.records %}

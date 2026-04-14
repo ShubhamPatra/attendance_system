@@ -1,80 +1,30 @@
 {% extends "base.html" %}
 {% block title %}System Metrics{% endblock %}
+{% from "partials/ui.html" import page_header, stat_card %}
 
 {% block content %}
 <div class="flex flex-col gap-6">
-    <div class="flex flex-col gap-1">
-        <h1 class="text-2xl font-semibold tracking-tight text-text-primary">System Metrics</h1>
-        <p class="text-text-muted text-sm">Live performance and recognition statistics. Auto-refreshes every 5 seconds.</p>
-    </div>
+    {{ page_header('Performance Console', 'System Metrics', 'Live performance and recognition statistics. Automatically refreshed from runtime telemetry.') }}
 
     <!-- KPI Cards Row 1 -->
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div class="flex flex-col gap-2 rounded-lg border border-border-light bg-white p-5 shadow-sm">
-            <div class="flex items-center justify-between">
-                <p class="text-xs font-medium text-text-muted uppercase tracking-wider">Total Students</p>
-                <span class="material-symbols-outlined text-primary/70 text-xl">school</span>
-            </div>
-            <p class="text-2xl font-bold text-text-primary" id="mTotalStudents">{{ metrics.total_students }}</p>
-        </div>
-        <div class="flex flex-col gap-2 rounded-lg border border-border-light bg-white p-5 shadow-sm">
-            <div class="flex items-center justify-between">
-                <p class="text-xs font-medium text-text-muted uppercase tracking-wider">Present Today</p>
-                <span class="material-symbols-outlined text-emerald-500/70 text-xl">check_circle</span>
-            </div>
-            <p class="text-2xl font-bold text-text-primary" id="mTodayCount">{{ metrics.today_count }}</p>
-        </div>
-        <div class="flex flex-col gap-2 rounded-lg border border-border-light bg-white p-5 shadow-sm">
-            <div class="flex items-center justify-between">
-                <p class="text-xs font-medium text-text-muted uppercase tracking-wider">Recognition Accuracy</p>
-                <span class="material-symbols-outlined text-secondary/70 text-xl">percent</span>
-            </div>
-            <p class="text-2xl font-bold text-text-primary" id="mAccuracy">{{ metrics.accuracy_pct }}%</p>
-        </div>
-        <div class="flex flex-col gap-2 rounded-lg border border-border-light bg-white p-5 shadow-sm">
-            <div class="flex items-center justify-between">
-                <p class="text-xs font-medium text-text-muted uppercase tracking-wider">Total Recognitions</p>
-                <span class="material-symbols-outlined text-primary/70 text-xl">visibility</span>
-            </div>
-            <p class="text-2xl font-bold text-text-primary" id="mTotalRecs">{{ metrics.total_recognitions }}</p>
-        </div>
+        {{ stat_card('Total Students', metrics.total_students, 'school', 'text-primary/70') }}
+        {{ stat_card('Present Today', metrics.today_count, 'check_circle', 'text-emerald-500/70') }}
+        {{ stat_card('Recognition Accuracy', metrics.accuracy_pct ~ '%', 'percent', 'text-secondary/70') }}
+        {{ stat_card('Total Recognitions', metrics.total_recognitions, 'visibility', 'text-primary/70') }}
     </div>
 
     <!-- KPI Cards Row 2 -->
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div class="flex flex-col gap-2 rounded-lg border border-border-light bg-white p-5 shadow-sm">
-            <div class="flex items-center justify-between">
-                <p class="text-xs font-medium text-text-muted uppercase tracking-wider">False Accept Rate</p>
-                <span class="material-symbols-outlined text-red-400/70 text-xl">warning</span>
-            </div>
-            <p class="text-2xl font-bold text-text-primary" id="mFAR">{{ metrics.false_acceptance_rate_pct }}%</p>
-        </div>
-        <div class="flex flex-col gap-2 rounded-lg border border-border-light bg-white p-5 shadow-sm">
-            <div class="flex items-center justify-between">
-                <p class="text-xs font-medium text-text-muted uppercase tracking-wider">False Reject Rate</p>
-                <span class="material-symbols-outlined text-amber-500/70 text-xl">block</span>
-            </div>
-            <p class="text-2xl font-bold text-text-primary" id="mFRR">{{ metrics.false_rejection_rate_pct }}%</p>
-        </div>
-        <div class="flex flex-col gap-2 rounded-lg border border-border-light bg-white p-5 shadow-sm">
-            <div class="flex items-center justify-between">
-                <p class="text-xs font-medium text-text-muted uppercase tracking-wider">Avg Frame Time</p>
-                <span class="material-symbols-outlined text-secondary/70 text-xl">timer</span>
-            </div>
-            <p class="text-2xl font-bold text-text-primary" id="mFrameTime">{{ metrics.avg_frame_time_ms }} ms</p>
-        </div>
-        <div class="flex flex-col gap-2 rounded-lg border border-border-light bg-white p-5 shadow-sm">
-            <div class="flex items-center justify-between">
-                <p class="text-xs font-medium text-text-muted uppercase tracking-wider">Current FPS</p>
-                <span class="material-symbols-outlined text-emerald-500/70 text-xl">speed</span>
-            </div>
-            <p class="text-2xl font-bold text-text-primary" id="mFPS">{{ metrics.fps }}</p>
-        </div>
+        {{ stat_card('False Accept Rate', metrics.false_acceptance_rate_pct ~ '%', 'warning', 'text-red-400/70') }}
+        {{ stat_card('False Reject Rate', metrics.false_rejection_rate_pct ~ '%', 'block', 'text-amber-500/70') }}
+        {{ stat_card('Avg Frame Time', metrics.avg_frame_time_ms ~ ' ms', 'timer', 'text-secondary/70') }}
+        {{ stat_card('Current FPS', metrics.fps, 'speed', 'text-emerald-500/70') }}
     </div>
 
     <!-- Detailed Breakdown -->
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div class="rounded-lg border border-border-light bg-white p-6 shadow-sm">
+        <div class="rounded-xl border border-border-light bg-white p-6 shadow-panel">
             <h3 class="text-sm font-semibold text-text-primary mb-4">Recognition Breakdown</h3>
             <div class="flex flex-col gap-3 text-sm">
                 <div class="flex justify-between items-center py-2 border-b border-border-light">
@@ -95,12 +45,12 @@
                 </div>
             </div>
         </div>
-        <div class="rounded-lg border border-border-light bg-white p-6 shadow-sm">
+        <div class="rounded-xl border border-border-light bg-white p-6 shadow-panel">
             <h3 class="text-sm font-semibold text-text-primary mb-4">System Configuration</h3>
             <div class="flex flex-col gap-3 text-sm">
                 <div class="flex justify-between items-center py-2 border-b border-border-light">
                     <span class="text-text-muted">Recognition Threshold</span>
-                    <span class="font-semibold text-text-primary" id="mThreshold">{{ metrics.current_threshold }}</span>
+                    <span class="font-semibold text-text-primary" id="mThreshold">{{ metrics.recognition_threshold }}</span>
                 </div>
                 <div class="flex justify-between items-center py-2 border-b border-border-light">
                     <span class="text-text-muted">Liveness Threshold</span>
@@ -135,7 +85,7 @@ function updateMetrics(m) {
     document.getElementById('mTN').textContent = m.true_negatives;
     document.getElementById('mFP').textContent = m.false_positives;
     document.getElementById('mFN').textContent = m.false_negatives;
-    document.getElementById('mThreshold').textContent = m.current_threshold;
+    document.getElementById('mThreshold').textContent = m.recognition_threshold;
 }
 
 // Live updates via WebSocket

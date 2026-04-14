@@ -16,16 +16,17 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 @pytest.fixture(autouse=True)
 def _mock_config(monkeypatch):
     monkeypatch.setenv("MONGO_URI", "mongodb+srv://test:test@cluster.mongodb.net/test")
-    import importlib, config
+    import importlib
+    import app_core.config as config
     importlib.reload(config)
 
 
 def test_append_encoding_calls_database():
-    import face_engine
+    import app_vision.face_engine as face_engine
     sid = bson.ObjectId()
     enc = np.random.rand(128).astype(np.float64)
 
-    with patch("face_engine.database") as mock_db, \
+    with patch("app_vision.face_engine.database") as mock_db, \
             patch.object(face_engine.encoding_cache, "add_encoding_to_student") as mock_add:
         mock_db.append_student_encoding.return_value = True
         result = face_engine.append_encoding(sid, enc)
@@ -36,11 +37,11 @@ def test_append_encoding_calls_database():
 
 
 def test_append_encoding_handles_failure():
-    import face_engine
+    import app_vision.face_engine as face_engine
     sid = bson.ObjectId()
     enc = np.random.rand(128).astype(np.float64)
 
-    with patch("face_engine.database") as mock_db, \
+    with patch("app_vision.face_engine.database") as mock_db, \
             patch.object(face_engine.encoding_cache, "add_encoding_to_student"):
         mock_db.append_student_encoding.side_effect = Exception("DB error")
         result = face_engine.append_encoding(sid, enc)
@@ -49,7 +50,7 @@ def test_append_encoding_handles_failure():
 
 
 def test_cache_add_encoding_to_student():
-    import face_engine
+    import app_vision.face_engine as face_engine
 
     sid = bson.ObjectId()
     enc1 = np.random.rand(128).astype(np.float64)
@@ -68,8 +69,8 @@ def test_cache_add_encoding_to_student():
 
 
 def test_cache_add_encoding_caps_at_max():
-    import face_engine
-    import config
+    import app_vision.face_engine as face_engine
+    import app_core.config as config
 
     sid = bson.ObjectId()
     # Fill up to max
@@ -90,7 +91,7 @@ def test_cache_add_encoding_caps_at_max():
 
 
 def test_cache_add_encoding_unknown_student():
-    import face_engine
+    import app_vision.face_engine as face_engine
 
     sid = bson.ObjectId()
     enc = np.random.rand(128).astype(np.float64)

@@ -1,0 +1,50 @@
+{% macro page_header(eyebrow, title, description='') -%}
+<div class="rounded-xl border border-border-light bg-white/90 p-5 shadow-panel sm:p-6">
+    {% if eyebrow %}
+    <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-text-muted">{{ eyebrow }}</p>
+    {% endif %}
+    <h1 class="font-serif text-3xl font-semibold tracking-tight text-text-primary">{{ title }}</h1>
+    {% if description %}
+    <p class="mt-2 text-sm text-text-muted">{{ description }}</p>
+    {% endif %}
+</div>
+{%- endmacro %}
+
+{% macro stat_card(label, value, icon, icon_class='text-primary/70', badge='', badge_class='', value_id='') -%}
+<div class="flex flex-col gap-2 rounded-xl border border-border-light bg-white p-5 shadow-panel">
+    <div class="flex items-center justify-between">
+        <p class="text-xs font-medium uppercase tracking-wider text-text-muted">{{ label }}</p>
+        <span class="material-symbols-outlined text-xl {{ icon_class }}">{{ icon }}</span>
+    </div>
+    <div class="flex items-baseline gap-2">
+        <p{% if value_id %} id="{{ value_id }}"{% endif %} class="text-2xl font-bold text-text-primary">{{ value }}</p>
+        {% if badge %}
+        <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold {{ badge_class }}">{{ badge }}</span>
+        {% endif %}
+    </div>
+</div>
+{%- endmacro %}
+
+{% macro panel_section(title, icon='', eyebrow='', body_class='p-6', panel_class='', header_right='', outer_id='', outer_style='') -%}
+<div{% if outer_id %} id="{{ outer_id }}"{% endif %}{% if outer_style %} style="{{ outer_style }}"{% endif %} class="overflow-hidden rounded-xl border border-border-light bg-white shadow-panel {{ panel_class }}">
+    <div class="flex flex-col gap-3 border-b border-border-light bg-background-light px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex items-center gap-2">
+            {% if icon %}
+            <span class="material-symbols-outlined text-secondary text-lg">{{ icon }}</span>
+            {% endif %}
+            <div class="flex flex-col gap-0.5">
+                {% if eyebrow %}
+                <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-text-muted">{{ eyebrow }}</p>
+                {% endif %}
+                <h3 class="text-sm font-semibold text-text-primary">{{ title }}</h3>
+            </div>
+        </div>
+        {% if header_right %}
+        <div class="flex items-center gap-3">{{ header_right|safe }}</div>
+        {% endif %}
+    </div>
+    <div class="{{ body_class }}">
+        {{ caller() }}
+    </div>
+</div>
+{%- endmacro %}

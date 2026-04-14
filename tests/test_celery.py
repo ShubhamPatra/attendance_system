@@ -33,7 +33,8 @@ def _mock_config(monkeypatch):
     )
     monkeypatch.setitem(sys.modules, "torch", fake_torch)
     monkeypatch.setitem(sys.modules, "face_recognition", fake_fr)
-    import importlib, config
+    import importlib
+    import app_core.config as config
     importlib.reload(config)
 
 
@@ -64,7 +65,7 @@ def test_generate_csv_task_date():
         "Confidence": [0.92, 0.88],
     })
 
-    with patch("database.get_attendance_csv", return_value=fake_df):
+    with patch("app_core.database.get_attendance_csv", return_value=fake_df):
         result = celery_app.generate_csv_task.run(
             "date", date_str="2026-01-01"
         )
@@ -99,7 +100,7 @@ def test_generate_csv_task_full():
         "Confidence": [0.95],
     })
 
-    with patch("database.get_attendance_csv_full", return_value=fake_df):
+    with patch("app_core.database.get_attendance_csv_full", return_value=fake_df):
         result = celery_app.generate_csv_task.run("full")
 
     assert isinstance(result, str)
@@ -118,7 +119,7 @@ def test_generate_csv_task_student():
     import celery_app
 
     fake_df = pd.DataFrame({"Name": ["Alice"]})
-    with patch("database.get_attendance_csv_by_student", return_value=fake_df):
+    with patch("app_core.database.get_attendance_csv_by_student", return_value=fake_df):
         result = celery_app.generate_csv_task.run("student", reg_no="FA21-BCS-001")
 
     assert os.path.exists(result)
@@ -129,7 +130,7 @@ def test_generate_csv_task_range():
     import celery_app
 
     fake_df = pd.DataFrame({"Name": ["Alice"]})
-    with patch("database.get_attendance_csv_by_date_range", return_value=fake_df):
+    with patch("app_core.database.get_attendance_csv_by_date_range", return_value=fake_df):
         result = celery_app.generate_csv_task.run(
             "range",
             start_date="2026-01-01",
@@ -155,7 +156,7 @@ def test_compute_encodings_task_success():
 
     fake_encoding = np.random.rand(128).astype(np.float64)
 
-    with patch("face_engine.generate_encoding", return_value=fake_encoding):
+    with patch("app_vision.face_engine.generate_encoding", return_value=fake_encoding):
         result = celery_app.compute_encodings_task.run(
             image_paths=["/fake/img1.jpg", "/fake/img2.jpg"]
         )
@@ -178,7 +179,7 @@ def test_compute_encodings_task_failure():
     import celery_app
 
     with patch(
-        "face_engine.generate_encoding",
+        "app_vision.face_engine.generate_encoding",
         side_effect=ValueError("No face detected in image"),
     ):
         result = celery_app.compute_encodings_task.run(
@@ -205,9 +206,9 @@ def test_backup_mongodb():
     mock_db.attendance.find.return_value = []
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        with patch("database.get_db", return_value=mock_db), \
-             patch("config.BACKUP_DIR", tmpdir), \
-             patch("config.BACKUP_RETENTION_DAYS", 30):
+        with patch("app_core.database.get_db", return_value=mock_db), \
+             patch("app_core.config.BACKUP_DIR", tmpdir), \
+             patch("app_core.config.BACKUP_RETENTION_DAYS", 30):
             result = celery_app.backup_mongodb.run()
 
         assert isinstance(result, dict)

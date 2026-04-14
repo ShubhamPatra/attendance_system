@@ -1,10 +1,14 @@
 {% extends "base.html" %}
 {% block title %}Home - AutoAttendance{% endblock %}
+{% from "partials/ui.html" import page_header %}
 
 {% block content %}
-<div class="flex flex-col lg:flex-row items-start gap-6 pt-4 md:pt-10">
+<div class="flex flex-col gap-6 pt-2 md:pt-6">
+    {{ page_header('Smart Campus Desk', 'Welcome to AutoAttendance', 'Run realtime face-recognition attendance with anti-spoofing checks, live analytics, and academic reporting from one operational hub.') }}
+
+    <div class="flex flex-col lg:flex-row items-start gap-6">
     <!-- Left: Welcome Card -->
-    <div class="w-full lg:w-[420px] shrink-0 bg-white rounded-lg border border-border-light shadow-sm p-8 md:p-10">
+    <div class="w-full lg:w-[420px] shrink-0 bg-white rounded-xl border border-border-light shadow-panel p-8 md:p-10">
         <!-- Logo / Icon -->
         <div class="flex justify-center mb-6">
             <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -12,8 +16,8 @@
             </div>
         </div>
         <!-- Heading -->
-        <h1 class="text-2xl font-semibold text-text-primary text-center mb-2 tracking-tight">Welcome to AutoAttendance</h1>
-        <p class="text-sm text-text-muted text-center mb-8 leading-relaxed">Real-time face recognition attendance system with blink-based liveness detection.</p>
+        <h2 class="font-serif text-2xl font-semibold text-text-primary text-center mb-2 tracking-tight">Start Operations</h2>
+        <p class="text-sm text-text-muted text-center mb-8 leading-relaxed">Use the main workflows below to start attendance, enroll students, or review academic insights.</p>
 
         <!-- Primary Actions -->
         <div class="flex flex-col gap-3 mb-6">
@@ -42,34 +46,35 @@
 
     <!-- Right: Feature Cards grid -->
     <div class="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div class="flex flex-col gap-3 rounded-lg border border-border-light bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
+        <div class="flex flex-col gap-3 rounded-xl border border-border-light bg-white p-5 shadow-panel hover:shadow-md transition-shadow">
             <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 <span class="material-symbols-outlined text-xl">face</span>
             </div>
             <h5 class="text-sm font-semibold text-text-primary">Face Detection</h5>
             <p class="text-xs text-text-muted leading-relaxed">Detect and recognise faces via webcam in real time with high accuracy.</p>
         </div>
-        <div class="flex flex-col gap-3 rounded-lg border border-border-light bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
+        <div class="flex flex-col gap-3 rounded-xl border border-border-light bg-white p-5 shadow-panel hover:shadow-md transition-shadow">
             <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-secondary/10 text-secondary">
                 <span class="material-symbols-outlined text-xl">visibility</span>
             </div>
             <h5 class="text-sm font-semibold text-text-primary">Liveness Check</h5>
             <p class="text-xs text-text-muted leading-relaxed">Blink-based anti-spoofing ensures real physical presence of each student.</p>
         </div>
-        <div class="flex flex-col gap-3 rounded-lg border border-border-light bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
+        <div class="flex flex-col gap-3 rounded-xl border border-border-light bg-white p-5 shadow-panel hover:shadow-md transition-shadow">
             <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
                 <span class="material-symbols-outlined text-xl">check_circle</span>
             </div>
             <h5 class="text-sm font-semibold text-text-primary">Auto Attendance</h5>
             <p class="text-xs text-text-muted leading-relaxed">Duplicate-free attendance records stored securely in MongoDB Atlas.</p>
         </div>
-        <div class="flex flex-col gap-3 rounded-lg border border-border-light bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
+        <div class="flex flex-col gap-3 rounded-xl border border-border-light bg-white p-5 shadow-panel hover:shadow-md transition-shadow">
             <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 <span class="material-symbols-outlined text-xl">analytics</span>
             </div>
             <h5 class="text-sm font-semibold text-text-primary">Reports</h5>
             <p class="text-xs text-text-muted leading-relaxed">Dashboard analytics, attendance trends, and CSV export for records.</p>
         </div>
+    </div>
     </div>
 </div>
 {% endblock %}

@@ -1,57 +1,24 @@
 {% extends "base.html" %}
 {% block title %}Dashboard{% endblock %}
+{% from "partials/ui.html" import page_header, stat_card %}
 
 {% block content %}
 <div class="flex flex-col gap-6">
     <!-- Page Header -->
-    <div class="flex flex-col gap-1">
-        <h1 class="text-2xl font-semibold tracking-tight text-text-primary">Overview</h1>
-    </div>
+    {{ page_header('Operations Dashboard', 'Attendance Overview', 'Monitor attendance health, review realtime metrics, and run instructor actions from a single surface.') }}
 
     <!-- KPI Cards -->
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div class="flex flex-col gap-2 rounded-lg border border-border-light bg-white p-5 shadow-sm">
-            <div class="flex items-center justify-between">
-                <p class="text-xs font-medium text-text-muted uppercase tracking-wider">Total Students</p>
-                <span class="material-symbols-outlined text-primary/70 text-xl">school</span>
-            </div>
-            <div class="flex items-baseline gap-2">
-                <p class="text-2xl font-bold text-text-primary">{{ total_students }}</p>
-            </div>
-        </div>
-        <div class="flex flex-col gap-2 rounded-lg border border-border-light bg-white p-5 shadow-sm">
-            <div class="flex items-center justify-between">
-                <p class="text-xs font-medium text-text-muted uppercase tracking-wider">Present Today</p>
-                <span class="material-symbols-outlined text-emerald-500/70 text-xl">check_circle</span>
-            </div>
-            <div class="flex items-baseline gap-2">
-                <p class="text-2xl font-bold text-text-primary">{{ today_count }}</p>
-            </div>
-        </div>
-        <div class="flex flex-col gap-2 rounded-lg border border-border-light bg-white p-5 shadow-sm">
-            <div class="flex items-center justify-between">
-                <p class="text-xs font-medium text-text-muted uppercase tracking-wider">Attendance Rate</p>
-                <span class="material-symbols-outlined text-secondary/70 text-xl">percent</span>
-            </div>
-            <div class="flex items-baseline gap-2">
-                <p class="text-2xl font-bold text-text-primary">{{ attendance_pct }}%</p>
-            </div>
-        </div>
-        <div class="flex flex-col gap-2 rounded-lg border border-border-light bg-white p-5 shadow-sm">
-            <div class="flex items-center justify-between">
-                <p class="text-xs font-medium text-text-muted uppercase tracking-wider">Absent Today</p>
-                <span class="material-symbols-outlined text-red-400/70 text-xl">cancel</span>
-            </div>
-            <div class="flex items-baseline gap-2">
-                <p class="text-2xl font-bold text-text-primary">{{ total_students - today_count }}</p>
-            </div>
-        </div>
+        {{ stat_card('Total Students', total_students, 'school', 'text-primary/70', 'Cohort', 'bg-primary/10 text-primary') }}
+        {{ stat_card('Present Today', today_count, 'check_circle', 'text-emerald-500/70', 'Active', 'bg-emerald-50 text-emerald-700') }}
+        {{ stat_card('Attendance Rate', attendance_pct ~ '%', 'percent', 'text-secondary/70', 'Daily Avg', 'bg-secondary/10 text-secondary') }}
+        {{ stat_card('Absent Today', total_students - today_count, 'cancel', 'text-red-400/70', 'Needs Follow-up', 'bg-red-50 text-red-700') }}
     </div>
 
     <!-- Main Grid: Chart + Metrics -->
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <!-- Chart Area -->
-        <div class="flex flex-col gap-4 rounded-lg border border-border-light bg-white p-6 shadow-sm lg:col-span-2">
+        <div class="flex flex-col gap-4 rounded-xl border border-border-light bg-white p-6 shadow-panel lg:col-span-2">
             <div class="flex items-center justify-between">
                 <h3 class="text-sm font-semibold text-text-primary">Attendance Overview</h3>
             </div>
@@ -78,16 +45,16 @@
         </div>
 
         <!-- Performance Metrics -->
-        <div class="flex flex-col gap-4 rounded-lg border border-border-light bg-white p-6 shadow-sm">
+        <div class="flex flex-col gap-4 rounded-xl border border-border-light bg-white p-6 shadow-panel">
             <div class="flex items-center justify-between">
                 <h3 class="text-sm font-semibold text-text-primary">System Metrics</h3>
             </div>
-            <div id="metricsArea" class="flex flex-col gap-3 text-sm text-text-muted">Loading...</div>
+            <div id="metricsArea" class="flex flex-col gap-3 text-sm text-text-muted" role="status" aria-live="polite">Loading...</div>
         </div>
     </div>
 
     <!-- Bulk Actions -->
-    <div class="bg-white border border-border-light rounded-lg shadow-sm overflow-hidden">
+    <div class="overflow-hidden rounded-xl border border-border-light bg-white shadow-panel">
         <div class="p-5 border-b border-border-light flex items-center justify-between">
             <h3 class="text-sm font-semibold text-text-primary">Today's Students</h3>
             <div class="flex gap-2">
@@ -96,7 +63,7 @@
             </div>
         </div>
         <div class="overflow-x-auto custom-scrollbar">
-            <table class="w-full min-w-[500px] text-left text-sm">
+            <table class="w-full min-w-[420px] md:min-w-0 text-left text-sm">
                 <thead class="bg-background-light text-xs uppercase text-text-muted tracking-wider">
                     <tr>
                         <th class="px-6 py-3.5 font-medium"><input type="checkbox" id="selectAll"></th>
@@ -110,12 +77,12 @@
     </div>
 
     <!-- Recent Attendance Table -->
-    <div class="bg-white border border-border-light rounded-lg shadow-sm overflow-hidden">
+    <div class="overflow-hidden rounded-xl border border-border-light bg-white shadow-panel">
         <div class="p-5 border-b border-border-light flex items-center justify-between">
             <h3 class="text-sm font-semibold text-text-primary">Recent Attendance Logs</h3>
         </div>
         <div class="overflow-x-auto custom-scrollbar">
-            <table class="w-full min-w-[700px] text-left text-sm">
+            <table class="w-full min-w-[620px] md:min-w-0 text-left text-sm">
                 <thead class="bg-background-light text-xs uppercase text-text-muted tracking-wider">
                     <tr>
                         <th class="px-6 py-3.5 font-medium">Name</th>
@@ -147,7 +114,7 @@
     </div>
 
     <!-- At Risk Students -->
-    <div class="bg-white border border-border-light rounded-lg shadow-sm overflow-hidden">
+    <div class="overflow-hidden rounded-xl border border-border-light bg-white shadow-panel">
         <div class="p-5 border-b border-border-light flex items-center justify-between">
             <h3 class="text-sm font-semibold text-text-primary flex items-center gap-2">
                 <span class="material-symbols-outlined text-red-400 text-lg">warning</span>
@@ -155,7 +122,7 @@
             </h3>
         </div>
         <div class="overflow-x-auto custom-scrollbar">
-            <table class="w-full min-w-[600px] text-left text-sm">
+            <table class="w-full min-w-[520px] md:min-w-0 text-left text-sm">
                 <thead class="bg-background-light text-xs uppercase text-text-muted tracking-wider">
                     <tr>
                         <th class="px-6 py-3.5 font-medium">Name</th>
@@ -245,6 +212,10 @@ function bulkAction(status) {
     var ids = [];
     document.querySelectorAll('.bulk-check:checked').forEach(function(cb) { ids.push(cb.value); });
     if (!ids.length) return;
+    var actionLabel = status === 'Present' ? 'mark as present' : 'mark as absent';
+    if (!window.confirm('Confirm bulk action: ' + actionLabel + ' for ' + ids.length + ' student(s)?')) {
+        return;
+    }
     fetch('/api/attendance/bulk', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},

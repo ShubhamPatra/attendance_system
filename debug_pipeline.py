@@ -43,9 +43,9 @@ def main():
     # ── Step 1: Database & encoding cache ────────────────────────
     step(1, "Load encoding cache from database")
     try:
-        import config
-        import database
-        from face_engine import encoding_cache
+        import app_core.config as config
+        import app_core.database as database
+        from app_vision.face_engine import encoding_cache
 
         database.ensure_indexes()
         encoding_cache.load()
@@ -114,7 +114,7 @@ def main():
     # ── Step 4: YuNet face detection ─────────────────────────────
     step(4, "YuNet face detection")
     try:
-        import pipeline
+        import app_vision.pipeline as pipeline
         if os.path.isfile(config.YUNET_MODEL_PATH):
             pipeline.init_yunet(config.YUNET_MODEL_PATH, config.FRAME_PROCESS_WIDTH)
             boxes = pipeline.detect_faces_yunet(frame)
@@ -140,7 +140,7 @@ def main():
     # ── Step 5: Anti-spoofing ────────────────────────────────────
     step(5, "Anti-spoofing liveness check")
     try:
-        import anti_spoofing
+        import app_vision.anti_spoofing as anti_spoofing
         anti_spoofing.init_models()
         label, conf = anti_spoofing.check_liveness(frame)
         is_real = (label == 1 and conf >= config.LIVENESS_CONFIDENCE_THRESHOLD)
@@ -158,7 +158,7 @@ def main():
     # ── Step 6: Face encoding ────────────────────────────────────
     step(6, "Generate face encoding")
     try:
-        from recognition import encode_face, check_face_quality_gate
+        from app_vision.recognition import encode_face, check_face_quality_gate
 
         # Quality gate check first (informational)
         qok, qreason = check_face_quality_gate(frame, bbox)
@@ -184,7 +184,7 @@ def main():
     if n_students == 0:
         print("  ⊘ Skipped (no students in cache)")
     else:
-        from face_engine import recognize_face
+        from app_vision.face_engine import recognize_face
 
         # Compute distances to all students
         flat_enc_arr, flat_idx_arr, c_ids, c_names = encoding_cache.get_flat()

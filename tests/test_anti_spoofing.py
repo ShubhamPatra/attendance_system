@@ -18,7 +18,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 def _mock_config(monkeypatch):
     monkeypatch.setenv("MONGO_URI", "mongodb+srv://test:test@cluster.mongodb.net/test")
     monkeypatch.setenv("LIVENESS_CONFIDENCE_THRESHOLD", "0.8")
-    import importlib, config
+    import importlib
+    import app_core.config as config
     importlib.reload(config)
 
 
@@ -33,7 +34,7 @@ def _make_frame(h=480, w=640):
 
 def _setup_real_face():
     """Configure anti_spoofing internals to simulate a real face."""
-    import anti_spoofing
+    import app_vision.anti_spoofing as anti_spoofing
 
     mock_predictor = MagicMock()
     mock_predictor.get_bbox.return_value = [10, 20, 100, 120]
@@ -53,7 +54,7 @@ def _setup_real_face():
 
 def _setup_spoof_face():
     """Configure anti_spoofing internals to simulate a spoof attack."""
-    import anti_spoofing
+    import app_vision.anti_spoofing as anti_spoofing
 
     mock_predictor = MagicMock()
     mock_predictor.get_bbox.return_value = [10, 20, 100, 120]
@@ -78,7 +79,7 @@ def _setup_spoof_face():
 def test_real_face_returns_label_1():
     """A real face should return label == 1 with high confidence."""
     _setup_real_face()
-    import anti_spoofing
+    import app_vision.anti_spoofing as anti_spoofing
 
     label, confidence = anti_spoofing.check_liveness(_make_frame())
     assert label == 1
@@ -88,8 +89,8 @@ def test_real_face_returns_label_1():
 def test_real_face_passes_threshold():
     """Real face with sufficient confidence should pass the config threshold."""
     _setup_real_face()
-    import anti_spoofing
-    import config
+    import app_vision.anti_spoofing as anti_spoofing
+    import app_core.config as config
 
     label, confidence = anti_spoofing.check_liveness(_make_frame())
     passes = label == 1 and confidence >= config.LIVENESS_CONFIDENCE_THRESHOLD
@@ -103,7 +104,7 @@ def test_real_face_passes_threshold():
 def test_spoof_face_returns_label_0():
     """A spoof image should return label == 0."""
     _setup_spoof_face()
-    import anti_spoofing
+    import app_vision.anti_spoofing as anti_spoofing
 
     label, confidence = anti_spoofing.check_liveness(_make_frame())
     assert label == 0
@@ -112,8 +113,8 @@ def test_spoof_face_returns_label_0():
 def test_spoof_face_does_not_pass_threshold():
     """A spoof result should not pass the liveness gate."""
     _setup_spoof_face()
-    import anti_spoofing
-    import config
+    import app_vision.anti_spoofing as anti_spoofing
+    import app_core.config as config
 
     label, confidence = anti_spoofing.check_liveness(_make_frame())
     passes = label == 1 and confidence >= config.LIVENESS_CONFIDENCE_THRESHOLD
@@ -126,7 +127,7 @@ def test_spoof_face_does_not_pass_threshold():
 
 def test_no_face_returns_zero():
     """When no face is present, return (0, 0.0)."""
-    import anti_spoofing
+    import app_vision.anti_spoofing as anti_spoofing
 
     mock_predictor = MagicMock()
     mock_predictor.get_bbox.return_value = None
@@ -139,7 +140,7 @@ def test_no_face_returns_zero():
 
 def test_empty_bbox_returns_zero():
     """An empty bbox list should also return (0, 0.0)."""
-    import anti_spoofing
+    import app_vision.anti_spoofing as anti_spoofing
 
     mock_predictor = MagicMock()
     mock_predictor.get_bbox.return_value = []
@@ -156,8 +157,8 @@ def test_empty_bbox_returns_zero():
 
 def test_low_confidence_real_does_not_pass():
     """Even label==1, if confidence < threshold, liveness should not pass."""
-    import anti_spoofing
-    import config
+    import app_vision.anti_spoofing as anti_spoofing
+    import app_core.config as config
 
     mock_predictor = MagicMock()
     mock_predictor.get_bbox.return_value = [10, 20, 100, 120]
@@ -179,7 +180,8 @@ def test_low_confidence_real_does_not_pass():
 def test_custom_threshold_from_env(monkeypatch):
     """LIVENESS_CONFIDENCE_THRESHOLD should be read from env."""
     monkeypatch.setenv("LIVENESS_CONFIDENCE_THRESHOLD", "0.95")
-    import importlib, config
+    import importlib
+    import app_core.config as config
     importlib.reload(config)
 
     assert config.LIVENESS_CONFIDENCE_THRESHOLD == 0.95
@@ -192,8 +194,8 @@ def test_custom_threshold_from_env(monkeypatch):
 def test_attendance_not_recorded_when_spoof():
     """Verify that spoof detection prevents attendance marking."""
     _setup_spoof_face()
-    import anti_spoofing
-    import config
+    import app_vision.anti_spoofing as anti_spoofing
+    import app_core.config as config
 
     label, confidence = anti_spoofing.check_liveness(_make_frame())
 
@@ -204,8 +206,8 @@ def test_attendance_not_recorded_when_spoof():
 def test_attendance_recorded_only_for_real():
     """Verify that real faces are allowed past the attendance gate."""
     _setup_real_face()
-    import anti_spoofing
-    import config
+    import app_vision.anti_spoofing as anti_spoofing
+    import app_core.config as config
 
     label, confidence = anti_spoofing.check_liveness(_make_frame())
 
@@ -219,7 +221,7 @@ def test_attendance_recorded_only_for_real():
 
 def test_exception_returns_safe_default():
     """If the predictor throws, return (-1, 0.0) – no crash."""
-    import anti_spoofing
+    import app_vision.anti_spoofing as anti_spoofing
 
     mock_predictor = MagicMock()
     mock_predictor.get_bbox.side_effect = RuntimeError("model error")
@@ -232,7 +234,7 @@ def test_exception_returns_safe_default():
 
 def test_uninitialised_raises_runtime_error():
     """Calling check_liveness before init_models should raise RuntimeError."""
-    import anti_spoofing
+    import app_vision.anti_spoofing as anti_spoofing
 
     anti_spoofing._predictor = None
 
@@ -246,7 +248,7 @@ def test_uninitialised_raises_runtime_error():
 
 def test_aggregation_across_two_models():
     """Predictions from multiple models should be aggregated correctly."""
-    import anti_spoofing
+    import app_vision.anti_spoofing as anti_spoofing
 
     mock_predictor = MagicMock()
     mock_predictor.get_bbox.return_value = [10, 20, 100, 120]
