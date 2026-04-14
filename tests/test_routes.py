@@ -298,9 +298,16 @@ def test_attendance_activity_page_loads(client):
 # ── New API endpoints ─────────────────────────────────────────────────────
 
 def test_api_logs(client):
-    with patch("camera.get_camera") as mock_cam:
+    with patch("camera.get_camera_if_running") as mock_cam:
         mock_cam.return_value.get_log_buffer.return_value = []
         resp = client.get("/api/logs")
+    assert resp.status_code == 200
+    assert resp.get_json() == []
+
+
+def test_api_events_returns_empty_when_camera_not_running(client):
+    with patch("camera.get_camera_if_running", return_value=None):
+        resp = client.get("/api/events")
     assert resp.status_code == 200
     assert resp.get_json() == []
 
@@ -350,6 +357,12 @@ def test_report_csv_by_student_not_found(client):
     assert resp.status_code == 404
 
 
+def test_report_csv_requires_both_range_dates(client):
+    resp = client.get("/report/csv?start_date=2026-02-01")
+    assert resp.status_code == 400
+    assert "Both start_date and end_date are required" in resp.get_json()["error"]
+
+
 def test_report_csv_full(client):
     with patch("routes.database") as mock_db:
         mock_db.get_attendance_csv_full.return_value = pd.DataFrame(
@@ -359,6 +372,72 @@ def test_report_csv_full(client):
         resp = client.get("/report/csv?full=1")
     assert resp.status_code == 200
     assert resp.content_type.startswith("text/csv")
+
+
+def test_report_xlsx_by_student_not_found(client):
+    with patch("routes.database") as mock_db:
+        mock_db.get_student_by_reg_no.return_value = None
+        resp = client.get("/report/xlsx?reg_no=FA21-BCS-404")
+    assert resp.status_code == 404
+
+
+def test_report_xlsx_requires_both_range_dates(client):
+    resp = client.get("/report/xlsx?start_date=2026-02-01")
+    assert resp.status_code == 400
+    assert "Both start_date and end_date are required" in resp.get_json()["error"]
+
+
+def test_api_report_csv_async_invalid_date(client):
+    with patch("celery_app.generate_csv_task") as mock_task:
+        resp = client.post(
+            "/api/report/csv/async",
+            json={"date": "2026-13-99"},
+        )
+    assert resp.status_code == 400
+    mock_task.delay.assert_not_called()
+
+
+def test_api_report_csv_async_requires_both_range_dates(client):
+    with patch("celery_app.generate_csv_task") as mock_task:
+        resp = client.post(
+            "/api/report/csv/async",
+            json={"start_date": "2026-02-01"},
+        )
+    assert resp.status_code == 400
+    mock_task.delay.assert_not_called()
+
+
+def test_api_report_csv_async_student_not_found(client):
+    with patch("routes.database") as mock_db, \
+         patch("celery_app.generate_csv_task") as mock_task:
+        mock_db.get_student_by_reg_no.return_value = None
+        resp = client.post(
+            "/api/report/csv/async",
+            json={"reg_no": "FA21-BCS-404"},
+        )
+    assert resp.status_code == 404
+    mock_task.delay.assert_not_called()
+
+
+def test_api_debug_diagnostics_disabled_by_default(client):
+    resp = client.get("/api/debug/diagnostics")
+    assert resp.status_code == 404
+
+
+def test_api_debug_diagnostics_when_enabled(client):
+    with patch("routes.config.DEBUG_MODE", True), \
+         patch("camera.get_camera_diagnostics", return_value={"active_cameras": 0, "viewers": {}, "cameras": {}}), \
+         patch("routes._check_mongo_ready", return_value=True), \
+         patch("routes._check_celery_ready", return_value=False), \
+         patch("routes._check_model_artifacts", return_value={"yunet_model": True, "anti_spoof_models": True, "ppe_model": True}):
+        resp = client.get("/api/debug/diagnostics")
+
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert "cameras" in data
+    assert "metrics" in data
+    assert "health" in data
+    assert data["health"]["ppe_model"] is True
 
 
 def test_api_register_capture_rejects_non_jpeg(client):

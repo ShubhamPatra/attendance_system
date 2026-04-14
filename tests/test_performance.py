@@ -113,3 +113,18 @@ def test_far_and_frr(fresh_tracker):
     assert m["false_acceptance_rate_pct"] == pytest.approx(71.43, abs=0.1)
     # FRR = FN / (FN + TP) = 3 / 13 ≈ 23.08
     assert m["false_rejection_rate_pct"] == pytest.approx(23.08, abs=0.1)
+
+
+def test_liveness_diagnostics_counters(fresh_tracker):
+    fresh_tracker.record_liveness_event("spoof_true")
+    fresh_tracker.record_liveness_event("spoof_uncertain")
+    fresh_tracker.record_liveness_event("liveness_error")
+    fresh_tracker.record_liveness_event("temporal_override")
+    fresh_tracker.record_liveness_event("no_encode_guard")
+
+    m = fresh_tracker.metrics()
+    assert m["spoof_true"] == 1
+    assert m["spoof_uncertain"] == 1
+    assert m["liveness_error"] == 1
+    assert m["temporal_override"] == 1
+    assert m["no_encode_guard"] == 1

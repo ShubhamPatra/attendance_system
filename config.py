@@ -5,6 +5,7 @@ Loads settings from environment variables and defines constants.
 
 import os
 import secrets
+from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -20,6 +21,18 @@ if not MONGO_URI:
     )
 
 DATABASE_NAME = "attendance_system"
+MONGO_SERVER_SELECTION_TIMEOUT_MS = int(
+    os.environ.get("MONGO_SERVER_SELECTION_TIMEOUT_MS", "5000")
+)
+MONGO_CONNECT_TIMEOUT_MS = int(
+    os.environ.get("MONGO_CONNECT_TIMEOUT_MS", "5000")
+)
+MONGO_CONNECT_RETRIES = int(
+    os.environ.get("MONGO_CONNECT_RETRIES", "3")
+)
+MONGO_CONNECT_RETRY_DELAY_SECONDS = float(
+    os.environ.get("MONGO_CONNECT_RETRY_DELAY_SECONDS", "1.0")
+)
 
 # ---------------------------------------------------------------------------
 # Flask
@@ -35,7 +48,21 @@ APP_DEBUG = os.environ.get("APP_DEBUG", "0") == "1"
 # ---------------------------------------------------------------------------
 # Face Recognition
 # ---------------------------------------------------------------------------
-RECOGNITION_THRESHOLD = 0.50  # Euclidean distance; lower = stricter
+RECOGNITION_THRESHOLD = float(
+    os.environ.get("RECOGNITION_THRESHOLD", "0.50")
+)  # Euclidean distance; lower = stricter
+RECOGNITION_MIN_CONFIDENCE = float(
+    os.environ.get("RECOGNITION_MIN_CONFIDENCE", "0.55")
+)
+RECOGNITION_MIN_DISTANCE_GAP = float(
+    os.environ.get("RECOGNITION_MIN_DISTANCE_GAP", "0.04")
+)
+RECOGNITION_CONFIDENCE_ALPHA = float(
+    os.environ.get("RECOGNITION_CONFIDENCE_ALPHA", "2.3")
+)
+RECOGNITION_CONFIRM_FRAMES = int(
+    os.environ.get("RECOGNITION_CONFIRM_FRAMES", "2")
+)
 FRAME_RESIZE_FACTOR = 0.25    # Resize frames to 1/4 for speed
 RECOGNITION_COOLDOWN = 30     # Seconds to skip re-processing a recognized student
 
@@ -43,14 +70,59 @@ RECOGNITION_COOLDOWN = 30     # Seconds to skip re-processing a recognized stude
 # Detect-Track-Recognize Pipeline
 # ---------------------------------------------------------------------------
 DETECTION_INTERVAL = 10        # Run face detection every N-th frame
+DETECTION_INTERVAL_MIN = int(os.environ.get("DETECTION_INTERVAL_MIN", "3"))
+DETECTION_INTERVAL_MAX = int(os.environ.get("DETECTION_INTERVAL_MAX", "15"))
 TRACK_EXPIRATION_FRAMES = 30   # Remove track after N consecutive failed updates
+TRACK_DETECTOR_MISS_TOLERANCE = 2  # Expire track after N detector cycles without support
 MOTION_THRESHOLD = 5000        # Min non-zero pixels to consider "motion detected"
 
 # ---------------------------------------------------------------------------
 # Liveness / Anti-Spoofing
 # ---------------------------------------------------------------------------
 LIVENESS_CONFIDENCE_THRESHOLD = float(
-    os.environ.get("LIVENESS_CONFIDENCE_THRESHOLD", "0.8")
+    os.environ.get("LIVENESS_CONFIDENCE_THRESHOLD", "0.55")
+)
+LIVENESS_REAL_FAST_CONFIDENCE = float(
+    os.environ.get("LIVENESS_REAL_FAST_CONFIDENCE", "0.72")
+)
+LIVENESS_HISTORY_SIZE = int(
+    os.environ.get("LIVENESS_HISTORY_SIZE", "8")
+)
+LIVENESS_MIN_HISTORY = int(
+    os.environ.get("LIVENESS_MIN_HISTORY", "3")
+)
+LIVENESS_REAL_VOTE_RATIO = float(
+    os.environ.get("LIVENESS_REAL_VOTE_RATIO", "0.7")
+)
+LIVENESS_SPOOF_VOTE_RATIO = float(
+    os.environ.get("LIVENESS_SPOOF_VOTE_RATIO", "0.6")
+)
+LIVENESS_SPOOF_CONFIDENCE_MIN = float(
+    os.environ.get("LIVENESS_SPOOF_CONFIDENCE_MIN", "0.6")
+)
+LIVENESS_SPOOF_WEAK_CONFIDENCE_MIN = float(
+    os.environ.get("LIVENESS_SPOOF_WEAK_CONFIDENCE_MIN", "0.45")
+)
+LIVENESS_STRONG_SPOOF_CONFIDENCE = float(
+    os.environ.get("LIVENESS_STRONG_SPOOF_CONFIDENCE", "0.85")
+)
+LIVENESS_NO_ENCODE_MARGIN = float(
+    os.environ.get("LIVENESS_NO_ENCODE_MARGIN", "0.03")
+)
+SPOOF_HOLD_SECONDS = float(
+    os.environ.get("SPOOF_HOLD_SECONDS", "1.5")
+)
+TRACK_STATE_PENDING_SECONDS = float(
+    os.environ.get("TRACK_STATE_PENDING_SECONDS", "2.5")
+)
+ANTI_SPOOF_PAD_RATIO_BASE = float(
+    os.environ.get("ANTI_SPOOF_PAD_RATIO_BASE", "0.12")
+)
+ANTI_SPOOF_PAD_RATIO_MAX = float(
+    os.environ.get("ANTI_SPOOF_PAD_RATIO_MAX", "0.3")
+)
+ANTI_SPOOF_PAD_MIN_PIXELS = int(
+    os.environ.get("ANTI_SPOOF_PAD_MIN_PIXELS", "8")
 )
 
 # ---------------------------------------------------------------------------
@@ -123,6 +195,9 @@ UNKNOWN_FACE_COOLDOWN = 10         # Seconds between unknown-face snapshot saves
 INCREMENTAL_LEARNING_CONFIDENCE = float(
     os.environ.get("INCREMENTAL_LEARNING_CONFIDENCE", "0.92")
 )  # Threshold above which a new encoding is appended automatically
+INCREMENTAL_LEARNING_MIN_LIVENESS = float(
+    os.environ.get("INCREMENTAL_LEARNING_MIN_LIVENESS", "0.60")
+)  # Minimum liveness confidence required before appending a new encoding
 MAX_ENCODINGS_PER_STUDENT = int(
     os.environ.get("MAX_ENCODINGS_PER_STUDENT", "15")
 )  # Cap per student; oldest encodings are dropped when exceeded
@@ -135,16 +210,50 @@ BRIGHTNESS_MAX = float(
 )  # Max mean brightness for face ROI during pipeline recognition
 
 # ---------------------------------------------------------------------------
-# Celery + Redis
+# PPE Detection / Occlusion-Aware Recognition
 # ---------------------------------------------------------------------------
-CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://localhost:6379/0")
-CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
+PPE_DETECTION_ENABLED = os.environ.get("PPE_DETECTION_ENABLED", "0") == "1"
+PPE_MODEL_PATH = os.environ.get(
+    "PPE_MODEL_PATH",
+    os.path.join(MODELS_DIR, "ppe_mask_cap.onnx"),
+)
+PPE_MASK_THRESHOLD = float(os.environ.get("PPE_MASK_THRESHOLD", "0.6"))
+PPE_CAP_THRESHOLD = float(os.environ.get("PPE_CAP_THRESHOLD", "0.6"))
+PPE_MIN_CONFIDENCE = float(os.environ.get("PPE_MIN_CONFIDENCE", "0.55"))
+PPE_HISTORY_SIZE = int(os.environ.get("PPE_HISTORY_SIZE", "6"))
+PPE_MIN_HISTORY = int(os.environ.get("PPE_MIN_HISTORY", "3"))
+PPE_VOTE_RATIO = float(os.environ.get("PPE_VOTE_RATIO", "0.6"))
+PPE_MAX_LATENCY_MS = float(os.environ.get("PPE_MAX_LATENCY_MS", "60.0"))
+
+OCCLUDED_RECOGNITION_THRESHOLD_DELTA = float(
+    os.environ.get("OCCLUDED_RECOGNITION_THRESHOLD_DELTA", "0.05")
+)
+OCCLUDED_MIN_DISTANCE_GAP = float(
+    os.environ.get("OCCLUDED_MIN_DISTANCE_GAP", "0.08")
+)
+OCCLUDED_MIN_CONFIDENCE = float(
+    os.environ.get("OCCLUDED_MIN_CONFIDENCE", "0.5")
+)
+OCCLUDED_DISABLE_INCREMENTAL_LEARNING = (
+    os.environ.get("OCCLUDED_DISABLE_INCREMENTAL_LEARNING", "1") == "1"
+)
 
 # ---------------------------------------------------------------------------
-# SendGrid / Notifications
+# Celery
 # ---------------------------------------------------------------------------
-SENDGRID_API_KEY = os.environ.get("SENDGRID_API_KEY", "")
-NOTIFY_EMAIL = os.environ.get("NOTIFY_EMAIL", "")
+CELERY_DATA_DIR = os.environ.get(
+    "CELERY_DATA_DIR",
+    os.path.join(BASE_DIR, "celery_data"),
+)
+CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "filesystem://")
+CELERY_RESULT_BACKEND = os.environ.get(
+    "CELERY_RESULT_BACKEND",
+    str(Path(os.path.join(CELERY_DATA_DIR, "results")).resolve().as_uri()),
+)
+
+# ---------------------------------------------------------------------------
+# Attendance Analytics
+# ---------------------------------------------------------------------------
 ABSENCE_THRESHOLD = int(os.environ.get("ABSENCE_THRESHOLD", "75"))
 
 # ---------------------------------------------------------------------------

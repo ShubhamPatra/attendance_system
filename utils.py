@@ -89,6 +89,19 @@ def now_time_str() -> str:
     return datetime.now(timezone.utc).strftime("%H:%M:%S")
 
 
+def validate_required_fields(payload: dict | None, required: list[str]) -> tuple[list[str], dict]:
+    """Validate required JSON fields and return ``(errors, normalized_payload)``."""
+    data = payload or {}
+    errors: list[str] = []
+    for field in required:
+        value = data.get(field, None)
+        if value is None:
+            errors.append(f"Missing '{field}' in request body.")
+        elif isinstance(value, str) and not value.strip():
+            errors.append(f"'{field}' cannot be empty.")
+    return errors, data
+
+
 # ── Image quality checks ──────────────────────────────────────────────────
 
 def check_image_quality(image: np.ndarray) -> tuple[bool, str]:

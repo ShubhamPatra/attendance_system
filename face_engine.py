@@ -187,6 +187,16 @@ class EncodingCache:
 encoding_cache = EncodingCache()
 
 
+def _display_confidence_from_distance(distance: float) -> float:
+    """Map embedding distance to a smoother UI confidence score.
+
+    This calibration improves readability of confidence shown to operators,
+    while recognition acceptance still uses the raw ``1 - distance`` score.
+    """
+    alpha = max(0.1, float(config.RECOGNITION_CONFIDENCE_ALPHA))
+    return float(np.clip(np.exp(-alpha * (distance ** 2)), 0.0, 1.0))
+
+
 # ---------------------------------------------------------------------------
 # Recognition
 # ---------------------------------------------------------------------------
@@ -194,6 +204,8 @@ encoding_cache = EncodingCache()
 def recognize_face(
     face_encoding: np.ndarray,
     threshold: float | None = None,
+    ppe_state: str = "none",
+    ppe_confidence: float = 0.0,
 ) -> tuple | None:
     """Compare *face_encoding* against the cache using vectorised NumPy.
 
@@ -209,6 +221,18 @@ def recognize_face(
     """
     if threshold is None:
         threshold = config.RECOGNITION_THRESHOLD
+
+    min_conf = max(0.0, min(1.0, config.RECOGNITION_MIN_CONFIDENCE))
+    min_gap = max(0.0, config.RECOGNITION_MIN_DISTANCE_GAP)
+
+    occluded = (
+        ppe_state in ("mask", "cap", "both")
+        and ppe_confidence >= config.PPE_MIN_CONFIDENCE
+    )
+    if occluded:
+        threshold = min(1.0, threshold + config.OCCLUDED_RECOGNITION_THRESHOLD_DELTA)
+        min_gap = max(min_gap, config.OCCLUDED_MIN_DISTANCE_GAP)
+        min_conf = max(min_conf, config.OCCLUDED_MIN_CONFIDENCE)
 
     flat_enc, flat_idx, ids, names = encoding_cache.get_flat()
     if flat_enc is None or len(flat_enc) == 0:
@@ -226,19 +250,45 @@ def recognize_face(
     best_idx = int(np.argmin(min_dists))
     best_dist = float(min_dists[best_idx])
 
+    # Second-best student distance is used as an ambiguity guard.
+    if len(min_dists) > 1:
+        sorted_dists = np.sort(min_dists)
+        second_best_dist = float(sorted_dists[1])
+    else:
+        second_best_dist = float("inf")
+
+    distance_gap = second_best_dist - best_dist
+    raw_confidence = float(1.0 - best_dist)
+    display_confidence = _display_confidence_from_distance(best_dist)
+
     logger.debug(
-        "recognize_face: best_match=%s best_dist=%.4f threshold=%.4f "
+        "recognize_face: best_match=%s best_dist=%.4f second_best=%.4f "
+        "gap=%.4f threshold=%.4f conf_raw=%.4f conf_ui=%.4f min_conf=%.4f min_gap=%.4f "
+        "ppe_state=%s ppe_conf=%.4f occluded=%s "
         "cache_students=%d cache_encodings=%d decision=%s",
-        names[best_idx], best_dist, threshold,
+        names[best_idx], best_dist, second_best_dist, distance_gap, threshold,
+        raw_confidence, display_confidence, min_conf, min_gap,
+        ppe_state, ppe_confidence, occluded,
         num_students, len(flat_enc),
-        "MATCH" if best_dist <= threshold else "REJECT",
+        "MATCH"
+        if (
+            best_dist <= threshold
+            and raw_confidence >= min_conf
+            and distance_gap >= min_gap
+        )
+        else "REJECT",
     )
 
     if best_dist > threshold:
         return None
 
-    confidence = float(1.0 - best_dist)
-    return ids[best_idx], names[best_idx], confidence
+    if raw_confidence < min_conf:
+        return None
+
+    if distance_gap < min_gap:
+        return None
+
+    return ids[best_idx], names[best_idx], display_confidence
 
 
 # ---------------------------------------------------------------------------

@@ -11,27 +11,40 @@ import sys
 import time
 
 import numpy as np
-import torch
 
 import config
 from utils import setup_logging
 
 logger = setup_logging()
 
-# ---------------------------------------------------------------------------
-# GPU / device detection
-# ---------------------------------------------------------------------------
-_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+_torch = None
+_DEVICE = "cpu"
+
+
+def _get_torch():
+    global _torch
+    if _torch is None:
+        import torch as _torch_mod
+        _torch = _torch_mod
+    return _torch
 
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-SILENT_FACE_PATH = os.environ.get(
+def _env_or_default(name: str, default: str) -> str:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    value = value.strip()
+    return value or default
+
+
+SILENT_FACE_PATH = _env_or_default(
     "SILENT_FACE_PATH",
     os.path.join(config.BASE_DIR, "Silent-Face-Anti-Spoofing"),
 )
 
-MODEL_DIR = os.environ.get(
+MODEL_DIR = _env_or_default(
     "ANTI_SPOOF_MODEL_DIR",
     os.path.join(SILENT_FACE_PATH, "resources", "anti_spoof_models"),
 )
@@ -45,6 +58,16 @@ _predictor = None
 _cropper = None
 _model_names: list[str] = []
 _parse_model_name = None
+
+# Output-class mapping for Silent-Face-Anti-Spoofing models.
+# Keep this explicit so downstream decision logic stays stable
+# if model files are swapped or retrained.
+LIVENESS_LABELS = {
+    0: "spoof_or_no_face",
+    1: "real",
+    2: "other_attack",
+    -1: "internal_error",
+}
 
 
 def _setup_library_path():
@@ -61,7 +84,11 @@ def init_models():
     """Load anti-spoofing models into memory.  Call once at application startup."""
     global _predictor, _cropper, _model_names, _parse_model_name
 
+    global _DEVICE
+
     _setup_library_path()
+    torch_mod = _get_torch()
+    _DEVICE = "cuda" if torch_mod.cuda.is_available() else "cpu"
 
     try:
         from src.anti_spoof_predict import AntiSpoofPredict
@@ -158,8 +185,9 @@ def check_liveness(frame: np.ndarray) -> tuple[int, float]:
 
         timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
         logger.info(
-            "Liveness check: label=%d confidence=%.4f timestamp=%s",
+            "Liveness check: label=%d (%s) confidence=%.4f timestamp=%s",
             label,
+            LIVENESS_LABELS.get(label, "unknown"),
             confidence,
             timestamp,
         )

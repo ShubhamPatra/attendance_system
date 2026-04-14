@@ -2,7 +2,7 @@
 Celery application – async task definitions for AutoAttendance.
 
 Provides background tasks for CSV generation, face-encoding computation,
-absence notifications (via SendGrid), and MongoDB backups.
+and MongoDB backups.
 
 Start the worker::
 
@@ -17,6 +17,7 @@ import os
 import sys
 import base64
 import tempfile
+from pathlib import Path
 
 # Ensure the package directory is importable when Celery is started
 # from outside the attendance_system folder.
@@ -37,11 +38,19 @@ logger = setup_logging()
 # ---------------------------------------------------------------------------
 # Read broker/backend URLs directly from the environment so that importing
 # this module never triggers the EnvironmentError that config.py raises when
-# MONGO_URI is absent (e.g. in CI or on a worker node that only needs Redis).
+# MONGO_URI is absent (e.g. in CI or on a worker node that only needs Celery).
 # ---------------------------------------------------------------------------
 
-celery_broker = os.environ.get("CELERY_BROKER_URL", "redis://localhost:6379/0")
-celery_backend = os.environ.get("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
+_default_data_dir = os.environ.get(
+    "CELERY_DATA_DIR",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "celery_data"),
+)
+
+celery_broker = os.environ.get("CELERY_BROKER_URL", "filesystem://")
+celery_backend = os.environ.get(
+    "CELERY_RESULT_BACKEND",
+    str(Path(os.path.join(_default_data_dir, "results")).resolve().as_uri()),
+)
 
 celery_app = Celery(
     "attendance_system",
@@ -61,15 +70,26 @@ celery_app.conf.update(
     enable_utc=True,
 )
 
+if celery_broker.startswith("filesystem://"):
+    broker_in = os.path.join(_default_data_dir, "broker", "in")
+    broker_out = os.path.join(_default_data_dir, "broker", "out")
+    broker_processed = os.path.join(_default_data_dir, "broker", "processed")
+    result_dir = os.path.join(_default_data_dir, "results")
+
+    for path in (broker_in, broker_out, broker_processed, result_dir):
+        os.makedirs(path, exist_ok=True)
+
+    celery_app.conf.broker_transport_options = {
+        "data_folder_in": broker_in,
+        "data_folder_out": broker_out,
+        "data_folder_processed": broker_processed,
+    }
+
 # ---------------------------------------------------------------------------
 # Celery Beat – periodic task schedule
 # ---------------------------------------------------------------------------
 
 celery_app.conf.beat_schedule = {
-    "check-absent-students": {
-        "task": "celery_app.send_absence_notifications",
-        "schedule": crontab(hour=20, minute=0),
-    },
     "backup-mongodb": {
         "task": "celery_app.backup_mongodb",
         "schedule": crontab(hour=2, minute=0),
@@ -182,177 +202,7 @@ def compute_encodings_task(self, image_paths):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Task 3 – absence notifications (SendGrid)
-# ═══════════════════════════════════════════════════════════════════════════
-
-@celery_app.task(name="celery_app.send_absence_notifications", bind=True)
-def send_absence_notifications(self):
-    """Check attendance over the last 30 days and email a summary of
-    students whose attendance percentage falls below the configured
-    threshold.
-
-    Requires ``SENDGRID_API_KEY`` and ``NOTIFY_EMAIL`` to be set in the
-    environment (via *config*).  If either is missing the task logs a
-    warning and exits gracefully.
-    """
-    import config
-    import database
-    from datetime import datetime, timedelta, timezone
-
-    logger.info("send_absence_notifications started")
-
-    db = database.get_db()
-
-    today = datetime.now(timezone.utc).date()
-    start_date = today - timedelta(days=30)
-    total_possible_days = 30
-
-    # Use aggregation pipeline instead of N+1 queries (count_documents per student)
-    flagged = list(db.attendance.aggregate([
-        {
-            "$match": {
-                "date": {
-                    "$gte": start_date.isoformat(),
-                    "$lte": today.isoformat(),
-                }
-            }
-        },
-        {
-            "$group": {
-                "_id": "$student_id",
-                "attended": {"$sum": 1},
-            }
-        },
-        {
-            "$lookup": {
-                "from": "students",
-                "localField": "_id",
-                "foreignField": "_id",
-                "as": "student_info",
-            }
-        },
-        {
-            "$unwind": {
-                "path": "$student_info",
-                "preserveNullAndEmptyArrays": False,
-            }
-        },
-        {
-            "$addFields": {
-                "percentage": {
-                    "$round": [
-                        {"$multiply": [
-                            {"$divide": ["$attended", total_possible_days]},
-                            100,
-                        ]},
-                        1,
-                    ]
-                },
-                "total": total_possible_days,
-            }
-        },
-        {
-            "$match": {
-                "percentage": {"$lt": config.ABSENCE_THRESHOLD}
-            }
-        },
-        {
-            "$project": {
-                "_id": 0,
-                "name": "$student_info.name",
-                "registration_number": "$student_info.registration_number",
-                "attended": 1,
-                "total": 1,
-                "percentage": 1,
-            }
-        },
-    ]))
-
-    # Ensure we got the total for logging
-    total_students = db.students.count_documents({})
-
-    if total_students == 0:
-        logger.info("No students registered – skipping absence check.")
-        return "no_students"
-
-    logger.info(
-        "Absence check complete: %d / %d students below %d%% threshold.",
-        len(flagged),
-        total_students,
-        config.ABSENCE_THRESHOLD,
-    )
-
-    if not flagged:
-        return "all_clear"
-
-    # ── Build summary email ───────────────────────────────────────────
-    if not config.SENDGRID_API_KEY or not config.NOTIFY_EMAIL:
-        logger.warning(
-            "SENDGRID_API_KEY or NOTIFY_EMAIL not configured – "
-            "skipping email notification."
-        )
-        return {"flagged": len(flagged), "email_sent": False}
-
-    rows_html = ""
-    for s in flagged:
-        rows_html += (
-            f"<tr>"
-            f"<td>{s['name']}</td>"
-            f"<td>{s['registration_number']}</td>"
-            f"<td>{s['attended']}</td>"
-            f"<td>{s['total']}</td>"
-            f"<td>{s['percentage']}%</td>"
-            f"</tr>"
-        )
-
-    html_body = f"""\
-<html>
-<body>
-<h2>Attendance Alert – Students Below {config.ABSENCE_THRESHOLD}% Threshold</h2>
-<p>The following students have attendance below the required threshold
-over the last 30 days (as of {today.isoformat()}):</p>
-<table border="1" cellpadding="6" cellspacing="0">
-<thead>
-  <tr>
-    <th>Name</th>
-    <th>Reg #</th>
-    <th>Days Attended</th>
-    <th>Total Days</th>
-    <th>Percentage</th>
-  </tr>
-</thead>
-<tbody>
-{rows_html}
-</tbody>
-</table>
-<p>This is an automated message from AutoAttendance.</p>
-</body>
-</html>"""
-
-    try:
-        import sendgrid
-        from sendgrid.helpers.mail import Mail
-
-        message = Mail(
-            from_email=config.NOTIFY_EMAIL,
-            to_emails=config.NOTIFY_EMAIL,
-            subject=f"Attendance Alert – {len(flagged)} student(s) below threshold",
-            html_content=html_body,
-        )
-        sg = sendgrid.SendGridAPIClient(config.SENDGRID_API_KEY)
-        response = sg.send(message)
-        logger.info(
-            "Absence notification email sent (status %s).", response.status_code
-        )
-    except Exception as exc:
-        logger.error("Failed to send absence notification email: %s", exc)
-        return {"flagged": len(flagged), "email_sent": False, "error": str(exc)}
-
-    return {"flagged": len(flagged), "email_sent": True}
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# Task 4 – MongoDB backup
+# Task 3 – MongoDB backup
 # ═══════════════════════════════════════════════════════════════════════════
 
 @celery_app.task(name="celery_app.backup_mongodb", bind=True)

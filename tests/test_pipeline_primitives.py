@@ -64,3 +64,29 @@ def test_detect_and_associate_uses_or_semantics():
 
     assert new_boxes == [(95, 0, 10, 10)]
     assert track.frames_missing == 0
+
+
+def test_detect_and_associate_detailed_returns_matched_track_indices():
+    import pipeline
+
+    frame = np.zeros((100, 100, 3), dtype=np.uint8)
+
+    class _Track:
+        def __init__(self, bbox):
+            self.bbox = bbox
+            self.frames_missing = 2
+
+    tracks = [_Track((0, 0, 10, 10)), _Track((70, 0, 10, 10))]
+
+    with patch("pipeline.detect_faces_yunet", return_value=[(5, 0, 10, 10)]):
+        new_boxes, matched = pipeline.detect_and_associate_detailed(
+            frame,
+            tracks,
+            centroid_dist_threshold=20,
+            iou_threshold=0.3,
+        )
+
+    assert new_boxes == []
+    assert matched == {0}
+    assert tracks[0].frames_missing == 0
+    assert tracks[1].frames_missing == 2

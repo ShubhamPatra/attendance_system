@@ -16,6 +16,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 @pytest.fixture(autouse=True)
 def _mock_config(monkeypatch):
     monkeypatch.setenv("MONGO_URI", "mongodb+srv://test:test@cluster.mongodb.net/test")
+    monkeypatch.setenv("RECOGNITION_MIN_CONFIDENCE", "0.60")
     import importlib, config
     importlib.reload(config)
 
@@ -86,6 +87,35 @@ def test_threshold_boundary(loaded_cache):
         enc1 + np.random.normal(0, 0.1, 128), threshold=0.0
     )
     assert result_zero is None
+
+
+def test_reject_low_confidence_even_within_distance_threshold(loaded_cache):
+    import face_engine
+
+    cache, id1, id2, enc1, enc2 = loaded_cache
+    # Distance ~= 0.46 gives confidence ~= 0.54, below min confidence 0.60.
+    probe = enc1 + np.ones(128, dtype=np.float64) * (0.46 / np.sqrt(128.0))
+
+    result = face_engine.recognize_face(probe, threshold=0.55)
+    assert result is None
+
+
+def test_reject_ambiguous_match_by_gap():
+    import face_engine
+    import bson
+
+    base = np.zeros(128, dtype=np.float64)
+    near = np.ones(128, dtype=np.float64) * 0.005
+
+    cache = face_engine.encoding_cache
+    cache._ids = [bson.ObjectId(), bson.ObjectId()]
+    cache._names = ["Alice", "Bob"]
+    cache._encodings = [[base], [near]]
+    cache._rebuild_flat()
+
+    probe = np.ones(128, dtype=np.float64) * 0.0025
+    result = face_engine.recognize_face(probe, threshold=0.55)
+    assert result is None
 
 
 # ── Empty cache ───────────────────────────────────────────────────────────

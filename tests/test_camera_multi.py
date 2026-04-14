@@ -8,6 +8,7 @@ import sys
 from unittest.mock import patch, MagicMock, PropertyMock
 
 import pytest
+import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -24,9 +25,11 @@ def _reset_cameras():
     """Reset the global camera dict between tests."""
     import camera
     camera._cameras = {}
+    camera._camera_viewers = {}
     camera._socketio = None
     yield
     camera._cameras = {}
+    camera._camera_viewers = {}
     camera._socketio = None
 
 
@@ -92,6 +95,29 @@ def test_release_camera():
             # Release all remaining cameras
             camera.release_camera()
             assert len(camera._cameras) == 0
+
+
+def test_stream_acquire_release_stops_on_last_viewer():
+    """acquire/release stream should stop camera only after last viewer leaves."""
+    import camera
+
+    with patch("camera.cv2.VideoCapture") as mock_vc:
+        mock_vc.return_value = MagicMock()
+
+        with patch.object(camera.Camera, "start"), \
+             patch.object(camera.Camera, "stop") as mock_stop:
+            cam = camera.acquire_camera_stream(0)
+            camera.acquire_camera_stream(0)
+
+            assert camera._camera_viewers[0] == 2
+            camera.release_camera_stream(0)
+            assert camera._camera_viewers[0] == 1
+            mock_stop.assert_not_called()
+
+            camera.release_camera_stream(0)
+            assert 0 not in camera._camera_viewers
+            assert 0 not in camera._cameras
+            mock_stop.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
@@ -184,3 +210,37 @@ def test_log_buffer_persists():
         assert len(second_read) == 2
         assert first_read[0]["name"] == second_read[0]["name"]
         assert first_read[1]["name"] == second_read[1]["name"]
+
+
+@patch("camera.cv2.VideoCapture")
+def test_incremental_learning_requires_min_liveness(mock_vc):
+    """High recognition alone must not append encoding when liveness is low."""
+    import camera
+
+    mock_vc.return_value = MagicMock()
+
+    with patch("camera.database.get_student_by_id", return_value=None), \
+         patch("camera.database.mark_attendance", return_value=True), \
+         patch("camera._encoding_cache") as mock_cache_factory, \
+         patch("camera._face_engine_module") as mock_face_engine_factory:
+        mock_cache = MagicMock()
+        mock_cache.get_flat.return_value = (None, None, [], [])
+        mock_cache_factory.return_value = mock_cache
+
+        mock_face_engine = MagicMock()
+        mock_face_engine_factory.return_value = mock_face_engine
+
+        cam = camera.Camera(source=0)
+        frame = np.zeros((32, 32, 3), dtype=np.uint8)
+        encoding = np.random.rand(128).astype(np.float64)
+
+        cam._handle_recognized(
+            student_id="sid-1",
+            name="Alice",
+            confidence=0.99,
+            liveness_conf=0.10,
+            frame=frame,
+            encoding=encoding,
+        )
+
+        mock_face_engine.append_encoding.assert_not_called()

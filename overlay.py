@@ -87,6 +87,8 @@ def draw_track_overlay(
     """
     top, left, bottom, right = trk.tlbr()
     liveness_label, liveness_conf = trk.liveness
+    ppe_state = getattr(trk, "ppe_state", "none")
+    ppe_conf = float(getattr(trk, "ppe_confidence", 0.0))
 
     if trk.is_spoof:
         cv2.rectangle(frame, (left, top), (right, bottom), (0, 0, 255), 2)
@@ -114,6 +116,7 @@ def draw_track_overlay(
             (name, (255, 255, 255)),
             (f"Confidence: {confidence:.2f}", (0, 255, 0)),
             (f"Liveness: {liveness_conf:.2f}", (0, 200, 0)),
+            (f"PPE: {ppe_state} ({ppe_conf:.2f})", (0, 220, 220)),
             (status, (0, 255, 0) if not in_cooldown else (0, 200, 255)),
         ]
         if config.DEBUG_MODE:
@@ -127,12 +130,20 @@ def draw_track_overlay(
         lines = [
             ("Unknown", (0, 0, 255)),
             (f"Liveness: {liveness_conf:.2f}", (0, 200, 0)),
+            (f"PPE: {ppe_state} ({ppe_conf:.2f})", (0, 220, 220)),
         ]
+        reason = getattr(trk, "quality_reason", "")
+        if reason:
+            trimmed = reason if len(reason) <= 52 else reason[:49] + "..."
+            lines.append((trimmed, (0, 180, 255)))
         if config.DEBUG_MODE:
+            state = getattr(trk, "state", "unknown")
+            lines.append((f"State: {state}", (0, 200, 200)))
             lines.append((f"L: {liveness_label}/{liveness_conf:.2f}", (0, 200, 200)))
         draw_label_bg(frame, lines, left, bottom + 6)
         return
 
     # Track exists but recognition hasn't run yet (e.g., liveness uncertain)
     cv2.rectangle(frame, (left, top), (right, bottom), (200, 200, 200), 1)
-    draw_label_bg(frame, [("Checking...", (200, 200, 200))], left, bottom + 6)
+    pending = getattr(trk, "state", "liveness_pending")
+    draw_label_bg(frame, [(f"{pending}...", (200, 200, 200))], left, bottom + 6)

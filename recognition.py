@@ -154,6 +154,15 @@ def encode_face(
     ndarray or None
         128-D encoding, or *None* if encoding fails.
     """
+    encoding, _ = encode_face_with_reason(frame_bgr, bbox_xywh)
+    return encoding
+
+
+def encode_face_with_reason(
+    frame_bgr: np.ndarray,
+    bbox_xywh: tuple[int, int, int, int],
+) -> tuple[np.ndarray | None, str]:
+    """Generate encoding and return a rejection reason when unavailable."""
     # Quality gate (can be bypassed for diagnosis)
     if config.BYPASS_QUALITY_GATE:
         logger.debug("Quality gate BYPASSED by config flag.")
@@ -161,7 +170,7 @@ def encode_face(
         ok, reason = check_face_quality_gate(frame_bgr, bbox_xywh)
         if not ok:
             logger.info("Face quality gate rejected: %s", reason)
-            return None
+            return None, reason
 
     rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
     x, y, w, h = bbox_xywh
@@ -181,7 +190,7 @@ def encode_face(
                 "Encoding generated via alignment: shape=%s",
                 encodings[0].shape,
             )
-            return encodings[0]
+            return encodings[0], ""
         # Alignment produced a crop but encoding failed — fall through
         logger.debug("Aligned crop produced no encoding, falling back.")
 
@@ -192,7 +201,7 @@ def encode_face(
             "Encoding generated via fallback (no alignment): shape=%s",
             encodings[0].shape,
         )
-        return encodings[0]
+        return encodings[0], ""
 
     logger.warning("encode_face: no encoding produced for bbox=%s", bbox_xywh)
-    return None
+    return None, "No facial encoding could be produced. Keep face front-facing and unobstructed."

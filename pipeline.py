@@ -73,7 +73,12 @@ class FaceTrack:
     __slots__ = (
         "track_id", "tracker", "bbox",
         "identity", "liveness", "is_spoof", "is_unknown",
-        "frames_missing",
+        "frames_missing", "detector_misses",
+        "liveness_history", "spoof_hold_until", "liveness_state",
+        "ppe_state", "ppe_confidence", "ppe_history", "ppe_updated_at",
+        "state", "quality_reason", "created_at",
+        "candidate_student_id", "candidate_name",
+        "candidate_hits", "candidate_best_confidence",
     )
 
     def __init__(self, track_id: int, frame: np.ndarray,
@@ -87,6 +92,21 @@ class FaceTrack:
         self.is_spoof: bool = False
         self.is_unknown: bool = False
         self.frames_missing: int = 0
+        self.detector_misses: int = 0
+        self.liveness_history: list[tuple[int, float]] = []
+        self.spoof_hold_until: float = 0.0
+        self.liveness_state: str = "init"
+        self.ppe_state: str = "none"
+        self.ppe_confidence: float = 0.0
+        self.ppe_history: list[tuple[str, float]] = []
+        self.ppe_updated_at: float = 0.0
+        self.state: str = "detecting"
+        self.quality_reason: str = ""
+        self.created_at: float = 0.0
+        self.candidate_student_id = None
+        self.candidate_name: str = ""
+        self.candidate_hits: int = 0
+        self.candidate_best_confidence: float = 0.0
 
     def update(self, frame: np.ndarray) -> bool:
         """Advance the tracker by one frame.  Returns *True* on success."""
@@ -232,16 +252,40 @@ def detect_and_associate(
     Matched tracks have their ``frames_missing`` counter reset.
     Returns ``(x, y, w, h)`` boxes in original-frame coordinates.
     """
+    new_boxes, _ = detect_and_associate_detailed(
+        frame,
+        tracks,
+        process_width=process_width,
+        iou_threshold=iou_threshold,
+        centroid_dist_threshold=centroid_dist_threshold,
+    )
+    return new_boxes
+
+
+def detect_and_associate_detailed(
+    frame: np.ndarray,
+    tracks: list[FaceTrack],
+    process_width: int = config.FRAME_PROCESS_WIDTH,
+    iou_threshold: float = config.IOU_THRESHOLD,
+    centroid_dist_threshold: float = config.CENTROID_DISTANCE_THRESHOLD,
+) -> tuple[list[tuple[int, int, int, int]], set[int]]:
+    """Run face detection and return ``(new_boxes, matched_track_indices)``.
+
+    ``matched_track_indices`` contains indexes from *tracks* that were
+    supported by at least one detector box in this cycle.
+    """
     det_boxes = detect_faces_yunet(frame, process_width)
     new_boxes: list[tuple[int, int, int, int]] = []
+    matched_track_indices: set[int] = set()
 
     for det_box in det_boxes:
         matched = False
         # Check against existing tracks
-        for trk in tracks:
+        for idx, trk in enumerate(tracks):
             if (iou(det_box, trk.bbox) > iou_threshold
                     or centroid_distance(det_box, trk.bbox) < centroid_dist_threshold):
                 trk.frames_missing = 0
+                matched_track_indices.add(idx)
                 matched = True
                 break
         # Check against already-accepted new boxes (avoid duplicates)
@@ -254,4 +298,4 @@ def detect_and_associate(
         if not matched:
             new_boxes.append(det_box)
 
-    return new_boxes
+    return new_boxes, matched_track_indices

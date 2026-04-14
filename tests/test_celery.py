@@ -22,8 +22,6 @@ def _mock_config(monkeypatch):
     """Ensure config module has dummy env vars for all tests."""
     monkeypatch.setenv("MONGO_URI", "mongodb+srv://test:test@cluster.mongodb.net/test")
     monkeypatch.setenv("SECRET_KEY", "test-secret")
-    monkeypatch.setenv("SENDGRID_API_KEY", "")
-    monkeypatch.setenv("NOTIFY_EMAIL", "")
     fake_torch = types.SimpleNamespace(
         cuda=types.SimpleNamespace(is_available=lambda: False)
     )
@@ -196,37 +194,7 @@ def test_compute_encodings_task_failure():
     assert result["errors"][1]["path"] == "/fake/bad2.jpg"
 
 
-# ── 6. send_absence_notifications – no API key ──────────────────────────
-
-def test_send_absence_notifications_no_api_key():
-    """send_absence_notifications exits gracefully when SendGrid is not configured."""
-    import celery_app
-    import bson
-
-    mock_db = MagicMock()
-    mock_db.students.find.return_value = [
-        {
-            "_id": bson.ObjectId(),
-            "name": "Alice",
-            "registration_number": "FA21-BCS-001",
-        },
-    ]
-    # Student has 0 attendance records -> below threshold
-    mock_db.attendance.count_documents.return_value = 0
-
-    with patch("database.get_db", return_value=mock_db), \
-         patch("config.SENDGRID_API_KEY", ""), \
-         patch("config.NOTIFY_EMAIL", ""), \
-         patch("config.ABSENCE_THRESHOLD", 75):
-        result = celery_app.send_absence_notifications.run()
-
-    # Should return dict indicating email was NOT sent
-    assert isinstance(result, dict)
-    assert result["flagged"] == 1
-    assert result["email_sent"] is False
-
-
-# ── 7. backup_mongodb ────────────────────────────────────────────────────
+# ── 6. backup_mongodb ────────────────────────────────────────────────────
 
 def test_backup_mongodb():
     """backup_mongodb creates a .tar.gz archive in the configured backup dir."""

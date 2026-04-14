@@ -2,6 +2,7 @@
 Database layer -- MongoDB Atlas connection, indexes, and CRUD helpers.
 """
 
+import time
 from datetime import datetime, timedelta, timezone
 
 import bson
@@ -25,19 +26,45 @@ def get_client() -> MongoClient:
     """Return a cached MongoClient instance."""
     global _client
     if _client is None:
-        _client = MongoClient(
-            config.MONGO_URI,
-            serverSelectionTimeoutMS=5000,
-            connectTimeoutMS=5000,
-        )
-        # Verify the connection early
-        try:
-            _client.admin.command("ping")
-            logger.info("Connected to MongoDB Atlas.")
-        except ConnectionFailure as exc:
-            _client = None
-            logger.error("MongoDB connection failed: %s", exc)
-            raise
+        retries = max(1, config.MONGO_CONNECT_RETRIES)
+        base_delay = max(0.0, config.MONGO_CONNECT_RETRY_DELAY_SECONDS)
+        last_exc: Exception | None = None
+
+        for attempt in range(1, retries + 1):
+            candidate = MongoClient(
+                config.MONGO_URI,
+                serverSelectionTimeoutMS=config.MONGO_SERVER_SELECTION_TIMEOUT_MS,
+                connectTimeoutMS=config.MONGO_CONNECT_TIMEOUT_MS,
+            )
+            try:
+                # Verify the connection early and cache only healthy clients.
+                candidate.admin.command("ping")
+                _client = candidate
+                logger.info("Connected to MongoDB Atlas.")
+                break
+            except ConnectionFailure as exc:
+                last_exc = exc
+                candidate.close()
+                if attempt < retries:
+                    delay = base_delay * attempt
+                    logger.warning(
+                        "MongoDB connection attempt %d/%d failed; retrying in %.1fs: %s",
+                        attempt,
+                        retries,
+                        delay,
+                        exc,
+                    )
+                    if delay > 0:
+                        time.sleep(delay)
+                else:
+                    logger.error(
+                        "MongoDB connection failed after %d attempt(s): %s",
+                        retries,
+                        exc,
+                    )
+
+        if _client is None and last_exc is not None:
+            raise last_exc
     return _client
 
 

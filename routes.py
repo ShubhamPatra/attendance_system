@@ -6,7 +6,6 @@ import base64
 import collections
 import io
 import os
-from urllib.parse import urlparse
 import threading
 import tempfile
 import time
@@ -30,7 +29,6 @@ from flask import (
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
-from redis import Redis
 
 # Magic bytes for image MIME validation
 _IMAGE_SIGNATURES = {
@@ -93,12 +91,14 @@ from utils import (
     sanitize_string,
     setup_logging,
     today_str,
+  validate_required_fields,
 )
 
 logger = setup_logging()
 
 _rate_limit_lock = threading.Lock()
 _rate_limit_buckets: dict[str, collections.deque[float]] = {}
+_last_bucket_prune: float = 0.0
 
 
 def _check_model_artifacts() -> dict[str, bool]:
@@ -108,9 +108,13 @@ def _check_model_artifacts() -> dict[str, bool]:
       name.lower().endswith(".pth")
       for name in os.listdir(config.ANTI_SPOOF_MODEL_DIR)
     )
+  ppe_ok = True
+  if config.PPE_DETECTION_ENABLED:
+    ppe_ok = os.path.isfile(config.PPE_MODEL_PATH)
   return {
     "yunet_model": os.path.isfile(config.YUNET_MODEL_PATH),
     "anti_spoof_models": anti_spoof_ok,
+    "ppe_model": ppe_ok,
   }
 
 
@@ -122,19 +126,20 @@ def _check_mongo_ready() -> bool:
     return False
 
 
-def _check_redis_ready() -> bool:
+def _check_celery_ready() -> bool:
   try:
-    parsed = urlparse(config.CELERY_BROKER_URL)
-    client = Redis(
-      host=parsed.hostname or "localhost",
-      port=parsed.port or 6379,
-      db=int((parsed.path or "/0").strip("/") or "0"),
-      password=parsed.password,
-      socket_connect_timeout=2,
-      socket_timeout=2,
-    )
-    client.ping()
-    return True
+    broker = (config.CELERY_BROKER_URL or "").strip().lower()
+    if broker.startswith("filesystem://"):
+      os.makedirs(config.CELERY_DATA_DIR, exist_ok=True)
+      probe = os.path.join(config.CELERY_DATA_DIR, ".healthcheck")
+      with open(probe, "w", encoding="utf-8") as f:
+        f.write("ok")
+      os.remove(probe)
+      return True
+
+    # For non-filesystem brokers, report configured as ready and let Celery
+    # surface runtime connection errors if misconfigured.
+    return bool(broker)
   except Exception:
     return False
 
@@ -147,12 +152,25 @@ def _rate_limit_key(endpoint: str) -> str:
 
 def _check_rate_limit(endpoint: str) -> bool:
   """Return True if the current request is within endpoint rate limits."""
+  global _last_bucket_prune
   now = time.monotonic()
   window = max(config.API_RATE_LIMIT_WINDOW_SEC, 1)
   limit = max(config.API_RATE_LIMIT_MAX_REQUESTS, 1)
   key = _rate_limit_key(endpoint)
 
   with _rate_limit_lock:
+    if now - _last_bucket_prune >= window:
+      global_cutoff = now - window
+      stale_keys: list[str] = []
+      for bucket_key, bucket_values in _rate_limit_buckets.items():
+        while bucket_values and bucket_values[0] < global_cutoff:
+          bucket_values.popleft()
+        if not bucket_values:
+          stale_keys.append(bucket_key)
+      for bucket_key in stale_keys:
+        _rate_limit_buckets.pop(bucket_key, None)
+      _last_bucket_prune = now
+
     bucket = _rate_limit_buckets.setdefault(key, collections.deque())
     cutoff = now - window
     while bucket and bucket[0] < cutoff:
@@ -161,6 +179,52 @@ def _check_rate_limit(endpoint: str) -> bool:
       return False
     bucket.append(now)
     return True
+
+
+def _is_truthy_flag(value) -> bool:
+  """Return True when *value* represents an enabled flag."""
+  if isinstance(value, bool):
+    return value
+  return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _parse_report_filters(params: dict, *, default_date: str) -> tuple[dict | None, tuple[dict, int] | None]:
+  """Normalize and validate report filters for CSV/XLSX/async endpoints."""
+  reg_no = sanitize_string(str(params.get("reg_no", "")).strip())
+  start_date = str(params.get("start_date", "")).strip()
+  end_date = str(params.get("end_date", "")).strip()
+  date = str(params.get("date", "")).strip()
+  full = _is_truthy_flag(params.get("full", ""))
+
+  if full:
+    return {"mode": "full"}, None
+
+  if reg_no:
+    if database.get_student_by_reg_no(reg_no) is None:
+      return None, ({"error": "Student not found."}, 404)
+    return {"mode": "student", "reg_no": reg_no}, None
+
+  if bool(start_date) ^ bool(end_date):
+    return None, ({"error": "Both start_date and end_date are required for range queries."}, 400)
+
+  if start_date and end_date:
+    sd, err1 = _validate_date_param(start_date, "start_date")
+    ed, err2 = _validate_date_param(end_date, "end_date")
+    if err1 or err2:
+      return None, ({"error": err1 or err2}, 400)
+    if sd > ed:
+      return None, ({"error": "start_date must be <= end_date."}, 400)
+    return {
+      "mode": "range",
+      "start_date": start_date,
+      "end_date": end_date,
+    }, None
+
+  date_str = date or default_date
+  _, err = _validate_date_param(date_str, "date")
+  if err:
+    return None, ({"error": err}, 400)
+  return {"mode": "date", "date": date_str}, None
 
 bp = Blueprint("main", __name__)
 
@@ -179,7 +243,7 @@ def ready():
   """Readiness endpoint for container orchestration and probes."""
   checks = {
     "mongo": _check_mongo_ready(),
-    "redis": _check_redis_ready(),
+    "celery": _check_celery_ready(),
     **_check_model_artifacts(),
   }
 
@@ -394,9 +458,9 @@ def api_register_capture():
     if not _check_rate_limit("register_capture"):
       return jsonify({"error": "Rate limit exceeded."}), 429
 
-    data = request.get_json(silent=True)
-    if not data or "frame" not in data:
-        return jsonify({"error": "Missing 'frame' in request body."}), 400
+    errors, data = validate_required_fields(request.get_json(silent=True), ["frame"])
+    if errors:
+      return jsonify({"error": errors[0]}), 400
 
     frame_b64 = data["frame"]
     # Strip optional data URI prefix
@@ -447,29 +511,33 @@ def video_feed():
               type: string
               format: binary
     """
-    from camera import get_camera
+    from camera import acquire_camera_stream, release_camera_stream
 
-    cam = get_camera()
+    source = 0
+    cam = acquire_camera_stream(source)
 
     min_interval = 1.0 / config.MJPEG_TARGET_FPS
 
     def generate():
-        last_yield = 0.0
+      last_yield = 0.0
+      try:
         while True:
-            jpeg = cam.get_latest_jpeg()
-            if jpeg is None:
-                time.sleep(0.03)
-                continue
-            # Throttle to target FPS
-            now = time.monotonic()
-            elapsed = now - last_yield
-            if elapsed < min_interval:
-                time.sleep(min_interval - elapsed)
-            last_yield = time.monotonic()
-            yield (
-                b"--frame\r\n"
-                b"Content-Type: image/jpeg\r\n\r\n" + jpeg + b"\r\n"
-            )
+          jpeg = cam.get_latest_jpeg()
+          if jpeg is None:
+            time.sleep(0.03)
+            continue
+          # Throttle to target FPS
+          now = time.monotonic()
+          elapsed = now - last_yield
+          if elapsed < min_interval:
+            time.sleep(min_interval - elapsed)
+          last_yield = time.monotonic()
+          yield (
+            b"--frame\r\n"
+            b"Content-Type: image/jpeg\r\n\r\n" + jpeg + b"\r\n"
+          )
+      finally:
+        release_camera_stream(source)
 
     return Response(
         generate(), mimetype="multipart/x-mixed-replace; boundary=frame"
@@ -550,34 +618,26 @@ def report_csv():
       400:
         description: Invalid date parameters
     """
-    reg_no = sanitize_string(request.args.get("reg_no", "").strip())
-    start_date = request.args.get("start_date", "").strip()
-    end_date = request.args.get("end_date", "").strip()
-    full = request.args.get("full", "").strip()
+    filters, error = _parse_report_filters(dict(request.args), default_date=today_str())
+    if error is not None:
+      payload, status_code = error
+      return jsonify(payload), status_code
 
-    if full == "1":
+    mode = filters["mode"]
+    if mode == "full":
         df = database.get_attendance_csv_full()
         filename = "attendance_full_history.csv"
-    elif reg_no:
-      if database.get_student_by_reg_no(reg_no) is None:
-        return jsonify({"error": "Student not found."}), 404
+    elif mode == "student":
+      reg_no = filters["reg_no"]
       df = database.get_attendance_csv_by_student(reg_no)
       filename = f"attendance_{reg_no}.csv"
-    elif start_date and end_date:
-        sd, err1 = _validate_date_param(start_date, "start_date")
-        ed, err2 = _validate_date_param(end_date, "end_date")
-        if err1 or err2:
-            msg = err1 or err2
-            return jsonify({"error": msg}), 400
-        if sd > ed:
-            return jsonify({"error": "start_date must be <= end_date."}), 400
+    elif mode == "range":
+        start_date = filters["start_date"]
+        end_date = filters["end_date"]
         df = database.get_attendance_csv_by_date_range(start_date, end_date)
         filename = f"attendance_{start_date}_to_{end_date}.csv"
     else:
-        date = request.args.get("date", today_str()).strip()
-        _, err = _validate_date_param(date, "date")
-        if err:
-            return jsonify({"error": err}), 400
+        date = filters["date"]
         df = database.get_attendance_csv(date)
         filename = f"attendance_{date}.csv"
 
@@ -632,32 +692,26 @@ def report_xlsx():
       400:
         description: Invalid date parameters
     """
-    reg_no = sanitize_string(request.args.get("reg_no", "").strip())
-    start_date = request.args.get("start_date", "").strip()
-    end_date = request.args.get("end_date", "").strip()
-    full = request.args.get("full", "").strip()
+    filters, error = _parse_report_filters(dict(request.args), default_date=today_str())
+    if error is not None:
+      payload, status_code = error
+      return jsonify(payload), status_code
 
-    if full == "1":
+    mode = filters["mode"]
+    if mode == "full":
         df = database.get_attendance_csv_full()
         filename = "attendance_full_history.xlsx"
-    elif reg_no:
+    elif mode == "student":
+        reg_no = filters["reg_no"]
         df = database.get_attendance_csv_by_student(reg_no)
         filename = f"attendance_{reg_no}.xlsx"
-    elif start_date and end_date:
-        sd, err1 = _validate_date_param(start_date, "start_date")
-        ed, err2 = _validate_date_param(end_date, "end_date")
-        if err1 or err2:
-            msg = err1 or err2
-            return jsonify({"error": msg}), 400
-        if sd > ed:
-            return jsonify({"error": "start_date must be <= end_date."}), 400
+    elif mode == "range":
+        start_date = filters["start_date"]
+        end_date = filters["end_date"]
         df = database.get_attendance_csv_by_date_range(start_date, end_date)
         filename = f"attendance_{start_date}_to_{end_date}.xlsx"
     else:
-        date = request.args.get("date", today_str()).strip()
-        _, err = _validate_date_param(date, "date")
-        if err:
-            return jsonify({"error": err}), 400
+        date = filters["date"]
         df = database.get_attendance_csv(date)
         filename = f"attendance_{date}.xlsx"
 
@@ -741,8 +795,10 @@ def api_events():
           items:
             type: object
     """
-    from camera import get_camera
-    cam = get_camera()
+    from camera import get_camera_if_running
+    cam = get_camera_if_running()
+    if cam is None:
+      return jsonify([])
     return jsonify(cam.pop_events())
 
 
@@ -767,8 +823,10 @@ def api_logs():
           items:
             type: object
     """
-    from camera import get_camera
-    cam = get_camera()
+    from camera import get_camera_if_running
+    cam = get_camera_if_running()
+    if cam is None:
+      return jsonify([])
     return jsonify(cam.get_log_buffer())
 
 
@@ -917,9 +975,9 @@ def api_attendance_bulk():
     if not _check_rate_limit("attendance_bulk"):
       return jsonify({"error": "Rate limit exceeded."}), 429
 
-    data = request.get_json(silent=True)
-    if not data or "student_ids" not in data:
-        return jsonify({"error": "Missing 'student_ids' in request body."}), 400
+    errors, data = validate_required_fields(request.get_json(silent=True), ["student_ids"])
+    if errors:
+      return jsonify({"error": errors[0]}), 400
 
     reg_nos = data["student_ids"]
     status = data.get("status", "Present")
@@ -1125,6 +1183,11 @@ def api_students_create():
     if not data:
       return jsonify({"error": "JSON body required."}), 400
 
+    req_errors, data = validate_required_fields(
+      data,
+      ["name", "semester", "registration_number", "section", "image_paths"],
+    )
+
     name = sanitize_string(data.get("name", ""))
     semester_raw = data.get("semester")
     reg_no = sanitize_string(data.get("registration_number", ""))
@@ -1132,6 +1195,7 @@ def api_students_create():
     image_paths = data.get("image_paths", [])
 
     errors: list[str] = []
+    errors.extend(req_errors)
     if not name:
       errors.append("name is required.")
     if not reg_no:
@@ -1402,9 +1466,9 @@ def api_attendance_mark():
     if not _check_rate_limit("attendance_mark"):
       return jsonify({"error": "Rate limit exceeded."}), 429
 
-    data = request.get_json(silent=True)
-    if not data or "reg_no" not in data:
-        return jsonify({"error": "Missing 'reg_no' in request body."}), 400
+    errors, data = validate_required_fields(request.get_json(silent=True), ["reg_no"])
+    if errors:
+      return jsonify({"error": errors[0]}), 400
 
     reg_no = sanitize_string(data["reg_no"])
     status = data.get("status", "Present")
@@ -1428,6 +1492,26 @@ def api_attendance_mark():
         "reg_no": reg_no,
         "status": status,
     })
+
+
+@bp.route("/api/debug/diagnostics")
+def api_debug_diagnostics():
+    """Return runtime diagnostics for operators (enabled only in DEBUG_MODE)."""
+    if not config.DEBUG_MODE:
+        return jsonify({"error": "Diagnostics endpoint is disabled."}), 404
+
+    from camera import get_camera_diagnostics
+
+    payload = {
+        "cameras": get_camera_diagnostics(),
+        "metrics": tracker.metrics(),
+        "health": {
+            "mongo": _check_mongo_ready(),
+            "celery": _check_celery_ready(),
+            **_check_model_artifacts(),
+        },
+    }
+    return jsonify(payload)
 
 
 # ── Celery Task Status ────────────────────────────────────────────────────
@@ -1518,23 +1602,26 @@ def api_report_csv_async():
         return jsonify({"error": "Celery is not configured."}), 503
 
     data = request.get_json(silent=True) or {}
-    date = sanitize_string(str(data.get("date", "")).strip())
-    reg_no = sanitize_string(str(data.get("reg_no", "")).strip())
-    start_date = sanitize_string(str(data.get("start_date", "")).strip())
-    end_date = sanitize_string(str(data.get("end_date", "")).strip())
-    full = str(data.get("full", "")).strip()
+    filters, error = _parse_report_filters(data, default_date=today_str())
+    if error is not None:
+      payload, status_code = error
+      return jsonify(payload), status_code
 
-    if full == "1":
+    mode = filters["mode"]
+    if mode == "full":
       task = generate_csv_task.delay("full")
-    elif reg_no:
+    elif mode == "student":
+      reg_no = filters["reg_no"]
       task = generate_csv_task.delay("student", reg_no=reg_no)
-    elif start_date and end_date:
+    elif mode == "range":
+      start_date = filters["start_date"]
+      end_date = filters["end_date"]
       task = generate_csv_task.delay(
         "range",
         start_date=start_date,
         end_date=end_date,
       )
     else:
-      date_str = date or today_str()
+      date_str = filters["date"]
       task = generate_csv_task.delay("date", date_str=date_str)
     return jsonify({"task_id": task.id}), 202

@@ -6,7 +6,6 @@ import atexit
 import os
 import sys
 import time
-from urllib.parse import urlparse
 
 # Ensure the package directory is on sys.path so local imports work
 # when running `python app.py` from inside attendance_system/.
@@ -15,12 +14,12 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from flask import Flask
 from flask_socketio import SocketIO
 from flasgger import Swagger
-from redis import Redis
 
 import anti_spoofing
 import config
 import database
 import pipeline
+import ppe_detection
 from face_engine import encoding_cache
 from routes import bp as main_bp
 from utils import setup_logging
@@ -63,26 +62,26 @@ def _startup_diagnostics(logger):
                 f"No anti-spoof .pth model files found in: {config.ANTI_SPOOF_MODEL_DIR}"
             )
 
+    if config.PPE_DETECTION_ENABLED and not os.path.isfile(config.PPE_MODEL_PATH):
+        errors.append(f"PPE model missing: {config.PPE_MODEL_PATH}")
+
     # MongoDB is required for this app.
     try:
-        database.get_client().admin.command("ping")
+        database.get_client()
     except Exception as exc:
         errors.append(f"MongoDB ping failed: {exc}")
 
-    # Redis is strongly recommended in production but not always required for local runs.
+    # Celery broker check (filesystem by default; can be overridden by env).
     try:
-        redis_url = urlparse(config.CELERY_BROKER_URL)
-        redis_client = Redis(
-            host=redis_url.hostname or "localhost",
-            port=redis_url.port or 6379,
-            db=int((redis_url.path or "/0").strip("/") or "0"),
-            password=redis_url.password,
-            socket_connect_timeout=2,
-            socket_timeout=2,
-        )
-        redis_client.ping()
+        broker = (config.CELERY_BROKER_URL or "").strip().lower()
+        if broker.startswith("filesystem://"):
+            os.makedirs(config.CELERY_DATA_DIR, exist_ok=True)
+            test_file = os.path.join(config.CELERY_DATA_DIR, ".healthcheck")
+            with open(test_file, "w", encoding="utf-8") as f:
+                f.write("ok")
+            os.remove(test_file)
     except Exception as exc:
-        logger.warning("Redis ping failed at startup: %s", exc)
+        logger.warning("Celery broker check failed at startup: %s", exc)
 
     if config.STARTUP_CAMERA_PROBE:
         try:
@@ -161,6 +160,9 @@ def create_app() -> Flask:
 
     # Load anti-spoofing models once at startup
     anti_spoofing.init_models()
+
+    # Load PPE model (optional; controlled by config flag)
+    ppe_detection.init_model(config.PPE_MODEL_PATH)
 
     # Load YuNet face detector
     pipeline.init_yunet(

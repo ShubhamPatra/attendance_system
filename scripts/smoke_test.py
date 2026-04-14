@@ -57,6 +57,43 @@ def _check_video(base_url: str) -> bool:
         return False
 
 
+def _check_stream_lifecycle(base_url: str) -> bool:
+    """Open then close video stream, then verify diagnostics report no active viewers."""
+    stream_url = f"{base_url.rstrip('/')}/video_feed"
+    req = urllib.request.Request(stream_url, method="GET")
+    try:
+        with urllib.request.urlopen(req, timeout=8.0) as resp:
+            _ = resp.read(1024)
+    except (urllib.error.URLError, urllib.error.HTTPError) as exc:
+        print(f"[FAIL] stream lifecycle open/close: {exc}")
+        return False
+
+    diag_url = f"{base_url.rstrip('/')}/api/debug/diagnostics"
+    try:
+        code, body, _ = _fetch(diag_url)
+        if code != 200:
+            print(f"[WARN] diagnostics unavailable (status {code}); skipping lifecycle assertion")
+            return True
+        payload = json.loads(body.decode("utf-8"))
+        viewers = payload.get("cameras", {}).get("viewers", {})
+        active = sum(int(v) for v in viewers.values()) if viewers else 0
+        if active != 0:
+            print(f"[FAIL] stream lifecycle: expected 0 viewers after close, got {active}")
+            return False
+        print("[ OK ] stream lifecycle")
+        return True
+    except urllib.error.HTTPError as exc:
+        # Diagnostics endpoint may be disabled when DEBUG_MODE=0.
+        if exc.code == 404:
+            print("[WARN] diagnostics endpoint disabled; lifecycle assertion skipped")
+            return True
+        print(f"[FAIL] diagnostics check: {exc}")
+        return False
+    except (urllib.error.URLError, ValueError, json.JSONDecodeError) as exc:
+        print(f"[FAIL] diagnostics check: {exc}")
+        return False
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="AutoAttendance smoke test")
     parser.add_argument("--base-url", default="http://localhost:5000")
@@ -72,6 +109,7 @@ def main() -> int:
 
     if args.check_video:
         checks.append(_check_video(args.base_url))
+        checks.append(_check_stream_lifecycle(args.base_url))
 
     ok = all(checks)
     print("\nSmoke test:", "PASSED" if ok else "FAILED")

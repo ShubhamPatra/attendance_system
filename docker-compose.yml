@@ -14,8 +14,6 @@ services:
       - STARTUP_CAMERA_PROBE=${STARTUP_CAMERA_PROBE:-0}
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - SENDGRID_API_KEY=${SENDGRID_API_KEY:-}
-      - NOTIFY_EMAIL=${NOTIFY_EMAIL:-}
       - ABSENCE_THRESHOLD=${ABSENCE_THRESHOLD:-75}
       - CAMERA_INDICES=${CAMERA_INDICES:-0}
       - SOCKETIO_CORS_ORIGINS=${SOCKETIO_CORS_ORIGINS:-http://localhost:5000,http://127.0.0.1:5000}
@@ -44,8 +42,6 @@ services:
       - STRICT_STARTUP_CHECKS=${STRICT_STARTUP_CHECKS:-1}
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - SENDGRID_API_KEY=${SENDGRID_API_KEY:-}
-      - NOTIFY_EMAIL=${NOTIFY_EMAIL:-}
       - ABSENCE_THRESHOLD=${ABSENCE_THRESHOLD:-75}
     volumes:
       - ./uploads:/app/uploads
@@ -71,8 +67,6 @@ services:
       - STRICT_STARTUP_CHECKS=${STRICT_STARTUP_CHECKS:-1}
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - SENDGRID_API_KEY=${SENDGRID_API_KEY:-}
-      - NOTIFY_EMAIL=${NOTIFY_EMAIL:-}
       - ABSENCE_THRESHOLD=${ABSENCE_THRESHOLD:-75}
     depends_on:
       redis:

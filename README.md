@@ -100,8 +100,8 @@ Key thresholds can be adjusted in `config.py`:
 
 | Parameter | Default | Description |
 | --- | --- | --- |
-| `RECOGNITION_THRESHOLD` | 0.55 | Euclidean distance cutoff for face matching (lower = stricter) |
-| `LIVENESS_CONFIDENCE_THRESHOLD` | 0.80 | Minimum anti-spoof confidence to accept as real |
+| `RECOGNITION_THRESHOLD` | 0.50 | Euclidean distance cutoff for face matching (lower = stricter) |
+| `LIVENESS_CONFIDENCE_THRESHOLD` | 0.55 | Minimum anti-spoof confidence to accept as real |
 | `DETECTION_INTERVAL` | 10 | Run face detection every N frames |
 | `RECOGNITION_COOLDOWN` | 30 | Seconds before re-processing a recognized student |
 | `BLUR_THRESHOLD` | 100.0 | Laplacian variance minimum for image quality |
@@ -127,6 +127,10 @@ MONGO_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net/attendance_syste
 SECRET_KEY=change-me-in-production
 SOCKETIO_CORS_ORIGINS=https://your-domain.example
 STRICT_STARTUP_CHECKS=1
+MONGO_SERVER_SELECTION_TIMEOUT_MS=5000
+MONGO_CONNECT_TIMEOUT_MS=5000
+MONGO_CONNECT_RETRIES=3
+MONGO_CONNECT_RETRY_DELAY_SECONDS=1.0
 ```
 
 1. Build and start services:
@@ -158,12 +162,12 @@ The stack includes:
 - `app` (Flask + Gunicorn on port 5000)
 - `celery-worker`
 - `celery-beat`
-- `redis`
+- `celery broker/storage` (filesystem transport by default)
 
 Health checks are built in:
 
 - `GET /health` for process liveness
-- `GET /healthz` (alias of readiness) for dependency checks (MongoDB, Redis, model artifacts)
+- `GET /healthz` (alias of readiness) for dependency checks (MongoDB, Celery, model artifacts)
 
 To inspect health quickly:
 
@@ -335,7 +339,7 @@ A unique compound index on `(student_id, date)` enforces one attendance record p
 - Unique database constraints preventing duplicate registrations and attendance records
 - Recognition cooldown preventing repeated marking within 30 seconds
 - Bounded in-memory buffers (events: 50, logs: 200) to prevent memory growth
-- MongoDB connection timeouts (5 seconds) for resilience
+- MongoDB connection timeouts (default 5 seconds) with retry/backoff on startup
 - Date parameter validation with strict format parsing
 - Daily rotating log files with 30-day retention
 
