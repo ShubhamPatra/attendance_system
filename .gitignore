@@ -41,6 +41,12 @@ celery_data/
 
 # Models (large binary files)
 models/*.onnx
+models/anti_spoofing/*.onnx
+
+# Database and cache
+*.db
+*.sqlite
+*.sqlite3
 
 # Test and coverage
 .pytest_cache/

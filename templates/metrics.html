@@ -44,9 +44,9 @@
             <div class="panel-body">
                 <div class="kv-list">
                     <div class="kv-row"><span class="kv-key">Recognition Threshold</span><span class="kv-value" id="mThreshold">{{ metrics.recognition_threshold }}</span></div>
-                    <div class="kv-row"><span class="kv-key">Liveness Threshold</span><span class="kv-value">{{ config.LIVENESS_CONFIDENCE_THRESHOLD if config is defined else '0.8' }}</span></div>
-                    <div class="kv-row"><span class="kv-key">Frame Resize Factor</span><span class="kv-value">{{ config.FRAME_RESIZE_FACTOR if config is defined else '0.25' }}</span></div>
-                    <div class="kv-row"><span class="kv-key">Cooldown (seconds)</span><span class="kv-value">{{ config.RECOGNITION_COOLDOWN if config is defined else '30' }}</span></div>
+                    <div class="kv-row"><span class="kv-key">Liveness Threshold</span><span class="kv-value">{{ config.LIVENESS_CONFIDENCE_THRESHOLD if config is defined else '—' }}</span></div>
+                    <div class="kv-row"><span class="kv-key">Frame Resize Factor</span><span class="kv-value">{{ config.FRAME_RESIZE_FACTOR if config is defined else '—' }}</span></div>
+                    <div class="kv-row"><span class="kv-key">Cooldown (seconds)</span><span class="kv-value">{{ config.RECOGNITION_COOLDOWN if config is defined else '—' }}</span></div>
                 </div>
             </div>
         </div>

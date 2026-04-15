@@ -1,4 +1,4 @@
-.PHONY: build up down logs seed test shell models
+.PHONY: build up down logs seed test shell models run run-admin run-student
 
 COMPOSE ?= docker compose
 
@@ -25,3 +25,12 @@ shell:
 
 models:
 	python scripts/download_models.py --skip-insightface
+
+run:
+	python run.py
+
+run-admin:
+	python run_admin.py
+
+run-student:
+	python run_student.py

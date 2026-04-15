@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 64" role="img" aria-label="AutoAttendance Logo">
+  <defs>
+    <linearGradient id="logo-bg" x1="0" y1="0" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#1a2a3a"/>
+      <stop offset="100%" stop-color="#233343"/>
+    </linearGradient>
+    <linearGradient id="logo-accent" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffc099"/>
+      <stop offset="100%" stop-color="#ffa069"/>
+    </linearGradient>
+    <linearGradient id="logo-shield" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2d4356"/>
+      <stop offset="100%" stop-color="#1a2a3a"/>
+    </linearGradient>
+    <radialGradient id="logo-glow" cx="50%" cy="35%" r="50%">
+      <stop offset="0%" stop-color="#ffa069" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#ffa069" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- ====== ICON MARK ====== -->
+  <g transform="translate(4,4)">
+    <!-- Rounded square background -->
+    <rect width="56" height="56" rx="12" fill="url(#logo-bg)"/>
+    <rect width="56" height="56" rx="12" fill="url(#logo-glow)"/>
+
+    <!-- Shield -->
+    <path d="M28 6 L42 13 L42 25 Q42 37 28 46 Q14 37 14 25 L14 13 Z"
+          fill="url(#logo-shield)" stroke="#3a5068" stroke-width="0.6" opacity="0.9"/>
+
+    <!-- Face silhouette -->
+    <circle cx="28" cy="19.5" r="5.5" fill="none" stroke="#c8d8e8" stroke-width="1.4"/>
+
+    <!-- Shoulders -->
+    <path d="M20 32 Q23.5 27 28 27 Q32.5 27 36 32"
+          fill="none" stroke="#c8d8e8" stroke-width="1.4" stroke-linecap="round"/>
+
+    <!-- Scan corners TL -->
+    <path d="M21 14.5 L21 12 L23.5 12" fill="none" stroke="url(#logo-accent)" stroke-width="1.2" stroke-linecap="round"/>
+    <!-- Scan corners TR -->
+    <path d="M35 12 L32.5 12 M35 12 L35 14.5" fill="none" stroke="url(#logo-accent)" stroke-width="1.2" stroke-linecap="round"/>
+    <!-- Scan corners BL -->
+    <path d="M21 29 L21 31.5 L23.5 31.5" fill="none" stroke="url(#logo-accent)" stroke-width="1.2" stroke-linecap="round"/>
+    <!-- Scan corners BR -->
+    <path d="M35 31.5 L32.5 31.5 M35 31.5 L35 29" fill="none" stroke="url(#logo-accent)" stroke-width="1.2" stroke-linecap="round"/>
+
+    <!-- Scan line -->
+    <line x1="22" y1="21.5" x2="34" y2="21.5" stroke="#ffa069" stroke-width="0.7" opacity="0.5" stroke-dasharray="1.5 1.5"/>
+
+    <!-- Checkmark badge -->
+    <g transform="translate(39,39)">
+      <circle cx="0" cy="0" r="6.5" fill="#ffa069"/>
+      <circle cx="0" cy="0" r="6.5" fill="none" stroke="#e88a4a" stroke-width="0.4"/>
+      <path d="M-3 0 L-0.5 2.5 L3.5 -2" fill="none" stroke="#1a2a3a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+
+    <!-- Edge highlight -->
+    <rect width="56" height="56" rx="12" fill="none" stroke="#ffffff" stroke-width="0.4" opacity="0.08"/>
+  </g>
+
+  <!-- ====== WORDMARK ====== -->
+  <g transform="translate(72, 0)">
+    <!-- "Auto" in primary navy -->
+    <text x="0" y="33" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif"
+          font-size="26" font-weight="700" fill="#233343" letter-spacing="-0.5">Auto</text>
+
+    <!-- "Attendance" in primary navy, lighter weight -->
+    <text x="62" y="33" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif"
+          font-size="26" font-weight="400" fill="#233343" letter-spacing="-0.5">Attendance</text>
+
+    <!-- Subtitle tagline -->
+    <text x="1" y="50" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif"
+          font-size="10" font-weight="500" fill="#74777c" letter-spacing="2.5" text-transform="uppercase">SMART FACE RECOGNITION</text>
+
+    <!-- Accent underline bar -->
+    <rect x="0" y="55" width="30" height="2.5" rx="1.25" fill="#ffa069" opacity="0.85"/>
+    <rect x="33" y="55" width="8" height="2.5" rx="1.25" fill="#ffa069" opacity="0.4"/>
+  </g>
+</svg>

@@ -5,8 +5,8 @@ from __future__ import annotations
 import argparse
 import getpass
 
-import app_core.database as database
-from app_core.auth import hash_password
+import core.database as database
+from core.auth import hash_password
 
 
 VALID_ROLES = {"admin", "teacher"}

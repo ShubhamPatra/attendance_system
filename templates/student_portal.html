@@ -1,8 +1,164 @@
 {% extends "base.html" %}
-{% block title %}Student Portal Moved{% endblock %}
+{% block title %}Student Portal - AutoAttendance{% endblock %}
+{% block page_title %}My Portal{% endblock %}
+
 {% block content %}
-<div class="card card-body" style="max-width:640px;margin:0 auto">
-    <h1>Student portal moved</h1>
-    <p class="text-sm text-muted mt-2">Attendance viewing now runs in the separate student_app service.</p>
+<div>
+  <!-- Content Header (Stitch: display-md 2.75rem, italic subtitle) -->
+  <header style="margin-bottom: 3rem;">
+    <h1 style="font-size: 2.75rem; font-weight: 800; letter-spacing: -0.02em; color: var(--primary); margin: 0; line-height: 1.1;">My Attendance Portal</h1>
+    <p style="color: var(--on-surface-variant); margin-top: 0.5rem; max-width: 32rem; font-style: italic; opacity: 0.8; font-size: var(--font-size-body-md);">View your attendance records, verify your status, and track your academic participation.</p>
+  </header>
+
+  <!-- Profile & Attendance Overview -->
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; align-items: start; margin-bottom: 3rem;">
+    <!-- Profile Card -->
+    <div style="background: var(--surface-container-lowest); border-radius: 0.375rem; box-shadow: var(--shadow-sm); padding: 2rem;">
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 1.5rem;">
+        <div style="width: 96px; height: 96px; border-radius: 50%; background: linear-gradient(135deg, var(--primary), var(--primary-container)); display: flex; align-items: center; justify-content: center; color: white; font-size: 2rem; font-weight: 700;">
+          {% if student.initial %}{{ student.initial }}{% else %}<span class="material-symbols-outlined" style="font-size: 2.5rem;">person</span>{% endif %}
+        </div>
+        <div style="text-align: center;">
+          <h2 style="font-size: 1.25rem; font-weight: 700; letter-spacing: -0.02em; color: var(--primary); margin: 0;">{{ student.name }}</h2>
+          <p style="color: var(--on-surface-variant); margin-top: 0.5rem; font-size: 0.875rem;">{{ student.registration_number }}</p>
+          <div style="margin-top: 1rem;">
+            <span style="display: inline-block; background: var(--primary-fixed); color: var(--on-primary-fixed); padding: 0.25rem 1rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600;">{{ student.section }}</span>
+          </div>
+        </div>
+        <div style="width: 100%; padding-top: 1.5rem; border-top: 1px solid var(--outline-variant); border-top-opacity: 0.15;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <div style="text-align: center;">
+              <p style="color: var(--on-surface-variant); font-size: 0.75rem; margin: 0; text-transform: uppercase; font-weight: 600; letter-spacing: 0.05em;">Status</p>
+              <p style="font-size: 0.875rem; font-weight: 700; margin: 0.5rem 0 0 0; color: var(--primary);">{% if student.is_active is defined %}{{ 'Active' if student.is_active else 'Inactive' }}{% else %}—{% endif %}</p>
+            </div>
+            <div style="text-align: center;">
+              <p style="color: var(--on-surface-variant); font-size: 0.75rem; margin: 0; text-transform: uppercase; font-weight: 600; letter-spacing: 0.05em;">Verified</p>
+              <p style="font-size: 0.875rem; font-weight: 700; margin: 0.5rem 0 0 0; color: var(--primary);">{% if student.verification_status is defined %}{{ student.verification_status | capitalize }}{% else %}—{% endif %}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Attendance Summary Circle -->
+    <div style="background: var(--surface-container-lowest); border-radius: 0.375rem; box-shadow: var(--shadow-sm); padding: 2rem; display: flex; flex-direction: column; align-items: center;">
+      <h3 style="font-size: 1.25rem; font-weight: 700; letter-spacing: -0.02em; color: var(--primary); margin: 0 0 2rem 0;">Attendance Rate</h3>
+      <div style="display: flex; justify-content: center; margin-bottom: 1.5rem;">
+        <svg class="attendance-circle" data-percentage="{{ student.attendance_percentage | default(0) }}" style="width: 150px; height: 150px;">
+          <circle cx="75" cy="75" r="65" fill="none" stroke="var(--surface-container-high)" stroke-width="8"></circle>
+          <circle cx="75" cy="75" r="65" fill="none" stroke="url(#attendanceGradient)" stroke-width="8" stroke-dasharray="408" stroke-dashoffset="0" stroke-linecap="round" style="transform: rotate(-90deg); transform-origin: 75px 75px; transition: stroke-dashoffset 1.5s ease-out;"></circle>
+          <defs>
+            <linearGradient id="attendanceGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:var(--primary);stop-opacity:1" />
+              <stop offset="100%" style="stop-color:var(--primary-container);stop-opacity:1" />
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
+      <div style="text-align: center;">
+         <p style="font-size: 2rem; font-weight: 700; color: var(--primary); letter-spacing: -0.02em; margin: 0;">{% if student.attendance_percentage is defined %}{{ student.attendance_percentage }}%{% else %}—{% endif %}</p>
+        <p style="color: var(--on-surface-variant); font-size: 0.875rem; margin-top: 0.5rem;">Current month</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick Stats & History -->
+  <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 2rem; margin-bottom: 3rem;">
+    <!-- Quick Stats -->
+    <div style="background: var(--surface-container-lowest); border-radius: 0.375rem; box-shadow: var(--shadow-sm); padding: 2rem;">
+      <h3 style="font-size: 1.25rem; font-weight: 700; letter-spacing: -0.02em; color: var(--primary); margin: 0 0 1.5rem 0;">Quick Stats</h3>
+      <div style="display: flex; flex-direction: column; gap: 1rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; background: var(--surface-container-low); border-radius: 0.375rem;">
+          <span style="font-size: 0.875rem;">Days Present</span>
+           <span style="font-size: 0.875rem; font-weight: 700; color: var(--primary);">{{ student.days_present | default('—') }}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; background: var(--surface-container-low); border-radius: 0.375rem;">
+          <span style="font-size: 0.875rem;">Days Absent</span>
+           <span style="font-size: 0.875rem; font-weight: 700; color: var(--tertiary);">{{ student.days_absent | default('—') }}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; background: var(--surface-container-low); border-radius: 0.375rem;">
+          <span style="font-size: 0.875rem;">Total Recorded</span>
+           <span style="font-size: 0.875rem; font-weight: 700; color: var(--primary);">{{ student.total_days | default('—') }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Attendance History -->
+  <div class="card" style="margin-top: var(--spacing-2xl);">
+    <div class="flex justify-between items-center" style="margin-bottom: var(--spacing-lg); padding-bottom: var(--spacing-lg); border-bottom: 1px solid var(--surface-container-high);">
+      <h3 class="content-section-title" style="margin: 0;">Attendance History</h3>
+
+    </div>
+    
+    <div class="table-wrapper">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Day</th>
+            <th>Time</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for record in attendance_history %}
+          <tr>
+            <td class="text-body-md">{{ record.date }}</td>
+            <td class="text-body-sm">{{ record.day }}</td>
+            <td class="text-body-sm">{{ record.time }}</td>
+            <td>
+              {% if record.status == 'Present' %}
+              <span class="badge badge-success">Present</span>
+              {% elif record.status == 'Absent' %}
+              <span class="badge badge-error">Absent</span>
+              {% else %}
+              <span class="badge badge-secondary">{{ record.status }}</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" style="text-align: center; padding: var(--spacing-lg); color: var(--on-surface-variant);">No attendance records available.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Information Panel -->
+  <div class="card" style="margin-top: var(--spacing-2xl); background: linear-gradient(135deg, rgba(0, 40, 142, 0.05), rgba(30, 64, 175, 0.05));">
+    <div class="flex gap-lg">
+      <span class="material-symbols-outlined" style="color: var(--primary); font-size: 1.5rem;">info</span>
+      <div>
+        <h4 class="text-title-md" style="margin: 0;">Information</h4>
+        <p style="color: var(--on-surface-variant); font-size: var(--font-size-body-sm); margin-top: var(--spacing-sm);">This is a read-only view of your attendance records. Your attendance is tracked through facial recognition during class sessions. If you believe there's an error, please contact your instructor or administrator.</p>
+      </div>
+    </div>
+  </div>
+
 </div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Animate attendance circle percentage
+    const circles = document.querySelectorAll('.attendance-circle');
+    circles.forEach(svg => {
+      const percentage = parseFloat(svg.getAttribute('data-percentage')) || 0;
+      const circle = svg.querySelector('circle:last-of-type');
+      const circumference = 2 * Math.PI * 65;
+      const dashOffset = circumference - (percentage / 100) * circumference;
+      
+      // Animate with a slight delay
+      setTimeout(() => {
+        circle.style.strokeDashoffset = dashOffset;
+      }, 100);
+    });
+  });
+
+
+</script>
 {% endblock %}

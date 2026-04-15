@@ -11,11 +11,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from flask import Flask, redirect, url_for
 
-import app_core.config as config
-import app_core.database as database
-import app_vision.anti_spoofing as anti_spoofing
-import app_vision.pipeline as pipeline
-from app_core.utils import setup_logging
+import core.config as config
+import core.database as database
+import vision.anti_spoofing as anti_spoofing
+import vision.pipeline as pipeline
+from core.utils import setup_logging
 
 try:
     from .auth import init_auth

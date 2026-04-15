@@ -26,7 +26,7 @@ def _mock_config(monkeypatch):
     monkeypatch.setitem(sys.modules, "torch", fake_torch)
     monkeypatch.setitem(sys.modules, "face_recognition", fake_fr)
     import importlib
-    import app_core.config as config
+    import core.config as config
     importlib.reload(config)
 
 
@@ -62,7 +62,7 @@ class _FakeTrack:
 
 @patch("app_camera.camera.cv2.VideoCapture", return_value=_FakeCap())
 def test_create_track_low_confidence_spoof_is_uncertain(mock_cap):
-    import app_camera.camera as camera
+    import camera.camera as camera
 
     frame = np.zeros((240, 320, 3), dtype=np.uint8)
 
@@ -79,7 +79,7 @@ def test_create_track_low_confidence_spoof_is_uncertain(mock_cap):
 
 @patch("app_camera.camera.cv2.VideoCapture", return_value=_FakeCap())
 def test_create_track_label_two_sets_spoof(mock_cap):
-    import app_camera.camera as camera
+    import camera.camera as camera
 
     frame = np.zeros((240, 320, 3), dtype=np.uint8)
 
@@ -96,7 +96,7 @@ def test_create_track_label_two_sets_spoof(mock_cap):
 
 @patch("app_camera.camera.cv2.VideoCapture", return_value=_FakeCap())
 def test_create_track_antispoof_error_is_fail_safe_unknown(mock_cap):
-    import app_camera.camera as camera
+    import camera.camera as camera
 
     frame = np.zeros((240, 320, 3), dtype=np.uint8)
 
@@ -117,7 +117,7 @@ def test_create_track_antispoof_error_is_fail_safe_unknown(mock_cap):
 
 @patch("app_camera.camera.cv2.VideoCapture", return_value=_FakeCap())
 def test_deduplicate_tracks_keeps_single_face_box(mock_cap):
-    import app_camera.camera as camera
+    import camera.camera as camera
 
     class _TrackObj:
         def __init__(self, bbox, identity=None, frames_missing=0):
@@ -147,7 +147,7 @@ def test_deduplicate_tracks_keeps_single_face_box(mock_cap):
 
 @patch("app_camera.camera.cv2.VideoCapture", return_value=_FakeCap())
 def test_deduplicate_tracks_keeps_one_for_nested_boxes(mock_cap):
-    import app_camera.camera as camera
+    import camera.camera as camera
 
     class _TrackObj:
         def __init__(self, bbox, identity=None, frames_missing=0):
@@ -176,7 +176,7 @@ def test_deduplicate_tracks_keeps_one_for_nested_boxes(mock_cap):
 
 @patch("app_camera.camera.cv2.VideoCapture", return_value=_FakeCap())
 def test_temporal_non_real_votes_promote_to_spoof(mock_cap):
-    import app_camera.camera as camera
+    import camera.camera as camera
 
     frame = np.zeros((240, 320, 3), dtype=np.uint8)
     cam = camera.Camera(0)
@@ -193,7 +193,7 @@ def test_temporal_non_real_votes_promote_to_spoof(mock_cap):
 
 @patch("app_camera.camera.cv2.VideoCapture", return_value=_FakeCap())
 def test_deduplicate_prefers_higher_confidence_identity(mock_cap):
-    import app_camera.camera as camera
+    import camera.camera as camera
 
     class _TrackObj:
         def __init__(self, bbox, identity=None, frames_missing=0):
@@ -223,7 +223,7 @@ def test_deduplicate_prefers_higher_confidence_identity(mock_cap):
 
 @patch("app_camera.camera.cv2.VideoCapture", return_value=_FakeCap())
 def test_recognition_requires_consistent_confirmation(mock_cap):
-    import app_camera.camera as camera
+    import camera.camera as camera
 
     frame = np.zeros((240, 320, 3), dtype=np.uint8)
     cam = camera.Camera(0)
@@ -269,7 +269,7 @@ def test_recognition_requires_consistent_confirmation(mock_cap):
 
 @patch("app_camera.camera.cv2.VideoCapture", return_value=_FakeCap())
 def test_track_identity_cache_skips_recompute_when_valid(mock_cap):
-    import app_camera.camera as camera
+    import camera.camera as camera
 
     frame = np.zeros((240, 320, 3), dtype=np.uint8)
     cam = camera.Camera(0)
@@ -317,7 +317,7 @@ def test_track_identity_cache_skips_recompute_when_valid(mock_cap):
 
 @patch("app_camera.camera.cv2.VideoCapture", return_value=_FakeCap())
 def test_track_identity_cache_recomputes_after_expiry(mock_cap):
-    import app_camera.camera as camera
+    import camera.camera as camera
 
     frame = np.zeros((240, 320, 3), dtype=np.uint8)
     cam = camera.Camera(0)
@@ -365,7 +365,7 @@ def test_track_identity_cache_recomputes_after_expiry(mock_cap):
 
 @patch("app_camera.camera.cv2.VideoCapture", return_value=_FakeCap())
 def test_unknown_snapshot_logs_confidence_and_track(mock_cap):
-    import app_camera.camera as camera
+    import camera.camera as camera
 
     frame = np.zeros((240, 320, 3), dtype=np.uint8)
     cam = camera.Camera(0)

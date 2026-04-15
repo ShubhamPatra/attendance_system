@@ -1,60 +1,70 @@
+# ============================================================
+# AutoAttendance Docker Compose Configuration
+# Python 3.9+ compatible with flexible CPU/GPU support
+# ============================================================
+#
+# Environment Variables:
+#   PYTHON_VERSION=3.12    Base Python version (3.9, 3.10, 3.11, 3.12, 3.13)
+#   INSTALL_GPU=0          0=CPU (default), 1=GPU (CUDA 12.1)
+#
+# Usage:
+#   docker compose up                            # CPU build, Python 3.12
+#   INSTALL_GPU=1 docker compose up              # GPU build, Python 3.12
+#   PYTHON_VERSION=3.11 docker compose up        # CPU build, Python 3.11
+#   PYTHON_VERSION=3.11 INSTALL_GPU=1 docker compose up  # GPU build, Python 3.11
+# ============================================================
+
 services:
   web:
-    build: .
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        PYTHON_VERSION: ${PYTHON_VERSION:-3.12}
+        INSTALL_GPU: ${INSTALL_GPU:-0}
     container_name: autoattendance-web
     env_file:
       - .env
     command: gunicorn --bind 0.0.0.0:5000 --config gunicorn.conf.py "app:create_app()"
     ports:
       - "5000:5000"
-    depends_on:
-      - redis
     volumes:
       - ./logs:/app/logs
       - ./uploads:/app/uploads
       - ./unknown_faces:/app/unknown_faces
+    # GPU support (uncomment and set accordingly)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
 
   student-web:
-    build: .
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.student
+      args:
+        PYTHON_VERSION: ${PYTHON_VERSION:-3.12}
+        INSTALL_GPU: ${INSTALL_GPU:-0}
     container_name: autoattendance-student-web
     env_file:
       - .env
     command: gunicorn --bind 0.0.0.0:5001 --config gunicorn.conf.py "student_app.app:create_app()"
     ports:
       - "5001:5001"
-    depends_on:
-      - redis
     volumes:
       - ./logs:/app/logs
       - ./uploads:/app/uploads
-
-  celery-worker:
-    build: .
-    container_name: autoattendance-celery-worker
-    command: celery -A tasks.celery_app worker --loglevel=info
-    env_file:
-      - .env
-    depends_on:
-      - redis
-    volumes:
-      - ./logs:/app/logs
-
-  celery-beat:
-    build: .
-    container_name: autoattendance-celery-beat
-    command: celery -A tasks.celery_app beat --loglevel=info
-    env_file:
-      - .env
-    depends_on:
-      - redis
-    volumes:
-      - ./logs:/app/logs
-
-  redis:
-    image: redis:7-alpine
-    container_name: autoattendance-redis
-    ports:
-      - "6379:6379"
+    # GPU support (uncomment and set accordingly)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
 
   nginx:
     image: nginx:1.27-alpine

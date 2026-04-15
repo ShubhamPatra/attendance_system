@@ -1,6 +1,6 @@
 """Face embedder compatibility module."""
 
-from app_vision.face_engine import (
+from vision.face_engine import (
 	encoding_cache,
 	generate_encoding,
 	get_arcface_backend,

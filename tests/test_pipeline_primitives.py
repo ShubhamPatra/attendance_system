@@ -14,26 +14,26 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 def _mock_config(monkeypatch):
     monkeypatch.setenv("MONGO_URI", "mongodb+srv://test:test@cluster.mongodb.net/test")
     import importlib
-    import app_core.config as config
+    import core.config as config
     importlib.reload(config)
 
 
 def test_iou_overlap():
-    import app_vision.pipeline as pipeline
+    import vision.pipeline as pipeline
 
     val = pipeline.iou((0, 0, 10, 10), (5, 5, 10, 10))
     assert val == pytest.approx(25 / 175)
 
 
 def test_centroid_distance():
-    import app_vision.pipeline as pipeline
+    import vision.pipeline as pipeline
 
     val = pipeline.centroid_distance((0, 0, 10, 10), (10, 0, 10, 10))
     assert val == pytest.approx(10.0)
 
 
 def test_detect_motion_first_frame_is_true():
-    import app_vision.pipeline as pipeline
+    import vision.pipeline as pipeline
 
     frame = np.zeros((100, 100, 3), dtype=np.uint8)
     changed, gray = pipeline.detect_motion(None, frame)
@@ -42,7 +42,7 @@ def test_detect_motion_first_frame_is_true():
 
 
 def test_detect_and_associate_uses_or_semantics():
-    import app_vision.pipeline as pipeline
+    import vision.pipeline as pipeline
 
     frame = np.zeros((100, 100, 3), dtype=np.uint8)
 
@@ -68,7 +68,7 @@ def test_detect_and_associate_uses_or_semantics():
 
 
 def test_detect_and_associate_detailed_returns_matched_track_indices():
-    import app_vision.pipeline as pipeline
+    import vision.pipeline as pipeline
 
     frame = np.zeros((100, 100, 3), dtype=np.uint8)
 

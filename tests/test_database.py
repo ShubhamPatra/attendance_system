@@ -23,7 +23,7 @@ def _mock_config(monkeypatch):
     monkeypatch.setenv("MONGO_URI", "mongodb+srv://test:test@cluster.mongodb.net/test")
     # Reload config so it picks up the env var
     import importlib
-    import app_core.config as config
+    import core.config as config
     importlib.reload(config)
 
 
@@ -38,7 +38,7 @@ def mock_db():
 # ── Insert student ────────────────────────────────────────────────────────
 
 def test_insert_student_success(mock_db):
-    import app_core.database as database
+    import core.database as database
 
     fake_id = bson.ObjectId()
     mock_db.students.find_one.return_value = None
@@ -63,7 +63,7 @@ def test_insert_student_success(mock_db):
 # ── Reject duplicate registration_number ──────────────────────────────────
 
 def test_insert_student_duplicate_raises(mock_db):
-    import app_core.database as database
+    import core.database as database
     from pymongo.errors import DuplicateKeyError
 
     mock_db.students.insert_one.side_effect = DuplicateKeyError("dup")
@@ -76,7 +76,7 @@ def test_insert_student_duplicate_raises(mock_db):
 # ── Mark attendance ───────────────────────────────────────────────────────
 
 def test_mark_attendance_success(mock_db):
-    import app_core.database as database
+    import core.database as database
 
     mock_db.attendance.insert_one.return_value = MagicMock()
 
@@ -94,7 +94,7 @@ def test_mark_attendance_success(mock_db):
 # ── Prevent duplicate attendance per day ──────────────────────────────────
 
 def test_mark_attendance_duplicate_returns_false(mock_db):
-    import app_core.database as database
+    import core.database as database
     from pymongo.errors import DuplicateKeyError
 
     mock_db.attendance.insert_one.side_effect = DuplicateKeyError("dup")
@@ -108,7 +108,7 @@ def test_mark_attendance_duplicate_returns_false(mock_db):
 # ── get_all_students ──────────────────────────────────────────────────────
 
 def test_get_all_students(mock_db):
-    import app_core.database as database
+    import core.database as database
 
     mock_cursor = MagicMock()
     mock_cursor.sort.return_value = [
@@ -126,7 +126,7 @@ def test_get_all_students(mock_db):
 
 
 def test_get_student_by_id_excludes_encodings(mock_db):
-    import app_core.database as database
+    import core.database as database
     sid = bson.ObjectId()
 
     database.get_student_by_id(sid)
@@ -140,7 +140,7 @@ def test_get_student_by_id_excludes_encodings(mock_db):
 
 
 def test_ensure_indexes(mock_db):
-    import app_core.database as database
+    import core.database as database
 
     database.ensure_indexes()
 
@@ -162,7 +162,7 @@ def test_ensure_indexes(mock_db):
 
 
 def test_create_attendance_session_success(mock_db):
-    import app_core.database as database
+    import core.database as database
 
     sid = bson.ObjectId()
     mock_db.attendance_sessions.find_one.return_value = None
@@ -181,7 +181,7 @@ def test_create_attendance_session_success(mock_db):
 
 
 def test_create_attendance_session_rejects_existing_active(mock_db):
-    import app_core.database as database
+    import core.database as database
 
     mock_db.attendance_sessions.find_one.return_value = {"_id": bson.ObjectId()}
 
@@ -190,7 +190,7 @@ def test_create_attendance_session_rejects_existing_active(mock_db):
 
 
 def test_get_active_attendance_session(mock_db):
-    import app_core.database as database
+    import core.database as database
 
     session_doc = {"_id": bson.ObjectId(), "camera_id": "cam-1", "status": "active"}
     mock_db.attendance_sessions.find_one.return_value = session_doc
@@ -200,7 +200,7 @@ def test_get_active_attendance_session(mock_db):
 
 
 def test_end_attendance_session(mock_db):
-    import app_core.database as database
+    import core.database as database
 
     sid = bson.ObjectId()
     mock_db.attendance_sessions.update_one.return_value = MagicMock(modified_count=1)
@@ -209,7 +209,7 @@ def test_end_attendance_session(mock_db):
 
 
 def test_auto_close_idle_attendance_sessions(mock_db):
-    import app_core.database as database
+    import core.database as database
 
     mock_db.attendance_sessions.update_many.return_value = MagicMock(modified_count=2)
 
@@ -221,7 +221,7 @@ def test_auto_close_idle_attendance_sessions(mock_db):
 
 def test_get_student_encodings_new_format(mock_db):
     """New multi-encoding format: 'encodings' field is a list of Binary."""
-    import app_core.database as database
+    import core.database as database
 
     enc1 = np.random.rand(128).astype(np.float64)
     enc2 = np.random.rand(128).astype(np.float64)
@@ -244,7 +244,7 @@ def test_get_student_encodings_new_format(mock_db):
 
 def test_get_student_encodings_legacy_format(mock_db):
     """Backward-compat: 'face_encoding' single Binary field."""
-    import app_core.database as database
+    import core.database as database
 
     enc = np.random.rand(128).astype(np.float64)
     sid = bson.ObjectId()
@@ -263,14 +263,14 @@ def test_get_student_encodings_legacy_format(mock_db):
 # ── student_count ─────────────────────────────────────────────────────────
 
 def test_student_count(mock_db):
-    import app_core.database as database
+    import core.database as database
 
     mock_db.students.count_documents.return_value = 7
     assert database.student_count() == 7
 
 
 def test_update_student(mock_db):
-    import app_core.database as database
+    import core.database as database
 
     mock_db.students.update_one.return_value = MagicMock(modified_count=1)
     assert database.update_student("FA21-BCS-001", {"name": "New Name", "semester": 5}) is True
@@ -281,7 +281,7 @@ def test_update_student(mock_db):
 
 
 def test_replace_student_encodings(mock_db):
-    import app_core.database as database
+    import core.database as database
 
     mock_db.students.update_one.return_value = MagicMock(modified_count=1)
     enc = np.random.rand(128).astype(np.float64)
@@ -292,7 +292,7 @@ def test_replace_student_encodings(mock_db):
 
 
 def test_insert_and_list_notification_events(mock_db):
-    import app_core.database as database
+    import core.database as database
 
     mock_db.notification_events.insert_one.return_value = MagicMock(inserted_id=bson.ObjectId())
     mock_db.notification_events.find.return_value.sort.return_value.limit.return_value = [
@@ -307,7 +307,7 @@ def test_insert_and_list_notification_events(mock_db):
 # ── today_attendance_count ────────────────────────────────────────────────
 
 def test_today_attendance_count(mock_db):
-    import app_core.database as database
+    import core.database as database
 
     mock_db.attendance.count_documents.return_value = 3
     assert database.today_attendance_count() == 3
@@ -316,7 +316,7 @@ def test_today_attendance_count(mock_db):
 # ── get_attendance ────────────────────────────────────────────────────────
 
 def test_get_attendance(mock_db):
-    import app_core.database as database
+    import core.database as database
 
     mock_db.attendance.aggregate.return_value = [
         {"name": "Alice", "registration_number": "FA21-BCS-001",
@@ -332,7 +332,7 @@ def test_get_attendance(mock_db):
 # ── get_attendance_csv ────────────────────────────────────────────────────
 
 def test_get_attendance_csv_empty(mock_db):
-    import app_core.database as database
+    import core.database as database
 
     mock_db.attendance.aggregate.return_value = []
 
@@ -342,7 +342,7 @@ def test_get_attendance_csv_empty(mock_db):
 
 
 def test_get_attendance_csv_with_data(mock_db):
-    import app_core.database as database
+    import core.database as database
 
     mock_db.attendance.aggregate.return_value = [
         {"name": "Alice", "registration_number": "FA21-BCS-001",
@@ -358,7 +358,7 @@ def test_get_attendance_csv_with_data(mock_db):
 # ── get_attendance_by_hour ────────────────────────────────────────────────
 
 def test_get_attendance_by_hour(mock_db):
-    import app_core.database as database
+    import core.database as database
 
     mock_db.attendance.aggregate.return_value = [
         {"hour": 8, "count": 3},
@@ -374,7 +374,7 @@ def test_get_attendance_by_hour(mock_db):
 # ── get_all_registration_numbers ──────────────────────────────────────────
 
 def test_get_all_registration_numbers(mock_db):
-    import app_core.database as database
+    import core.database as database
 
     mock_db.students.find.return_value = [
         {"registration_number": "FA21-BCS-002"},
@@ -388,7 +388,7 @@ def test_get_all_registration_numbers(mock_db):
 # ── get_attendance_csv_by_student ─────────────────────────────────────────
 
 def test_get_attendance_csv_by_student(mock_db):
-    import app_core.database as database
+    import core.database as database
 
     sid = bson.ObjectId()
     mock_db.students.find_one.return_value = {"_id": sid}
@@ -406,7 +406,7 @@ def test_get_attendance_csv_by_student(mock_db):
 # ── get_attendance_csv_full ───────────────────────────────────────────────
 
 def test_get_attendance_csv_full(mock_db):
-    import app_core.database as database
+    import core.database as database
 
     mock_db.attendance.aggregate.return_value = []
     df = database.get_attendance_csv_full()
@@ -415,7 +415,7 @@ def test_get_attendance_csv_full(mock_db):
 
 
 def test_append_student_encoding(mock_db):
-    import app_core.database as database
+    import core.database as database
 
     sid = bson.ObjectId()
     enc = np.random.rand(128).astype(np.float64)
@@ -427,7 +427,7 @@ def test_append_student_encoding(mock_db):
 
 
 def test_mark_attendance_with_confidence_field(mock_db):
-    import app_core.database as database
+    import core.database as database
 
     sid = bson.ObjectId()
     mock_db.attendance.insert_one.return_value = MagicMock()
@@ -439,7 +439,7 @@ def test_mark_attendance_with_confidence_field(mock_db):
 
 
 def test_mark_attendance_with_active_session(mock_db):
-    import app_core.database as database
+    import core.database as database
 
     sid = bson.ObjectId()
     session_id = bson.ObjectId()
@@ -453,7 +453,7 @@ def test_mark_attendance_with_active_session(mock_db):
 
 
 def test_mark_attendance_with_inactive_session_returns_false(mock_db):
-    import app_core.database as database
+    import core.database as database
 
     sid = bson.ObjectId()
     session_id = bson.ObjectId()
@@ -465,7 +465,7 @@ def test_mark_attendance_with_inactive_session_returns_false(mock_db):
 
 
 def test_bulk_upsert_attendance(mock_db):
-    import app_core.database as database
+    import core.database as database
 
     sid1 = bson.ObjectId()
     sid2 = bson.ObjectId()
@@ -483,7 +483,7 @@ def test_bulk_upsert_attendance(mock_db):
 
 
 def test_bulk_upsert_attendance_with_inactive_session_raises(mock_db):
-    import app_core.database as database
+    import core.database as database
 
     session_id = bson.ObjectId()
     entries = [{"student_id": bson.ObjectId(), "status": "Present"}]
@@ -494,7 +494,7 @@ def test_bulk_upsert_attendance_with_inactive_session_raises(mock_db):
 
 
 def test_get_student_by_reg_no(mock_db):
-    import app_core.database as database
+    import core.database as database
 
     sid = bson.ObjectId()
     mock_db.students.find_one.return_value = {
@@ -508,7 +508,7 @@ def test_get_student_by_reg_no(mock_db):
 
 
 def test_delete_student(mock_db):
-    import app_core.database as database
+    import core.database as database
 
     sid = bson.ObjectId()
     mock_db.students.find_one.return_value = {"_id": sid}
@@ -520,7 +520,7 @@ def test_delete_student(mock_db):
 
 
 def test_delete_student_not_found(mock_db):
-    import app_core.database as database
+    import core.database as database
 
     mock_db.students.find_one.return_value = None
     result = database.delete_student("NONEXISTENT")
@@ -528,7 +528,7 @@ def test_delete_student_not_found(mock_db):
 
 
 def test_get_at_risk_students(mock_db):
-    import app_core.database as database
+    import core.database as database
 
     today = datetime.now(timezone.utc).date()
     mock_db.attendance.distinct.return_value = [
@@ -551,7 +551,7 @@ def test_get_at_risk_students(mock_db):
 
 
 def test_get_attendance_heatmap_data(mock_db):
-    import app_core.database as database
+    import core.database as database
 
     mock_db.students.count_documents.return_value = 20
     mock_db.attendance.aggregate.return_value = [
@@ -564,7 +564,7 @@ def test_get_attendance_heatmap_data(mock_db):
 
 
 def test_get_student_attendance_summary(mock_db):
-    import app_core.database as database
+    import core.database as database
 
     sid = bson.ObjectId()
     mock_db.students.find_one.return_value = {
@@ -587,7 +587,7 @@ def test_get_student_attendance_summary(mock_db):
 
 
 def test_get_student_attendance_summary_not_found(mock_db):
-    import app_core.database as database
+    import core.database as database
 
     mock_db.students.find_one.return_value = None
     result = database.get_student_attendance_summary("NONEXISTENT")

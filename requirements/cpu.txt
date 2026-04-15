@@ -1,0 +1,11 @@
+# ============================================================
+# AUTOATTENDANCE - CPU RUNTIME
+# CPU-optimized ONNX Runtime for inference
+# Python 3.9+ | Last updated: 2026-04-16
+# ============================================================
+
+# Include base dependencies
+-r base.txt
+
+# ONNX Runtime - CPU variant (more compatible, slower)
+onnxruntime>=1.17,<2.0

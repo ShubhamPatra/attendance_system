@@ -31,7 +31,7 @@ def _rbac_config(monkeypatch):
     monkeypatch.setitem(sys.modules, "face_recognition", fake_fr)
 
     import importlib
-    import app_core.config as config
+    import core.config as config
 
     importlib.reload(config)
 

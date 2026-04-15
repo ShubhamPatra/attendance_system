@@ -12,8 +12,8 @@ from datetime import datetime, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
-import app_core.config as config
-import app_core.database as database
+import core.config as config
+import core.database as database
 from app import create_app
 import bson
 
@@ -187,7 +187,7 @@ class TestDatabaseResilience:
 
     def test_database_circuit_breaker_error_response(self, client, monkeypatch):
         """Routes should return 503 when circuit breaker is open."""
-        from app_core import database as db_module
+        from core import database as db_module
         
         # Mock circuit breaker to force open state
         original_get_db = db_module.get_db

@@ -18,12 +18,11 @@ from flasgger import Swagger
 
 import core.config as config
 import core.database as database
-from core.auth import init_auth
 from anti_spoofing.model import init_models
 import recognition.pipeline as pipeline
-import app_vision.ppe_detection as ppe_detection
+import vision.ppe_detection as ppe_detection
 from recognition.embedder import encoding_cache, get_arcface_backend
-from app_web.routes import bp as main_bp
+from web.routes import bp as main_bp
 from core.utils import setup_logging
 
 socketio = SocketIO()
@@ -48,20 +47,30 @@ def _cleanup_uploads(logger):
 def _startup_diagnostics(logger):
     """Run startup checks so deployments fail fast when misconfigured."""
     errors: list[str] = []
+    warnings: list[str] = []
 
     if not os.path.isfile(config.YUNET_MODEL_PATH):
         errors.append(f"YuNet model missing: {config.YUNET_MODEL_PATH}")
 
+    # Anti-spoofing is optional; warn but don't fail startup
     if not os.path.isdir(config.ANTI_SPOOF_MODEL_DIR):
-        errors.append(f"Anti-spoof model directory missing: {config.ANTI_SPOOF_MODEL_DIR}")
+        warnings.append(
+            f"Anti-spoof model directory not found: {config.ANTI_SPOOF_MODEL_DIR}. "
+            f"Anti-spoofing will be disabled (degraded mode)."
+        )
     else:
-        pth_files = [
+        model_files = [
             name for name in os.listdir(config.ANTI_SPOOF_MODEL_DIR)
-            if name.lower().endswith(".pth")
+            if name.lower().endswith((".pth", ".onnx"))
         ]
-        if not pth_files:
-            errors.append(
-                f"No anti-spoof .pth model files found in: {config.ANTI_SPOOF_MODEL_DIR}"
+        if model_files:
+            logger.info(
+                f"✓ Anti-spoofing models found: {len(model_files)} model files in {config.ANTI_SPOOF_MODEL_DIR}"
+            )
+        else:
+            warnings.append(
+                f"No anti-spoof model files (.pth/.onnx) found in: {config.ANTI_SPOOF_MODEL_DIR}. "
+                f"Anti-spoofing will be disabled."
             )
 
     if config.PPE_DETECTION_ENABLED and not os.path.isfile(config.PPE_MODEL_PATH):
@@ -84,18 +93,6 @@ def _startup_diagnostics(logger):
             "Check MONGO_URI in .env and clear conflicting shell/system MONGO_URI values."
         )
 
-    # Celery broker check (filesystem by default; can be overridden by env).
-    try:
-        broker = (config.CELERY_BROKER_URL or "").strip().lower()
-        if broker.startswith("filesystem://"):
-            os.makedirs(config.CELERY_DATA_DIR, exist_ok=True)
-            test_file = os.path.join(config.CELERY_DATA_DIR, ".healthcheck")
-            with open(test_file, "w", encoding="utf-8") as f:
-                f.write("ok")
-            os.remove(test_file)
-    except Exception as exc:
-        logger.warning("Celery broker check failed at startup: %s", exc)
-
     if config.STARTUP_CAMERA_PROBE:
         try:
             import cv2
@@ -112,6 +109,10 @@ def _startup_diagnostics(logger):
         except Exception as exc:
             errors.append(f"Camera probe failed: {exc}")
 
+    # Log warnings
+    for item in warnings:
+        logger.warning("Startup warning: %s", item)
+
     if errors:
         for item in errors:
             logger.error("Startup check failed: %s", item)
@@ -123,17 +124,19 @@ def _startup_diagnostics(logger):
 
 def create_app() -> Flask:
     """Create and configure the Flask application."""
-    app = Flask(__name__)
+    # Get the project root directory
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    template_folder = os.path.join(project_root, "templates")
+    static_folder = os.path.join(project_root, "static")
+    
+    app = Flask(
+        __name__,
+        template_folder=template_folder,
+        static_folder=static_folder,
+        static_url_path="/static"
+    )
     app.secret_key = config.SECRET_KEY
     app.config["MAX_CONTENT_LENGTH"] = config.UPLOAD_MAX_SIZE
-    app.config["SESSION_COOKIE_SECURE"] = config.SESSION_COOKIE_SECURE
-    app.config["SESSION_COOKIE_HTTPONLY"] = config.SESSION_COOKIE_HTTPONLY
-    app.config["SESSION_COOKIE_SAMESITE"] = config.SESSION_COOKIE_SAMESITE
-    app.config["REMEMBER_COOKIE_SECURE"] = config.REMEMBER_COOKIE_SECURE
-    app.config["REMEMBER_COOKIE_HTTPONLY"] = config.REMEMBER_COOKIE_HTTPONLY
-    app.config["REMEMBER_COOKIE_SAMESITE"] = config.REMEMBER_COOKIE_SAMESITE
-
-    init_auth(app)
 
     socketio.init_app(
         app,
@@ -142,7 +145,7 @@ def create_app() -> Flask:
     )
 
     if config.ENABLE_RESTX_API:
-        from app_web.api_restx import init_restx_api
+        from web.api_restx import init_restx_api
 
         init_restx_api(app)
     else:
@@ -221,14 +224,20 @@ def create_app() -> Flask:
     # Register blueprint
     app.register_blueprint(main_bp)
 
+    # Favicon redirect
+    from flask import redirect, url_for
+    @app.route("/favicon.ico")
+    def _favicon_redirect():
+        return redirect(url_for("static", filename="favicon.svg"))
+
     # Wire SocketIO to camera module
-    from app_camera.camera import set_socketio
+    from camera.camera import set_socketio
     set_socketio(socketio)
 
     # Clean up camera on shutdown
     @atexit.register
     def _cleanup():
-        from app_camera.camera import release_camera
+        from camera.camera import release_camera
         release_camera()
         _cleanup_uploads(logger)
 

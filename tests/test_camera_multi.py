@@ -17,14 +17,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 def _mock_config(monkeypatch):
     monkeypatch.setenv("MONGO_URI", "mongodb+srv://test:test@cluster.mongodb.net/test")
     import importlib
-    import app_core.config as config
+    import core.config as config
     importlib.reload(config)
 
 
 @pytest.fixture(autouse=True)
 def _reset_cameras():
     """Reset the global camera dict between tests."""
-    import app_camera.camera as camera
+    import camera.camera as camera
     camera.release_camera()
     camera._cameras.clear()
     camera._camera_viewers.clear()
@@ -42,7 +42,7 @@ def _reset_cameras():
 
 def test_get_camera_creates_instance():
     """get_camera(0) should return a Camera; calling again returns the same one."""
-    import app_camera.camera as camera
+    import camera.camera as camera
 
     with patch("app_camera.camera.cv2.VideoCapture") as mock_vc:
         mock_vc.return_value = MagicMock()
@@ -62,7 +62,7 @@ def test_get_camera_creates_instance():
 
 def test_get_camera_different_sources():
     """get_camera(0) and get_camera(1) should be distinct instances."""
-    import app_camera.camera as camera
+    import camera.camera as camera
 
     with patch("app_camera.camera.cv2.VideoCapture") as mock_vc:
         mock_vc.return_value = MagicMock()
@@ -79,7 +79,7 @@ def test_get_camera_different_sources():
 
 def test_release_camera():
     """release_camera(source) removes one; release_camera() removes all."""
-    import app_camera.camera as camera
+    import camera.camera as camera
 
     with patch("app_camera.camera.cv2.VideoCapture") as mock_vc:
         mock_vc.return_value = MagicMock()
@@ -102,7 +102,7 @@ def test_release_camera():
 
 def test_stream_acquire_release_stops_on_last_viewer():
     """acquire/release stream should stop camera only after last viewer leaves."""
-    import app_camera.camera as camera
+    import camera.camera as camera
 
     with patch("app_camera.camera.cv2.VideoCapture") as mock_vc:
         mock_vc.return_value = MagicMock()
@@ -124,7 +124,7 @@ def test_stream_acquire_release_stops_on_last_viewer():
 
 
 def test_camera_manager_diagnostics_reports_fps():
-    import app_camera.camera as camera
+    import camera.camera as camera
 
     manager = camera.CameraManager()
     fake_cam = MagicMock()
@@ -145,7 +145,7 @@ def test_camera_manager_diagnostics_reports_fps():
 
 def test_socketio_emit():
     """_emit_event should delegate to the stored SocketIO instance."""
-    import app_camera.camera as camera
+    import camera.camera as camera
 
     mock_sio = MagicMock()
     camera.set_socketio(mock_sio)
@@ -160,7 +160,7 @@ def test_socketio_emit():
 
 def test_push_event_emits_websocket():
     """_push_event should store the event and emit via WebSocket."""
-    import app_camera.camera as camera
+    import camera.camera as camera
 
     mock_sio = MagicMock()
     camera.set_socketio(mock_sio)
@@ -190,7 +190,7 @@ def test_push_event_emits_websocket():
 
 def test_pop_events_clears_buffer():
     """After pop_events(), a second pop should return an empty list."""
-    import app_camera.camera as camera
+    import camera.camera as camera
 
     with patch("app_camera.camera.cv2.VideoCapture") as mock_vc:
         mock_vc.return_value = MagicMock()
@@ -212,7 +212,7 @@ def test_pop_events_clears_buffer():
 
 def test_log_buffer_persists():
     """get_log_buffer returns all entries and does NOT clear them."""
-    import app_camera.camera as camera
+    import camera.camera as camera
 
     with patch("app_camera.camera.cv2.VideoCapture") as mock_vc:
         mock_vc.return_value = MagicMock()
@@ -234,7 +234,7 @@ def test_log_buffer_persists():
 @patch("app_camera.camera.cv2.VideoCapture")
 def test_incremental_learning_requires_min_liveness(mock_vc):
     """High recognition alone must not append encoding when liveness is low."""
-    import app_camera.camera as camera
+    import camera.camera as camera
 
     mock_vc.return_value = MagicMock()
 

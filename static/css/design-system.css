@@ -1,0 +1,740 @@
+/**
+ * AutoAttendance Design System
+ * "The Academic Curator" aesthetic
+ * 
+ * Color palette, typography, spacing, and elevation system
+ * Inspired by Material Design 3 with premium, academic editorial feel
+ */
+
+/* ============================================================================
+   RESET & BASE STYLES
+   ============================================================================ */
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--surface);
+  color: var(--on-surface);
+  line-height: 1.5;
+}
+
+/* ============================================================================
+   ROOT: CSS CUSTOM PROPERTIES (DESIGN TOKENS)
+   ============================================================================ */
+
+:root {
+  /* Colors - Primary Palette (Stitch Academic Editorial) */
+  --primary: #233343;
+  --primary-container: #3a4a5a;
+  --on-primary: #ffffff;
+  --primary-fixed: #d3e4f8;
+  --primary-fixed-dim: #b7c8dc;
+
+  /* Colors - Secondary Palette */
+  --secondary: #585f6c;
+  --secondary-container: #dce2f3;
+  --on-secondary: #ffffff;
+  --secondary-fixed: #dce2f3;
+  --secondary-fixed-dim: #c0c7d6;
+
+  /* Colors - Tertiary Palette (Burnt Ochre - Use Sparingly for Alerts) */
+  --tertiary: #562300;
+  --tertiary-container: #793400;
+  --on-tertiary: #ffffff;
+  --tertiary-fixed: #ffdbca;
+  --tertiary-fixed-dim: #ffb68e;
+
+  /* Colors - Error */
+  --error: #ba1a1a;
+  --error-container: #ffdad6;
+  --on-error: #ffffff;
+
+  /* Colors - Surface Palette (Tonal Layering) */
+  --background: #f8f9fa;
+  --surface: #f8f9fa;
+  --surface-dim: #d9dadb;
+  --surface-bright: #f8f9fa;
+  --surface-container-lowest: #ffffff;
+  --surface-container-low: #f3f4f5;
+  --surface-container: #edeeef;
+  --surface-container-high: #e7e8e9;
+  --surface-container-highest: #e1e3e4;
+
+  /* Colors - Text & Outlines */
+  --on-surface: #191c1d;
+  --on-surface-variant: #43474c;
+  --outline: #74777c;
+  --outline-variant: #c4c6cc;
+
+  /* Colors - Semantic */
+  --success: #006c49;
+  --warning: #b89500;
+  --info: #00288e;
+
+  /* Typography - Font Families (Stitch uses Inter exclusively) */
+  --font-headline: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-label: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  /* Typography - Font Sizes (Stitch Academic Editorial) */
+  --font-size-display-lg: 2.75rem;    /* 44px - Main headlines */
+  --font-size-display-md: 2.75rem;    /* 44px */
+  --font-size-headline-lg: 1.75rem;   /* 28px */
+  --font-size-headline-md: 1.375rem;  /* 22px */
+  --font-size-headline-sm: 1.25rem;   /* 20px */
+  --font-size-title-lg: 1.25rem;      /* 20px */
+  --font-size-title-md: 1rem;         /* 16px */
+  --font-size-title-sm: 0.875rem;     /* 14px */
+  --font-size-body-lg: 0.875rem;      /* 14px */
+  --font-size-body-md: 0.875rem;      /* 14px */
+  --font-size-body-sm: 0.75rem;       /* 12px */
+  --font-size-label-lg: 0.75rem;      /* 12px */
+  --font-size-label-md: 0.625rem;     /* 10px */
+  --font-size-label-sm: 0.625rem;     /* 10px */
+
+  /* Typography - Font Weights */
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --font-weight-extrabold: 800;
+
+  /* Typography - Letter Spacing */
+  --letter-spacing-tight: -0.02em;
+  --letter-spacing-normal: 0;
+  --letter-spacing-wide: 0.05em;
+  --letter-spacing-extra-wide: 0.1em;
+
+  /* Spacing - Base Unit (8px grid) */
+  --spacing-xs: 0.25rem;      /* 4px */
+  --spacing-sm: 0.5rem;       /* 8px */
+  --spacing-md: 1rem;         /* 16px */
+  --spacing-lg: 1.5rem;       /* 24px */
+  --spacing-2xl: 2.5rem;      /* 40px */
+  --spacing-3xl: 3rem;        /* 48px */
+
+  /* Border Radius (Stitch: Subtle rounding) */
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;           /* 0.375rem */
+  --radius-lg: 8px;           /* 0.5rem */
+  --radius-xl: 12px;
+  --radius-full: 9999px;
+
+  /* Shadows - Stitch Academic Editorial (Subtle, 4-6% opacity, 24-32px blur) */
+  --shadow-none: none;
+  --shadow-xs: 0 2px 4px rgba(25, 28, 30, 0.02);
+  --shadow-sm: 0 4px 24px rgba(25, 28, 30, 0.04);
+  --shadow-md: 0 8px 32px rgba(25, 28, 30, 0.05);
+  --shadow-lg: 0 12px 40px rgba(25, 28, 30, 0.06);
+  --shadow-xl: 0 20px 48px rgba(25, 28, 30, 0.05);
+  --shadow-2xl: 0 25px 56px rgba(25, 28, 30, 0.06);
+
+  /* Transitions */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 350ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Z-Index Scale */
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-fixed: 300;
+  --z-modal-backdrop: 400;
+  --z-modal: 500;
+  --z-tooltip: 600;
+
+  /* Backdrop Blur */
+  --backdrop-blur-sm: blur(4px);
+  --backdrop-blur-md: blur(12px);
+  --backdrop-blur-lg: blur(20px);
+}
+
+/* ============================================================================
+   DARK MODE VARIABLES (Future Enhancement)
+   ============================================================================ */
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Dark mode overrides - to be implemented */
+  }
+}
+
+/* ============================================================================
+   RESET & BASE STYLES
+   ============================================================================ */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-body);
+  font-size: var(--font-size-body-md);
+  font-weight: var(--font-weight-regular);
+  color: var(--on-surface);
+  background-color: var(--surface);
+  line-height: 1.5;
+}
+
+/* ============================================================================
+   TYPOGRAPHY
+   ============================================================================ */
+
+h1, .heading-1 {
+  font-family: var(--font-headline);
+  font-size: var(--font-size-headline-lg);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--letter-spacing-tight);
+  line-height: 1.2;
+}
+
+h2, .heading-2 {
+  font-family: var(--font-headline);
+  font-size: var(--font-size-headline-md);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--letter-spacing-tight);
+  line-height: 1.2;
+}
+
+h3, .heading-3 {
+  font-family: var(--font-headline);
+  font-size: var(--font-size-headline-sm);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-normal);
+  line-height: 1.3;
+}
+
+h4, .heading-4 {
+  font-family: var(--font-headline);
+  font-size: var(--font-size-title-lg);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-normal);
+  line-height: 1.4;
+}
+
+h5, .heading-5 {
+  font-family: var(--font-headline);
+  font-size: var(--font-size-title-md);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-normal);
+  line-height: 1.4;
+}
+
+h6, .heading-6 {
+  font-family: var(--font-body);
+  font-size: var(--font-size-title-sm);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-wide);
+  line-height: 1.5;
+  text-transform: uppercase;
+}
+
+p {
+  line-height: 1.6;
+}
+
+/* ============================================================================
+   TEXT STYLES
+   ============================================================================ */
+
+.text-body-lg {
+  font-size: var(--font-size-body-lg);
+  font-weight: var(--font-weight-regular);
+}
+
+.text-body-md {
+  font-size: var(--font-size-body-md);
+  font-weight: var(--font-weight-regular);
+}
+
+.text-body-sm {
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-regular);
+}
+
+.text-label-lg {
+  font-size: var(--font-size-label-lg);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-wide);
+}
+
+.text-label-md {
+  font-size: var(--font-size-label-md);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+}
+
+.text-label-sm {
+  font-size: var(--font-size-label-sm);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--letter-spacing-extra-wide);
+  text-transform: uppercase;
+}
+
+/* ============================================================================
+   TEXT COLORS & SEMANTIC
+   ============================================================================ */
+
+.text-primary {
+  color: var(--primary);
+}
+
+.text-secondary {
+  color: var(--secondary);
+}
+
+.text-tertiary {
+  color: var(--tertiary);
+}
+
+.text-error {
+  color: var(--error);
+}
+
+.text-on-surface {
+  color: var(--on-surface);
+}
+
+.text-on-surface-variant {
+  color: var(--on-surface-variant);
+}
+
+.text-muted {
+  color: var(--on-surface-variant);
+  opacity: 0.75;
+}
+
+.text-success {
+  color: var(--success);
+}
+
+.text-warning {
+  color: var(--warning);
+}
+
+.text-info {
+  color: var(--info);
+}
+
+/* ============================================================================
+   LINKS
+   ============================================================================ */
+
+a {
+  color: var(--primary);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+a:hover {
+  color: var(--primary-container);
+}
+
+a:active {
+  color: var(--primary);
+}
+
+/* ============================================================================
+   SPACING UTILITIES
+   ============================================================================ */
+
+.p-xs { padding: var(--spacing-xs); }
+.p-sm { padding: var(--spacing-sm); }
+.p-md { padding: var(--spacing-md); }
+.p-lg { padding: var(--spacing-lg); }
+.p-xl { padding: var(--spacing-xl); }
+
+.px-xs { padding-left: var(--spacing-xs); padding-right: var(--spacing-xs); }
+.px-sm { padding-left: var(--spacing-sm); padding-right: var(--spacing-sm); }
+.px-md { padding-left: var(--spacing-md); padding-right: var(--spacing-md); }
+.px-lg { padding-left: var(--spacing-lg); padding-right: var(--spacing-lg); }
+.px-xl { padding-left: var(--spacing-xl); padding-right: var(--spacing-xl); }
+
+.py-xs { padding-top: var(--spacing-xs); padding-bottom: var(--spacing-xs); }
+.py-sm { padding-top: var(--spacing-sm); padding-bottom: var(--spacing-sm); }
+.py-md { padding-top: var(--spacing-md); padding-bottom: var(--spacing-md); }
+.py-lg { padding-top: var(--spacing-lg); padding-bottom: var(--spacing-lg); }
+.py-xl { padding-top: var(--spacing-xl); padding-bottom: var(--spacing-xl); }
+
+.m-xs { margin: var(--spacing-xs); }
+.m-sm { margin: var(--spacing-sm); }
+.m-md { margin: var(--spacing-md); }
+.m-lg { margin: var(--spacing-lg); }
+.m-xl { margin: var(--spacing-xl); }
+
+.mx-auto { margin-left: auto; margin-right: auto; }
+.my-auto { margin-top: auto; margin-bottom: auto; }
+
+.mb-xs { margin-bottom: var(--spacing-xs); }
+.mb-sm { margin-bottom: var(--spacing-sm); }
+.mb-md { margin-bottom: var(--spacing-md); }
+.mb-lg { margin-bottom: var(--spacing-lg); }
+.mb-xl { margin-bottom: var(--spacing-xl); }
+
+.mt-xs { margin-top: var(--spacing-xs); }
+.mt-sm { margin-top: var(--spacing-sm); }
+.mt-md { margin-top: var(--spacing-md); }
+.mt-lg { margin-top: var(--spacing-lg); }
+.mt-xl { margin-top: var(--spacing-xl); }
+
+.gap-xs { gap: var(--spacing-xs); }
+.gap-sm { gap: var(--spacing-sm); }
+.gap-md { gap: var(--spacing-md); }
+.gap-lg { gap: var(--spacing-lg); }
+.gap-xl { gap: var(--spacing-xl); }
+
+/* ============================================================================
+   LAYOUT UTILITIES
+   ============================================================================ */
+
+.flex {
+  display: flex;
+}
+
+.flex-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.flex-row {
+  display: flex;
+  flex-direction: row;
+}
+
+.flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.flex-start {
+  display: flex;
+  align-items: flex-start;
+}
+
+.flex-end {
+  display: flex;
+  align-items: flex-end;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.items-start {
+  align-items: flex-start;
+}
+
+.items-end {
+  align-items: flex-end;
+}
+
+.justify-center {
+  justify-content: center;
+}
+
+.justify-between {
+  justify-content: space-between;
+}
+
+.justify-start {
+  justify-content: flex-start;
+}
+
+.justify-end {
+  justify-content: flex-end;
+}
+
+.grid {
+  display: grid;
+}
+
+.grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+.grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+.gap-1 { gap: 0.25rem; }
+.gap-2 { gap: 0.5rem; }
+.gap-3 { gap: 0.75rem; }
+.gap-4 { gap: 1rem; }
+.gap-6 { gap: 1.5rem; }
+.gap-8 { gap: 2rem; }
+
+/* ============================================================================
+   DISPLAY & VISIBILITY
+   ============================================================================ */
+
+.hidden {
+  display: none !important;
+}
+
+.block {
+  display: block;
+}
+
+.inline-block {
+  display: inline-block;
+}
+
+.inline {
+  display: inline;
+}
+
+.visible {
+  visibility: visible;
+}
+
+.invisible {
+  visibility: hidden;
+}
+
+/* ============================================================================
+   SIZING
+   ============================================================================ */
+
+.w-full {
+  width: 100%;
+}
+
+.h-full {
+  height: 100%;
+}
+
+.w-screen {
+  width: 100vw;
+}
+
+.h-screen {
+  height: 100vh;
+}
+
+.min-h-screen {
+  min-height: 100vh;
+}
+
+/* ============================================================================
+   POSITION & OVERFLOW
+   ============================================================================ */
+
+.relative {
+  position: relative;
+}
+
+.absolute {
+  position: absolute;
+}
+
+.fixed {
+  position: fixed;
+}
+
+.sticky {
+  position: sticky;
+}
+
+.overflow-hidden {
+  overflow: hidden;
+}
+
+.overflow-auto {
+  overflow: auto;
+}
+
+.overflow-x-auto {
+  overflow-x: auto;
+}
+
+.overflow-y-auto {
+  overflow-y: auto;
+}
+
+/* ============================================================================
+   BACKGROUND COLORS
+   ============================================================================ */
+
+.bg-surface {
+  background-color: var(--surface);
+}
+
+.bg-container-low {
+  background-color: var(--surface-container-low);
+}
+
+.bg-container-lowest {
+  background-color: var(--surface-container-lowest);
+}
+
+.bg-container {
+  background-color: var(--surface-container);
+}
+
+.bg-container-high {
+  background-color: var(--surface-container-high);
+}
+
+.bg-primary {
+  background-color: var(--primary);
+}
+
+.bg-primary-container {
+  background-color: var(--primary-container);
+}
+
+.bg-secondary {
+  background-color: var(--secondary);
+}
+
+.bg-secondary-container {
+  background-color: var(--secondary-container);
+}
+
+.bg-error {
+  background-color: var(--error);
+}
+
+.bg-error-container {
+  background-color: var(--error-container);
+}
+
+/* ============================================================================
+   BORDER & RADIUS (GHOST BORDER PATTERN)
+   ============================================================================ */
+
+.rounded {
+  border-radius: var(--radius-sm);
+}
+
+.rounded-md {
+  border-radius: var(--radius-md);
+}
+
+.rounded-lg {
+  border-radius: var(--radius-lg);
+}
+
+.rounded-xl {
+  border-radius: var(--radius-xl);
+}
+
+.rounded-full {
+  border-radius: var(--radius-full);
+}
+
+/* Ghost borders (15% opacity outline for accessibility) */
+.border-ghost {
+  border: 1px solid var(--outline-variant);
+  opacity: 0.15;
+}
+
+.border-ghost-primary {
+  border: 1px solid var(--primary);
+  opacity: 0.15;
+}
+
+/* ============================================================================
+   OPACITY & TRANSITIONS
+   ============================================================================ */
+
+.opacity-0 { opacity: 0; }
+.opacity-25 { opacity: 0.25; }
+.opacity-50 { opacity: 0.5; }
+.opacity-75 { opacity: 0.75; }
+.opacity-100 { opacity: 1; }
+
+.transition {
+  transition: all var(--transition-base);
+}
+
+.transition-colors {
+  transition: background-color, color, border-color var(--transition-base);
+}
+
+.transition-opacity {
+  transition: opacity var(--transition-base);
+}
+
+.transition-transform {
+  transition: transform var(--transition-base);
+}
+
+/* ============================================================================
+   SKIP LINK (Accessibility)
+   ============================================================================ */
+
+.skip-link {
+  position: absolute;
+  top: -9999px;
+  left: -9999px;
+  z-index: 999;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background-color: var(--primary);
+  color: var(--on-primary);
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+}
+
+.skip-link:focus {
+  top: var(--spacing-md);
+  left: var(--spacing-md);
+}
+
+/* ============================================================================
+   PRINT STYLES
+   ============================================================================ */
+
+@media print {
+  body {
+    background-color: white;
+  }
+  
+  a {
+    text-decoration: underline;
+  }
+}
+
+/* ============================================================================
+   ACCESSIBILITY - REDUCED MOTION
+   ============================================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

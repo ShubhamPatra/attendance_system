@@ -1,7 +1,7 @@
 """Student portal runner using the migrated package layout."""
 
 from student_app.app import create_app
-import app_core.config as config
+import core.config as config
 
 
 if __name__ == "__main__":

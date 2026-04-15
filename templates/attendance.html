@@ -1,199 +1,248 @@
 {% extends "base.html" %}
-{% block title %}Live Attendance{% endblock %}
-{% from "partials/ui.html" import stat_card, panel_section %}
+{% block title %}Live Attendance - AutoAttendance{% endblock %}
+{% block page_title %}Live Attendance{% endblock %}
 
 {% block content %}
-<div class="main-grid-12">
-    <!-- Left Column: Video Feed & Logs -->
-    <section class="flex flex-col gap-6">
-        <!-- Header -->
-        <div class="flex items-start justify-between" style="flex-wrap:wrap;gap:var(--space-3)">
-            <div class="page-header" style="margin-bottom:0">
-                <p class="page-header-eyebrow">Realtime Monitoring</p>
-                <h1>Live Attendance</h1>
-                <p class="page-header-desc">Look at the camera to verify identity and mark attendance automatically.</p>
-            </div>
-            <span class="badge-live">
-                <span class="badge-live-dot"></span>
-                LIVE
-            </span>
+<div>
+  <!-- Page Header -->
+  <div class="page-header mb-6">
+    <h1 style="font-size:1.75rem; font-weight:700; letter-spacing:-0.02em; color:var(--on-surface,var(--color-text)); margin:0;">Live Attendance</h1>
+    <p class="page-header-desc" style="margin-top:0.25rem;">Camera-based face recognition attendance capture.</p>
+  </div>
+
+  <!-- Video Feed — Full Width, Large -->
+  <div class="video-container mb-6" style="aspect-ratio:16/9; min-height:480px;">
+    {% if video_feed_url %}
+    <img src="{{ video_feed_url }}" alt="Live Camera Feed" class="video-feed-img">
+    {% else %}
+    <div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:#0f172a; color:#475569;">
+      <div style="text-align:center;">
+        <span class="material-symbols-outlined" style="font-size:3rem; opacity:0.4;">videocam_off</span>
+        <p style="margin-top:0.5rem; font-size:var(--font-size-sm); opacity:0.5;">No camera feed active</p>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Video Overlay -->
+    <div class="video-overlay"></div>
+
+    <!-- Scan Frame -->
+    <div class="scan-frame">
+      <div class="scan-box">
+        <span class="scan-corner scan-corner--tl"></span>
+        <span class="scan-corner scan-corner--tr"></span>
+        <span class="scan-corner scan-corner--bl"></span>
+        <span class="scan-corner scan-corner--br"></span>
+        <div class="scan-line"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Session Stats Row -->
+  <div class="grid grid-3 gap-3 mb-6">
+    <div class="stat-card" style="text-align:center; padding:var(--space-4);">
+      <span class="stat-card-value" style="font-size:1.5rem;" id="enrolledCount">—</span>
+      <p class="text-xs text-muted" style="margin-top:0.25rem;">Enrolled</p>
+    </div>
+    <div class="stat-card" style="text-align:center; padding:var(--space-4);">
+      <span class="stat-card-value" style="font-size:1.5rem; color:var(--color-success,#16a34a);" id="presentCount">0</span>
+      <p class="text-xs text-muted" style="margin-top:0.25rem;">Present</p>
+    </div>
+    <div class="stat-card" style="text-align:center; padding:var(--space-4);">
+      <span class="stat-card-value" style="font-size:1.5rem;" id="markedCount">0</span>
+      <p class="text-xs text-muted" style="margin-top:0.25rem;">Marked</p>
+    </div>
+  </div>
+
+  <!-- Bottom Grid: Logs + Student Info -->
+  <div class="two-col two-col--sidebar" style="align-items:start;">
+    <!-- LEFT: Recent Attendance Events Table -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-header-left">
+          <span class="material-symbols-outlined">history</span>
+          <h3>Recent Attendance Logs</h3>
         </div>
-
-        <!-- Video Feed Container -->
-        <div class="video-container">
-            <img src="{{ url_for('main.video_feed') }}" alt="Live Video Feed" class="video-feed-img">
-            <div class="video-overlay"></div>
-            <div class="scan-frame">
-                <div class="scan-box">
-                    <div class="scan-corner scan-corner--tl"></div>
-                    <div class="scan-corner scan-corner--tr"></div>
-                    <div class="scan-corner scan-corner--bl"></div>
-                    <div class="scan-corner scan-corner--br"></div>
-                    <div class="scan-line"></div>
-                    <div class="scan-label">Scanning Faces...</div>
-                </div>
-            </div>
+      </div>
+      <div class="panel-body--flush">
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Student Name</th>
+                <th>Status</th>
+                <th class="col-right">Confidence</th>
+              </tr>
+            </thead>
+            <tbody id="eventBody" role="status" aria-live="polite">
+              <tr><td colspan="3" class="empty-row">Waiting for attendance events...</td></tr>
+            </tbody>
+          </table>
         </div>
+      </div>
+    </div>
 
-        <!-- Recent Event Logs -->
-        {% call panel_section('Recent Logs', 'history', body_class='panel-body--flush') %}
-            <div class="event-log-container custom-scrollbar" id="eventLog">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>Student Name</th>
-                            <th>Status</th>
-                            <th class="col-right">Confidence</th>
-                        </tr>
-                    </thead>
-                    <tbody id="eventBody" aria-live="polite"></tbody>
-                </table>
-            </div>
-        {% endcall %}
-    </section>
-
-    <!-- Right Column: Info & Stats -->
-    <aside class="flex flex-col gap-6">
-        <!-- Student Details Card (hidden by default) -->
-        {% call panel_section('Student Verified', 'verified', body_class='panel-body', outer_id='studentDetailsPanel', outer_style='display:none') %}
-            <div class="info-card-center">
-                <div class="info-icon-circle info-icon-circle--success">
-                    <span class="material-symbols-outlined" style="font-size:24px">verified</span>
-                </div>
-                <span id="sdAttendanceBadge" class="badge badge-success mb-4">Marked Present</span>
-            </div>
-            <hr class="hr">
-            <div class="flex flex-col gap-3 mt-4">
-                <div class="info-detail-row">
-                    <div class="info-detail-icon info-detail-icon--primary"><span class="material-symbols-outlined" style="font-size:16px">person</span></div>
-                    <div><p class="info-detail-label">Name</p><p class="info-detail-value" id="sdName">—</p></div>
-                </div>
-                <div class="info-detail-row">
-                    <div class="info-detail-icon info-detail-icon--blue"><span class="material-symbols-outlined" style="font-size:16px">badge</span></div>
-                    <div><p class="info-detail-label">Registration Number</p><p class="info-detail-value" id="sdRegNo">—</p></div>
-                </div>
-                <div class="info-detail-row">
-                    <div class="info-detail-icon info-detail-icon--primary"><span class="material-symbols-outlined" style="font-size:16px">school</span></div>
-                    <div><p class="info-detail-label">Semester</p><p class="info-detail-value" id="sdSemester">—</p></div>
-                </div>
-                <div class="info-detail-row">
-                    <div class="info-detail-icon info-detail-icon--blue"><span class="material-symbols-outlined" style="font-size:16px">groups</span></div>
-                    <div><p class="info-detail-label">Section</p><p class="info-detail-value" id="sdSection">—</p></div>
-                </div>
-                <div class="info-detail-row">
-                    <div class="info-detail-icon info-detail-icon--success"><span class="material-symbols-outlined" style="font-size:16px">percent</span></div>
-                    <div><p class="info-detail-label">Confidence</p><p class="info-detail-value" id="sdConfidence">—</p></div>
-                </div>
-            </div>
-        {% endcall %}
-
-        <!-- Stats Cards -->
-        <div class="grid grid-2 gap-4">
-            {{ stat_card('Detected', '--', 'groups', value_id='presentCount') }}
-            {{ stat_card('Marked Present', '--', 'check_circle', 'stat-card-icon--success', value_id='markedCount') }}
+    <!-- RIGHT: Student Info Panel -->
+    <div class="flex flex-col gap-5">
+      <!-- Student Details (shown when detected) -->
+      <div class="card card-body" id="studentDetailsPanel" style="display:none;">
+        <div class="info-card-center">
+          <div class="info-icon-circle info-icon-circle--success">
+            <span class="material-symbols-outlined">verified</span>
+          </div>
+          <h3 id="sdName" style="margin:0;">-</h3>
+          <p class="text-sm text-muted mt-1" id="sdRegNo">-</p>
         </div>
+        <div class="grid grid-2 gap-3 mt-4">
+          <div class="info-detail-row">
+            <div class="info-detail-icon info-detail-icon--primary">
+              <span class="material-symbols-outlined" style="font-size:16px;">school</span>
+            </div>
+            <div>
+              <p class="info-detail-label">Section</p>
+              <p class="info-detail-value" id="sdSection">-</p>
+            </div>
+          </div>
+          <div class="info-detail-row">
+            <div class="info-detail-icon info-detail-icon--success">
+              <span class="material-symbols-outlined" style="font-size:16px;">percent</span>
+            </div>
+            <div>
+              <p class="info-detail-label">Confidence</p>
+              <p class="info-detail-value" id="sdConfidence">-</p>
+            </div>
+          </div>
+        </div>
+        <div class="mt-4" style="text-align:center;">
+          <span class="badge badge-success" id="sdAttendanceBadge">Verified</span>
+        </div>
+      </div>
 
-        <!-- How It Works Card -->
-        {% call panel_section('How It Works', 'visibility', body_class='panel-body', outer_id='howItWorksPanel') %}
-            <div class="info-card-center">
-                <div class="info-icon-circle info-icon-circle--primary">
-                    <span class="material-symbols-outlined" style="font-size:24px">visibility</span>
-                </div>
-                <p class="text-sm text-muted mb-4">Stand in front of the camera. The system will automatically verify that you are a real person and identify you.</p>
+      <!-- How It Works (shown by default) -->
+      <div class="card card-body" id="howItWorksPanel">
+        <h3 style="font-size:var(--font-size-md); font-weight:600; margin:0 0 var(--space-4) 0;">How It Works</h3>
+        <div class="flex flex-col gap-4">
+          <div class="flex items-start gap-3">
+            <div style="min-width:1.75rem; width:1.75rem; height:1.75rem; border-radius:50%; background:var(--color-primary,#1e3a8a); color:white; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:0.75rem; flex-shrink:0;">1</div>
+            <div>
+              <p class="text-sm font-semibold" style="margin:0;">Look at the camera</p>
+              <p class="text-xs text-muted" style="margin:0.125rem 0 0 0;">Position yourself directly in front of the camera</p>
             </div>
-            <hr class="hr">
-            <div class="flex flex-col gap-3 mt-4">
-                <div class="info-detail-row">
-                    <div class="info-detail-icon info-detail-icon--primary"><span class="material-symbols-outlined" style="font-size:16px">face</span></div>
-                    <p class="info-step-label">Look directly at the camera</p>
-                </div>
-                <div class="info-detail-row">
-                    <div class="info-detail-icon info-detail-icon--blue"><span class="material-symbols-outlined" style="font-size:16px">shield</span></div>
-                    <p class="info-step-label">Liveness verified automatically</p>
-                </div>
-                <div class="info-detail-row">
-                    <div class="info-detail-icon info-detail-icon--success"><span class="material-symbols-outlined" style="font-size:16px">check_circle</span></div>
-                    <p class="info-step-label">Attendance recorded automatically</p>
-                </div>
+          </div>
+          <div class="flex items-start gap-3">
+            <div style="min-width:1.75rem; width:1.75rem; height:1.75rem; border-radius:50%; background:var(--color-secondary,#2563eb); color:white; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:0.75rem; flex-shrink:0;">2</div>
+            <div>
+              <p class="text-sm font-semibold" style="margin:0;">Verify liveness</p>
+              <p class="text-xs text-muted" style="margin:0.125rem 0 0 0;">The system confirms you are a real person</p>
             </div>
-        {% endcall %}
-    </aside>
+          </div>
+          <div class="flex items-start gap-3">
+            <div style="min-width:1.75rem; width:1.75rem; height:1.75rem; border-radius:50%; background:var(--color-primary,#1e3a8a); color:white; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:0.75rem; flex-shrink:0;">3</div>
+            <div>
+              <p class="text-sm font-semibold" style="margin:0;">Attendance recorded</p>
+              <p class="text-xs text-muted" style="margin:0.125rem 0 0 0;">Your attendance is automatically marked</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
+
 {% endblock %}
 
 {% block scripts %}
 <script>
-var detectedCount = 0;
-var markedCount = 0;
+  let detectedCount = 0;
+  let markedCount = 0;
+  
+  const howItWorksPanel = document.getElementById('howItWorksPanel');
+  const studentDetailsPanel = document.getElementById('studentDetailsPanel');
 
-var howItWorksPanel = document.getElementById('howItWorksPanel');
-var studentDetailsPanel = document.getElementById('studentDetailsPanel');
-
-function showStudentDetails(ev) {
-    document.getElementById('sdName').textContent = ev.name || '—';
-    document.getElementById('sdRegNo').textContent = ev.registration_number || '—';
-    document.getElementById('sdSemester').textContent = ev.semester || '—';
-    document.getElementById('sdSection').textContent = ev.section || '—';
+  function showStudentDetails(ev) {
+    document.getElementById('sdName').textContent = ev.name || '-';
+    document.getElementById('sdRegNo').textContent = ev.registration_number || '-';
+    document.getElementById('sdSection').textContent = ev.section || '-';
     document.getElementById('sdConfidence').textContent = (ev.confidence * 100).toFixed(1) + '%';
 
-    var badge = document.getElementById('sdAttendanceBadge');
+    const badge = document.getElementById('sdAttendanceBadge');
     if (ev.attendance_marked) {
-        badge.textContent = 'Marked Present';
-        badge.className = 'badge badge-success mb-4';
+      badge.textContent = 'Marked Present';
+      badge.className = 'badge badge-success';
     } else {
-        badge.textContent = 'Already Marked';
-        badge.className = 'badge badge-warning mb-4';
+      badge.textContent = 'Already Marked';
+      badge.className = 'badge badge-warning';
     }
 
     howItWorksPanel.style.display = 'none';
     studentDetailsPanel.style.display = 'block';
-    studentDetailsPanel.classList.remove('panel-fade-in');
-    void studentDetailsPanel.offsetWidth;
-    studentDetailsPanel.classList.add('panel-fade-in');
-}
+  }
 
-function showHowItWorks() {
+  function showHowItWorks() {
     studentDetailsPanel.style.display = 'none';
     howItWorksPanel.style.display = 'block';
-    howItWorksPanel.classList.remove('panel-fade-in');
-    void howItWorksPanel.offsetWidth;
-    howItWorksPanel.classList.add('panel-fade-in');
-}
+  }
 
-var socket = io();
-socket.on('attendance_event', function(ev) {
-    var tbody = document.getElementById('eventBody');
-    detectedCount++;
-    if (ev.status === 'marked' && ev.attendance_marked) markedCount++;
+  // Load enrolled count from API
+  fetch('/api/metrics')
+    .then(function(r) { return r.json(); })
+    .then(function(m) {
+      var el = document.getElementById('enrolledCount');
+      if (el && m.total_students !== undefined) {
+        el.textContent = m.total_students;
+      }
+    })
+    .catch(function() {});
 
-    var tr = document.createElement('tr');
-    var badgeClass, statusText, confValue;
-    if (ev.status === 'marked') {
+  // WebSocket connection for real-time events
+  try {
+    const socket = io();
+    
+    socket.on('attendance_event', function(ev) {
+      const tbody = document.getElementById('eventBody');
+      
+      // Clear placeholder if exists
+      if (tbody.querySelector('tr td[colspan="3"]')) {
+        tbody.innerHTML = '';
+      }
+      
+      detectedCount++;
+      if (ev.status === 'marked' && ev.attendance_marked) markedCount++;
+
+      const tr = document.createElement('tr');
+      let badgeClass, statusText, confValue;
+      
+      if (ev.status === 'marked') {
         badgeClass = 'badge-success';
         statusText = ev.attendance_marked ? 'Real Face Verified' : 'Already Marked';
         confValue = (ev.confidence * 100).toFixed(1) + '%';
-    } else if (ev.status === 'spoof_detected') {
+      } else if (ev.status === 'spoof_detected') {
         badgeClass = 'badge-error';
         statusText = 'Spoof Detected';
         confValue = ((ev.liveness_confidence || 0) * 100).toFixed(1) + '%';
-    } else {
-        badgeClass = 'badge-warning';
+      } else {
+        badgeClass = 'badge-neutral';
         statusText = ev.status;
         confValue = (ev.confidence * 100).toFixed(1) + '%';
-    }
-    tr.innerHTML = '<td class="font-medium">' + ev.name + '</td>'
-        + '<td><span class="badge ' + badgeClass + '">' + statusText + '</span></td>'
-        + '<td class="col-right text-muted text-mono text-xs">' + confValue + '</td>';
-    tbody.prepend(tr);
+      }
+      
+      tr.innerHTML = `<td class="font-medium">${ev.name}</td>
+        <td><span class="badge ${badgeClass}">${statusText}</span></td>
+        <td class="col-right text-muted">${confValue}</td>`;
+      
+      tbody.prepend(tr);
 
-    if (ev.status === 'marked') {
+      if (ev.status === 'marked') {
         showStudentDetails(ev);
-    } else {
+      } else {
         showHowItWorks();
-    }
+      }
 
-    document.getElementById('presentCount').textContent = detectedCount;
-    document.getElementById('markedCount').textContent = markedCount;
-});
+      document.getElementById('presentCount').textContent = detectedCount;
+      document.getElementById('markedCount').textContent = markedCount;
+    });
+  } catch (e) {
+    console.log('WebSocket not available - running in demo mode');
+  }
 </script>
 {% endblock %}

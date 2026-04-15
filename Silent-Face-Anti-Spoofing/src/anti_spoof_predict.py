@@ -55,14 +55,9 @@ class AntiSpoofPredict(Detection):
         super(AntiSpoofPredict, self).__init__()
         self.device = torch.device("cuda:{}".format(device_id)
                                    if torch.cuda.is_available() else "cpu")
-        self._model_cache = {}  # Cache for loaded models: {model_path: model}
+        self._model_cache = {}  # Cache loaded models by path
 
     def _load_model(self, model_path):
-        # Check cache first to avoid reloading from disk
-        if model_path in self._model_cache:
-            self.model = self._model_cache[model_path]
-            return None
-
         # define model
         model_name = os.path.basename(model_path)
         h_input, w_input, model_type, _ = parse_model_name(model_name)
@@ -82,10 +77,15 @@ class AntiSpoofPredict(Detection):
             self.model.load_state_dict(new_state_dict)
         else:
             self.model.load_state_dict(state_dict)
-
-        # Cache the loaded model for future use
-        self._model_cache[model_path] = self.model
         return None
+
+    def _get_cached_model(self, model_path):
+        """Return a cached model, loading from disk only on first use."""
+        if model_path not in self._model_cache:
+            self._load_model(model_path)
+            self.model.eval()
+            self._model_cache[model_path] = self.model
+        return self._model_cache[model_path]
 
     def predict(self, img, model_path):
         test_transform = trans.Compose([
@@ -93,11 +93,10 @@ class AntiSpoofPredict(Detection):
         ])
         img = test_transform(img)
         img = img.unsqueeze(0).to(self.device)
-        self._load_model(model_path)
-        self.model.eval()
+        model = self._get_cached_model(model_path)
         with torch.no_grad():
-            result = self.model.forward(img)
-            result = F.softmax(result, dim=1).cpu().numpy()
+            result = model.forward(img)
+            result = F.softmax(result).cpu().numpy()
         return result
 
 

@@ -6,8 +6,8 @@ import random
 
 import numpy as np
 
-import app_core.database as database
-from app_core.auth import hash_password
+import core.database as database
+from core.auth import hash_password
 
 
 def _student_encodings(count: int = 2) -> list[np.ndarray]:

@@ -1,227 +1,245 @@
 {% extends "base.html" %}
-{% block title %}Dashboard{% endblock %}
-{% from "partials/ui.html" import page_header, stat_card %}
+{% block title %}Dashboard - AutoAttendance{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
 
 {% block content %}
-<div class="flex flex-col gap-6">
-    <!-- Page Header -->
-    {{ page_header('Operations Dashboard', 'Attendance Overview', 'Monitor attendance health, review realtime metrics, and run instructor actions from a single surface.') }}
+<div>
+  <!-- Page Header -->
+  <div class="page-header mb-8">
+    <h1 style="font-size:1.75rem; font-weight:700; letter-spacing:-0.02em; color:var(--on-surface); margin:0;">Dashboard Overview</h1>
+    <p class="page-header-desc" style="margin-top:0.25rem;">Real-time overview of attendance metrics and recent activity.</p>
+  </div>
 
-    <!-- KPI Cards -->
-    <div class="grid grid-4 gap-4">
-        {{ stat_card('Total Students', total_students, 'school', 'stat-card-icon--primary') }}
-        {{ stat_card('Present Today', today_count, 'check_circle', 'stat-card-icon--success') }}
-        {{ stat_card('Attendance Rate', attendance_pct ~ '%', 'percent', 'stat-card-icon--blue') }}
-        {{ stat_card('Absent Today', total_students - today_count, 'cancel', 'stat-card-icon--error') }}
+  <!-- Stat Cards Row -->
+  <div class="grid grid-3 gap-4 mb-6">
+    <!-- Total Students -->
+    <div class="stat-card">
+      <div class="stat-card-top">
+        <span class="stat-card-label">Total Students</span>
+        <span class="material-symbols-outlined stat-card-icon stat-card-icon--primary">groups</span>
+      </div>
+      <div class="stat-card-footer">
+        <span class="stat-card-value">{{ total_students }}</span>
+      </div>
+      <p class="text-xs text-muted" style="margin-top:0.25rem;">Enrolled in system</p>
     </div>
 
-    <!-- Main Grid: Chart + Metrics -->
-    <div class="two-col two-col--sidebar">
-        <!-- Chart Area -->
-        <div class="panel">
-            <div class="panel-header">
-                <div class="panel-header-left"><h3>Attendance Overview</h3></div>
-            </div>
-            <div class="panel-body">
-                <div class="mb-2">
-                    <span class="stat-card-value">{{ attendance_pct }}%</span>
-                    <span class="text-muted text-sm" style="margin-left:var(--space-2)">Avg</span>
-                </div>
-                <p class="text-xs mb-4" style="color:var(--color-success)">Current attendance rate</p>
-                <div class="chart-container">
-                    <svg class="chart-svg" preserveAspectRatio="none" viewBox="0 0 500 150" xmlns="http://www.w3.org/2000/svg">
-                        <defs>
-                            <linearGradient id="chartGradient" x1="0" x2="0" y1="0" y2="1">
-                                <stop offset="0%" stop-color="#2563eb" stop-opacity="0.12"></stop>
-                                <stop offset="100%" stop-color="#2563eb" stop-opacity="0"></stop>
-                            </linearGradient>
-                        </defs>
-                        <path d="M0,120 Q50,90 100,100 T200,80 T300,60 T400,90 T500,70 V150 H0 Z" fill="url(#chartGradient)"></path>
-                        <path d="M0,120 Q50,90 100,100 T200,80 T300,60 T400,90 T500,70" fill="none" stroke="#2563eb" stroke-linecap="round" stroke-width="2.5"></path>
-                        <circle cx="300" cy="60" fill="#ffffff" r="4" stroke="#1e3a8a" stroke-width="2"></circle>
-                    </svg>
-                    <div class="chart-labels">
-                        <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Performance Metrics -->
-        <div class="panel">
-            <div class="panel-header">
-                <div class="panel-header-left"><h3>System Metrics</h3></div>
-            </div>
-            <div class="panel-body">
-                <div id="metricsArea" class="kv-list" role="status" aria-live="polite">
-                    <p class="text-muted text-sm">Loading...</p>
-                </div>
-            </div>
-        </div>
+    <!-- Present Today -->
+    <div class="stat-card" style="border-left:3px solid var(--color-success, #16a34a);">
+      <div class="stat-card-top">
+        <span class="stat-card-label">Present Today</span>
+        <span class="material-symbols-outlined stat-card-icon stat-card-icon--success">check_circle</span>
+      </div>
+      <div class="stat-card-footer">
+        <span class="stat-card-value">{{ today_count }}</span>
+        <span class="badge badge-success" style="font-size:0.625rem;">Live</span>
+      </div>
+      <p class="text-xs text-muted" style="margin-top:0.25rem;">Current session</p>
     </div>
 
-    <!-- Bulk Actions -->
+    <!-- Attendance Rate -->
+    <div class="stat-card">
+      <div class="stat-card-top">
+        <span class="stat-card-label">Attendance Rate</span>
+        <span class="material-symbols-outlined stat-card-icon stat-card-icon--blue">trending_up</span>
+      </div>
+      <div class="stat-card-footer">
+        <span class="stat-card-value">{{ attendance_pct }}%</span>
+      </div>
+      <p class="text-xs text-muted" style="margin-top:0.25rem;">Global rate</p>
+    </div>
+  </div>
+
+  <!-- Chart + System Metrics -->
+  <div class="two-col two-col--sidebar mb-6">
+    <!-- Attendance Trend Chart -->
     <div class="panel">
-        <div class="panel-header">
-            <div class="panel-header-left"><h3>Today's Students</h3></div>
-            <div class="flex items-center gap-3">
-                <button id="bulkPresentBtn" class="btn-action-success">Mark Present</button>
-                <button id="bulkAbsentBtn" class="btn-action-danger">Mark Absent</button>
-            </div>
+      <div class="panel-header">
+        <div class="panel-header-left">
+          <span class="material-symbols-outlined">bar_chart</span>
+          <h3>Attendance Trend (Weekly)</h3>
         </div>
-        <div class="table-wrap custom-scrollbar">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th><input type="checkbox" id="selectAll"></th>
-                        <th>Name</th>
-                        <th>Reg. No.</th>
-                    </tr>
-                </thead>
-                <tbody id="bulkBody"></tbody>
-            </table>
+      </div>
+      <div class="panel-body">
+        <div id="trendChart" style="height:240px; display:flex; align-items:flex-end; justify-content:space-around; gap:0.75rem; padding:1rem 0;">
+          <p class="text-sm text-muted" style="margin:auto;">Loading trend data...</p>
         </div>
+        <div id="trendLabels" style="display:none; justify-content:space-around; font-size:var(--font-size-xs); color:var(--color-text-muted);"></div>
+      </div>
     </div>
 
-    <!-- Recent Attendance Table -->
+    <!-- System Metrics -->
     <div class="panel">
-        <div class="panel-header">
-            <div class="panel-header-left"><h3>Recent Attendance Logs</h3></div>
+      <div class="panel-header">
+        <div class="panel-header-left">
+          <span class="material-symbols-outlined">monitoring</span>
+          <h3>System Metrics</h3>
         </div>
-        <div class="table-wrap custom-scrollbar">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Name</th>
-                        <th>Reg. No.</th>
-                        <th>Section</th>
-                        <th>Date</th>
-                        <th>Time</th>
-                        <th class="col-right">Confidence</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for r in recent %}
-                    <tr>
-                        <td class="font-medium">{{ r.name }}</td>
-                        <td class="text-muted">{{ r.registration_number }}</td>
-                        <td class="text-muted">{{ r.section }}</td>
-                        <td class="text-muted">{{ r.date }}</td>
-                        <td class="text-muted">{{ r.time }}</td>
-                        <td class="col-right text-muted text-mono text-xs">{{ "%.1f"|format(r.confidence_score * 100) }}%</td>
-                    </tr>
-                    {% else %}
-                    <tr><td colspan="6" class="empty-row">No attendance records yet.</td></tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+      </div>
+      <div class="panel-body" id="metricsArea">
+        <p class="text-sm text-muted">Waiting for live metrics...</p>
+      </div>
     </div>
+  </div>
 
-    <!-- At Risk Students -->
-    <div class="panel">
-        <div class="panel-header">
-            <div class="panel-header-left">
-                <span class="material-symbols-outlined" style="color:var(--color-error)">warning</span>
-                <h3>At Risk Students</h3>
-            </div>
-        </div>
-        <div class="table-wrap custom-scrollbar">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Name</th>
-                        <th>Reg. No.</th>
-                        <th>Days Present</th>
-                        <th class="col-right">Attendance %</th>
-                    </tr>
-                </thead>
-                <tbody id="atRiskBody"></tbody>
-            </table>
-        </div>
+  <!-- Recent Attendance Logs -->
+  <div class="panel mb-6">
+    <div class="panel-header">
+      <div class="panel-header-left">
+        <span class="material-symbols-outlined">history</span>
+        <h3>Recent Attendance Logs</h3>
+      </div>
     </div>
+    <div class="panel-body--flush">
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Registration</th>
+              <th>Section</th>
+              <th>Date & Time</th>
+              <th class="col-right">Confidence</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in recent %}
+            <tr>
+              <td class="font-medium">{{ r.name }}</td>
+              <td class="text-muted">{{ r.registration_number }}</td>
+              <td><span class="badge badge-info">{{ r.section }}</span></td>
+              <td class="text-muted">{{ r.date }} {{ r.time }}</td>
+              <td class="col-right">{{ "%.1f"|format(r.confidence_score * 100) }}%</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="empty-row">No attendance records yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- At Risk Students -->
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-header-left">
+        <span class="material-symbols-outlined" style="color:var(--color-error,#dc2626);">warning</span>
+        <h3>At Risk Students</h3>
+      </div>
+      <span class="badge badge-error" id="atRiskCount"></span>
+    </div>
+    <div class="panel-body--flush">
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Registration</th>
+              <th>Days Present</th>
+              <th class="col-right">Attendance %</th>
+            </tr>
+          </thead>
+          <tbody id="atRiskBody">
+            <tr><td colspan="4" class="empty-row">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 </div>
+
 {% endblock %}
 
 {% block scripts %}
 <script>
-var socket = io();
-
-function renderMetrics(m) {
-    document.getElementById('metricsArea').innerHTML =
-        '<div class="kv-list">'
+  function renderMetrics(m) {
+    var area = document.getElementById('metricsArea');
+    if (area) {
+      area.innerHTML = '<div class="kv-list">'
         + '<div class="kv-row"><span class="kv-key">Accuracy</span><span class="kv-value">' + m.accuracy_pct + '%</span></div>'
-        + '<div class="kv-row"><span class="kv-key">FAR</span><span class="kv-value">' + m.false_acceptance_rate_pct + '%</span></div>'
-        + '<div class="kv-row"><span class="kv-key">FRR</span><span class="kv-value">' + m.false_rejection_rate_pct + '%</span></div>'
-        + '<div class="kv-row"><span class="kv-key">Avg Frame</span><span class="kv-value">' + m.avg_frame_time_ms + ' ms</span></div>'
         + '<div class="kv-row"><span class="kv-key">FPS</span><span class="kv-value">' + m.fps + '</span></div>'
-        + '<div class="kv-row"><span class="kv-key">Threshold</span><span class="kv-value">' + m.current_threshold + '</span></div>'
+        + '<div class="kv-row"><span class="kv-key">Avg Frame Time</span><span class="kv-value">' + m.avg_frame_time_ms + ' ms</span></div>'
         + '<div class="kv-row"><span class="kv-key">Recognitions</span><span class="kv-value">' + m.total_recognitions + '</span></div>'
         + '</div>';
-}
-
-// Live updates via WebSocket
-socket.on('metrics_update', function(m) { renderMetrics(m); });
-
-// Initial fetch
-fetch('{{ url_for("main.api_metrics") }}')
-    .then(function(r) { return r.json(); })
-    .then(function(m) { renderMetrics(m); })
-    .catch(function() {
-        document.getElementById('metricsArea').textContent = 'Could not load metrics.';
-    });
-
-// Load at-risk students
-fetch('/api/at_risk').then(function(r) { return r.json(); }).then(function(data) {
-    var body = document.getElementById('atRiskBody');
-    if (data && data.length) {
-        data.forEach(function(s) {
-            var tr = document.createElement('tr');
-            tr.innerHTML = '<td class="font-medium">' + s.name + '</td>'
-                + '<td class="text-muted">' + s.registration_number + '</td>'
-                + '<td class="text-muted">' + s.days_present + '</td>'
-                + '<td class="col-right text-muted text-mono text-xs">' + s.attendance_pct + '%</td>';
-            body.appendChild(tr);
-        });
-    } else {
-        body.innerHTML = '<tr><td colspan="4" class="empty-row">No at-risk students found.</td></tr>';
     }
-}).catch(function() {});
+  }
 
-// Load all students for bulk actions
-fetch('/api/students').then(function(r) { return r.json(); }).then(function(students) {
-    var body = document.getElementById('bulkBody');
-    students.forEach(function(s) {
-        var tr = document.createElement('tr');
-        tr.innerHTML = '<td><input type="checkbox" class="bulk-check" value="' + s.registration_number + '"></td>'
-            + '<td class="font-medium">' + s.name + '</td>'
-            + '<td class="text-muted">' + s.registration_number + '</td>';
-        body.appendChild(tr);
-    });
-}).catch(function() {});
+  document.addEventListener('DOMContentLoaded', function() {
+    // Load at-risk students
+    fetch('/api/at_risk')
+      .then(r => r.json())
+      .then(data => {
+        const body = document.getElementById('atRiskBody');
+        var countBadge = document.getElementById('atRiskCount');
+        if (data && data.length) {
+          if (countBadge) countBadge.textContent = data.length;
+          body.innerHTML = data.map(s => `
+            <tr>
+              <td class="font-medium">${s.name}</td>
+              <td class="text-muted">${s.registration_number}</td>
+              <td class="text-muted">${s.days_present}</td>
+              <td class="col-right">
+                <span class="badge badge-${s.attendance_pct < 50 ? 'error' : s.attendance_pct < 75 ? 'warning' : 'neutral'}">
+                  ${s.attendance_pct}%
+                </span>
+              </td>
+            </tr>
+          `).join('');
+        } else {
+          if (countBadge) countBadge.textContent = '0';
+          body.innerHTML = '<tr><td colspan="4" class="empty-row">No at-risk students found.</td></tr>';
+        }
+      })
+      .catch(err => {
+        console.error('Failed to load at-risk students:', err);
+      });
 
-// Select all checkbox
-document.getElementById('selectAll').addEventListener('change', function() {
-    document.querySelectorAll('.bulk-check').forEach(function(cb) { cb.checked = this.checked; }.bind(this));
-});
+    // Load attendance trend chart from API
+    fetch('/api/analytics/trends?days=7')
+      .then(r => r.json())
+      .then(data => {
+        var chart = document.getElementById('trendChart');
+        var labels = document.getElementById('trendLabels');
+        if (!data || !data.length) {
+          chart.innerHTML = '<p class="text-sm text-muted" style="margin:auto;">No trend data available.</p>';
+          return;
+        }
+        var maxCount = Math.max.apply(null, data.map(function(d) { return d.count || 0; }));
+        if (maxCount === 0) maxCount = 1;
+        chart.innerHTML = '';
+        labels.innerHTML = '';
+        labels.style.display = 'flex';
+        data.forEach(function(d) {
+          var pct = ((d.count || 0) / maxCount) * 100;
+          var bar = document.createElement('div');
+          bar.style.cssText = 'flex:1; height:' + Math.max(pct, 2) + '%; background:linear-gradient(180deg, var(--color-primary,#1e3a8a) 0%, var(--color-secondary,#2563eb) 100%); border-radius:var(--radius-md); min-width:20px; transition:height 0.5s ease;';
+          bar.title = d.date + ': ' + (d.count || 0) + ' present';
+          chart.appendChild(bar);
+          var lbl = document.createElement('span');
+          var dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+          var dt = new Date(d.date + 'T00:00:00');
+          lbl.textContent = dayNames[dt.getDay()] || d.date;
+          labels.appendChild(lbl);
+        });
+      })
+      .catch(function() {
+        document.getElementById('trendChart').innerHTML = '<p class="text-sm text-muted" style="margin:auto;">Failed to load trend data.</p>';
+      });
 
-// Bulk present/absent handlers
-function bulkAction(status) {
-    var ids = [];
-    document.querySelectorAll('.bulk-check:checked').forEach(function(cb) { ids.push(cb.value); });
-    if (!ids.length) return;
-    var actionLabel = status === 'Present' ? 'mark as present' : 'mark as absent';
-    if (!window.confirm('Confirm bulk action: ' + actionLabel + ' for ' + ids.length + ' student(s)?')) return;
-    fetch('/api/attendance/bulk', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({student_ids: ids, status: status})
-    }).then(function(r) { return r.json(); }).then(function(data) {
-        alert('Updated ' + data.updated + ' records');
-        location.reload();
-    });
-}
-document.getElementById('bulkPresentBtn').addEventListener('click', function() { bulkAction('Present'); });
-document.getElementById('bulkAbsentBtn').addEventListener('click', function() { bulkAction('Absent'); });
+    // Load initial metrics from API
+    fetch('/api/metrics')
+      .then(r => r.json())
+      .then(m => { renderMetrics(m); })
+      .catch(function() {});
+
+    // WebSocket metrics updates
+    try {
+      var socket = io();
+      socket.on('metrics_update', function(m) { renderMetrics(m); });
+    } catch (e) {
+      console.log('WebSocket not available');
+    }
+  });
 </script>
 {% endblock %}

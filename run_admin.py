@@ -1,7 +1,7 @@
 """Admin application runner using the migrated package layout."""
 
 from admin_app.app import create_app, socketio
-import app_core.config as config
+import core.config as config
 
 
 if __name__ == "__main__":

@@ -1,71 +1,34 @@
-"""Student portal authentication helpers."""
+﻿"""Student portal authentication stub (removed for ML-only focus)."""
 
-from __future__ import annotations
-
-from dataclasses import dataclass
-from datetime import timedelta
-
-from bson import ObjectId
-from flask import Flask
-from flask_login import LoginManager, UserMixin
-
-import app_core.config as config
-from app_core.auth import verify_password
-from app_core.utils import setup_logging
-
+from flask_login import UserMixin, LoginManager
+from core.auth import check_password
 from . import database
 
 
-login_manager = LoginManager()
-logger = setup_logging()
-
-
-@dataclass
 class StudentUser(UserMixin):
-    """Adapter around student documents for Flask-Login."""
+    """Flask-Login user object for student portal."""
 
-    student_id: str
-    registration_number: str
-    name: str
-    verification_status: str
+    def __init__(self, student_id: str, registration_number: str, name: str, verification_status: str):
+        self.id = student_id
+        self.registration_number = registration_number
+        self.name = name
+        self.verification_status = verification_status
 
-    @property
-    def id(self) -> str:
-        return self.student_id
-
-
-@login_manager.user_loader
-def load_student(user_id: str) -> StudentUser | None:
-    try:
-        oid = ObjectId(user_id)
-    except Exception as exc:
-        logger.debug("Invalid student user id: %s", exc)
-        return None
-
-    student = database.get_student_by_id(oid, include_sensitive=True)
-    if not student:
-        return None
-
-    return StudentUser(
-        student_id=str(student["_id"]),
-        registration_number=student.get("registration_number", ""),
-        name=student.get("name", ""),
-        verification_status=student.get("verification_status", "pending"),
-    )
-
-
-def init_auth(app: Flask) -> None:
-    login_manager.login_view = "student.login"
-    login_manager.session_protection = "strong"
-    login_manager.init_app(app)
-    app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(
-        hours=max(1, config.AUTH_SESSION_DURATION_HOURS)
-    )
+    def get_id(self):
+        return self.id
 
 
 def authenticate_student(credential: str, password: str) -> StudentUser | None:
-    """Authenticate student by registration number or email."""
-    # Try to fetch by registration number first
+    """Authenticate a student by registration number or email.
+    
+    Args:
+        credential: Registration number or email
+        password: Password to verify
+        
+    Returns:
+        StudentUser if authentication succeeds, None otherwise
+    """
+    # Try to get student by registration number first
     student = database.get_student_by_reg_no(credential, include_sensitive=True)
     
     # If not found, try by email
@@ -74,12 +37,36 @@ def authenticate_student(credential: str, password: str) -> StudentUser | None:
     
     if not student:
         return None
-    if not verify_password(student.get("password_hash", ""), password):
+    
+    # Verify password
+    password_hash = student.get("password_hash")
+    if not password_hash or not check_password(password_hash, password):
         return None
-
+    
+    # Return authenticated user
     return StudentUser(
-        student_id=str(student["_id"]),
+        student_id=str(student.get("_id")),
         registration_number=student.get("registration_number", ""),
         name=student.get("name", ""),
         verification_status=student.get("verification_status", "pending"),
     )
+
+
+def init_auth(app):
+    """Initialize Flask-Login for the student portal."""
+    login_manager = LoginManager()
+    login_manager.init_app(app)
+    login_manager.login_view = "student.login"
+    
+    @login_manager.user_loader
+    def load_student_user(student_id: str) -> StudentUser | None:
+        """Load a student user by ID."""
+        student = database.get_student_by_id(student_id, include_sensitive=False)
+        if not student:
+            return None
+        return StudentUser(
+            student_id=str(student.get("_id")),
+            registration_number=student.get("registration_number", ""),
+            name=student.get("name", ""),
+            verification_status=student.get("verification_status", "pending"),
+        )

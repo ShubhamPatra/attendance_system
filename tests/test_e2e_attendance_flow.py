@@ -16,10 +16,10 @@ import bson
 # Add workspace root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
-import app_core.config as config
-import app_core.database as database
-from app_camera.camera import Camera
-from app_vision.pipeline import FaceTrack
+import core.config as config
+import core.database as database
+from camera.camera import Camera
+from vision.pipeline import FaceTrack
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -87,7 +87,7 @@ class TestE2EAttendanceFlow:
 
     def test_mark_attendance_circuit_breaker_recovery(self, test_student):
         """Test circuit breaker fails gracefully on DB errors."""
-        from app_core.database import _circuit_breaker
+        from core.database import _circuit_breaker
         
         # Simulate DB failures
         original_find_one = database.get_db().students.find_one
@@ -141,7 +141,7 @@ class TestE2EAttendanceFlow:
 
     def test_encoding_cache_incremental_update(self, test_student):
         """Test that encoding cache O(1) incremental update works."""
-        from app_vision.face_engine import encoding_cache
+        from vision.face_engine import encoding_cache
         
         # Load cache
         encoding_cache.load()
@@ -232,7 +232,7 @@ class TestE2EAttendanceFlow:
         """Test circuit breaker state machine works correctly."""
         # Skip if circuit breaker not fully implemented
         try:
-            from app_core.database import CircuitBreaker, CircuitBreakerState
+            from core.database import CircuitBreaker, CircuitBreakerState
         except (ImportError, AttributeError):
             pytest.skip("CircuitBreaker not fully available")
         
@@ -256,7 +256,7 @@ class TestE2EAttendanceFlow:
 
     def test_attendance_validation_diagnostic(self, test_student):
         """Test encoding validation diagnostic function."""
-        from app_core.database import validate_student_encodings
+        from core.database import validate_student_encodings
         
         # Add a valid encoding
         enc = np.random.randn(512).astype(np.float32)

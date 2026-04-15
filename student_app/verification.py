@@ -8,11 +8,11 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-import app_core.config as config
-import app_core.database as core_database
-from app_core.utils import setup_logging
-from app_vision import anti_spoofing, pipeline, recognition
-from app_vision.preprocessing import preprocess_face
+import core.config as config
+import core.database as core_database
+from core.utils import setup_logging
+from vision import anti_spoofing, pipeline, recognition
+from vision.preprocessing import preprocess_face
 
 
 logger = setup_logging()
@@ -248,7 +248,7 @@ def evaluate_student_samples(
         landmarks_5 = None
         if config.EMBEDDING_BACKEND == "arcface":
             try:
-                from app_vision.face_engine import get_arcface_backend
+                from vision.face_engine import get_arcface_backend
                 af = get_arcface_backend()
                 af_faces = af.get_faces(preprocess_face(image))
                 if af_faces and hasattr(af_faces[0], 'kps') and af_faces[0].kps is not None:

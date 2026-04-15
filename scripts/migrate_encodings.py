@@ -31,9 +31,9 @@ sys.path.insert(0, ROOT)
 
 import numpy as np
 
-import app_core.config as config
-import app_core.database as database
-from app_core.utils import setup_logging
+import core.config as config
+import core.database as database
+from core.utils import setup_logging
 
 logger = setup_logging()
 
@@ -131,7 +131,7 @@ def main():
     logger.info("=" * 60)
 
     # Load the ArcFace backend
-    from app_vision.face_engine import ArcFaceEmbeddingBackend
+    from vision.face_engine import ArcFaceEmbeddingBackend
     backend = ArcFaceEmbeddingBackend()
     backend._ensure_loaded()
     logger.info("ArcFace backend ready.")

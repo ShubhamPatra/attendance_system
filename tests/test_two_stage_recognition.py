@@ -30,7 +30,7 @@ def _seed_cache(face_engine_module):
 
 
 def test_two_stage_stage1_to_stage2_match(monkeypatch):
-    import app_vision.face_engine as face_engine
+    import vision.face_engine as face_engine
 
     monkeypatch.setattr(face_engine.config, "EMBEDDING_DIM", 3)
     monkeypatch.setattr(face_engine.config, "RECOGNITION_TWO_STAGE_ENABLED", True)
@@ -54,7 +54,7 @@ def test_two_stage_stage1_to_stage2_match(monkeypatch):
 
 
 def test_candidate_handoff_can_restrict_stage2(monkeypatch):
-    import app_vision.face_engine as face_engine
+    import vision.face_engine as face_engine
 
     monkeypatch.setattr(face_engine.config, "EMBEDDING_DIM", 3)
     monkeypatch.setattr(face_engine.config, "RECOGNITION_TWO_STAGE_ENABLED", True)
@@ -82,7 +82,7 @@ def test_candidate_handoff_can_restrict_stage2(monkeypatch):
 
 
 def test_stage1_empty_shortlist_falls_back_to_full_search(monkeypatch):
-    import app_vision.face_engine as face_engine
+    import vision.face_engine as face_engine
 
     monkeypatch.setattr(face_engine.config, "EMBEDDING_DIM", 3)
     monkeypatch.setattr(face_engine.config, "RECOGNITION_TWO_STAGE_ENABLED", True)

@@ -16,9 +16,9 @@ import bson
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
-import app_core.config as config
-import app_core.database as database
-from app_vision.face_engine import encoding_cache
+import core.config as config
+import core.database as database
+from vision.face_engine import encoding_cache
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -66,7 +66,7 @@ class TestConcurrentPipeline:
 
     def test_concurrent_attendance_marking(self, test_students):
         """Test simultaneous attendance marking on multiple students."""
-        from app_core.database import CircuitBreaker
+        from core.database import CircuitBreaker
         
         results = []
         errors = []
@@ -152,7 +152,7 @@ class TestConcurrentPipeline:
 
     def test_concurrent_recognition_cofirm_frames(self, test_students):
         """Test concurrent recognition confirmation doesn't cause race conditions."""
-        from app_vision.pipeline import FaceTrack
+        from vision.pipeline import FaceTrack
         
         errors = []
         confirmed = [0]
@@ -195,7 +195,7 @@ class TestConcurrentPipeline:
 
     def test_concurrent_liveness_voting(self):
         """Test liveness voting under concurrent access."""
-        from app_vision.pipeline import FaceTrack
+        from vision.pipeline import FaceTrack
         from unittest import mock
         
         errors = []

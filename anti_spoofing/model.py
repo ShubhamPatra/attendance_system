@@ -1,6 +1,6 @@
 """Anti-spoofing model compatibility module."""
 
-from app_vision.anti_spoofing import (
+from vision.anti_spoofing import (
     LIVENESS_LABELS,
     check_liveness,
     get_initialization_error,

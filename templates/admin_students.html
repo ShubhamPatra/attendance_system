@@ -1,74 +1,216 @@
 {% extends "base.html" %}
-{% block title %}Admin Students{% endblock %}
-{% from "partials/ui.html" import page_header %}
+{% block title %}Student Management - AutoAttendance{% endblock %}
+{% block page_title %}Student Management{% endblock %}
 
 {% block content %}
-<div class="flex flex-col gap-6">
-    {{ page_header('Student Administration', 'Manage Students', 'Review onboarding, approve samples, and recompute encodings.') }}
+<div>
+  <!-- Content Header (Stitch: display-md 2.75rem, italic subtitle) -->
+  <header style="margin-bottom: 3rem;">
+    <h1 style="font-size: 2.75rem; font-weight: 800; letter-spacing: -0.02em; color: var(--primary); margin: 0; line-height: 1.1;">Student Management</h1>
+    <p style="color: var(--on-surface-variant); margin-top: 0.5rem; max-width: 32rem; font-style: italic; opacity: 0.8; font-size: var(--font-size-body-md);">Review student verification status, manage samples, and control enrollment.</p>
+  </header>
 
-    <div class="panel">
-        <div class="table-wrap custom-scrollbar">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Name</th>
-                        <th>Reg. No.</th>
-                        <th>Status</th>
-                        <th>Score</th>
-                        <th>Samples</th>
-                        <th>Semester</th>
-                        <th>Section</th>
-                        <th>Email</th>
-                        <th class="col-right">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for student in students %}
-                    <tr>
-                        <td class="font-medium">{{ student.name }}</td>
-                        <td class="text-muted">{{ student.registration_number }}</td>
-                        <td>
-                            {% set vs = student.verification_status or 'approved' %}
-                            <span class="badge {% if vs == 'approved' %}badge-success{% elif vs == 'rejected' %}badge-error{% else %}badge-warning{% endif %}">{{ vs }}</span>
-                        </td>
-                        <td class="text-muted">{{ student.verification_score if student.verification_score is not none else '-' }}</td>
-                        <td class="text-muted">
-                            {% if student.face_samples %}
-                            <details>
-                                <summary class="cursor-pointer" style="color:var(--color-primary)">{{ student.face_samples|length }} sample(s)</summary>
-                                <ul style="margin-top:var(--space-2);list-style:disc;padding-left:var(--space-5);font-size:var(--font-size-xs)">
-                                    {% for sample in student.face_samples %}
-                                    <li>{{ sample }}</li>
-                                    {% endfor %}
-                                </ul>
-                            </details>
-                            {% else %}-{% endif %}
-                        </td>
-                        <td class="text-muted">{{ student.semester }}</td>
-                        <td class="text-muted">{{ student.section }}</td>
-                        <td class="text-muted">{{ student.email or '-' }}</td>
-                        <td class="col-right">
-                            <div class="flex flex-col items-end gap-2">
-                                <form class="inline-flex items-center gap-2" method="post" action="/api/admin/students/{{ student.registration_number }}/recompute" enctype="multipart/form-data">
-                                    <input type="file" name="images" multiple style="font-size:var(--font-size-xs);max-width:170px">
-                                    <button type="submit" class="btn-action-outline">Recompute</button>
-                                </form>
-                                <div class="flex items-center gap-2">
-                                    <form method="post" action="/api/admin/students/{{ student.registration_number }}/approve">
-                                        <button type="submit" class="btn-action-success">Approve</button>
-                                    </form>
-                                    <form method="post" action="/api/admin/students/{{ student.registration_number }}/reject">
-                                        <input type="hidden" name="reason" value="Rejected by admin review">
-                                        <button type="submit" class="btn-action-danger">Reject</button>
-                                    </form>
-                                </div>
-                            </div>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+  <!-- Students Table -->
+  <div style="background: var(--surface-container-lowest); border-radius: 0.375rem; box-shadow: var(--shadow-sm); overflow: hidden;">
+    <!-- Table Header Section -->
+    <div style="display: flex; justify-content: space-between; align-items: center; padding: 2rem; border-bottom: 1px solid var(--outline-variant); border-bottom-opacity: 0.1;">
+      <h3 style="font-size: 1.25rem; font-weight: 700; letter-spacing: -0.02em; color: var(--primary); margin: 0;">All Students</h3>
+      <div style="display: flex; align-items: center; gap: 1rem;">
+        <div style="position: relative; width: 250px;">
+          <span class="material-symbols-outlined" style="position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); color: var(--on-surface-variant); font-size: 1.25rem;">search</span>
+          <input type="text" id="studentSearch" placeholder="Search by name..." style="width: 100%; padding: 0.75rem 1rem 0.75rem 2.5rem; background-color: var(--surface-container-high); border: none; border-radius: 0.375rem; font-family: var(--font-body); font-size: 0.875rem; color: var(--on-surface); transition: all var(--transition-fast);">
         </div>
+      </div>
     </div>
+    
+    <!-- Table -->
+    <div class="table-wrapper">
+      <table class="data-table" id="studentsTable">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Registration</th>
+            <th>Status</th>
+            <th>Section</th>
+            <th>Samples</th>
+            <th style="text-align: right;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for student in students %}
+          <tr>
+            <td style="font-size: 0.875rem; font-weight: 600; color: var(--primary);">{{ student.name }}</td>
+            <td style="font-size: 0.875rem;">{{ student.registration_number }}</td>
+            <td>
+              {% set vs = student.verification_status or 'approved' %}
+              <span style="display: inline-block; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; {% if vs == 'approved' %}background: var(--secondary-fixed); color: var(--on-secondary-fixed);{% elif vs == 'rejected' %}background: var(--error-container); color: var(--on-error-container);{% else %}background: var(--tertiary-fixed); color: var(--on-tertiary);{% endif %}">{{ vs }}</span>
+            </td>
+            <td style="font-size: 0.875rem;">{{ student.section }}</td>
+            <td style="font-size: 0.875rem;">
+              {% if student.face_samples %}
+              <span style="display: inline-block; background: var(--secondary-container); color: var(--on-secondary-container); padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600;">{{ student.face_samples|length }} sample(s)</span>
+              {% else %}
+              <span style="color: var(--on-surface-variant);">—</span>
+              {% endif %}
+            </td>
+            <td style="text-align: right;">
+              <div class="flex justify-end items-center gap-sm">
+                <button class="btn-icon" title="View Details" onclick="showStudentDetails('{{ student.registration_number }}')">
+                  <span class="material-symbols-outlined">info</span>
+                </button>
+                <button class="btn-icon" title="Delete" onclick="deleteStudent('{{ student.registration_number }}')">
+                  <span class="material-symbols-outlined">delete</span>
+                </button>
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6" style="text-align: center; padding: var(--spacing-lg); color: var(--on-surface-variant);">No students found.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+
+
 </div>
+
+<!-- Student Details Modal -->
+<div id="studentModal" class="modal-overlay" style="display: none;">
+  <div class="modal-dialog">
+    <div class="flex justify-between items-center" style="margin-bottom: var(--spacing-lg);">
+      <h2 class="text-headline-md">Student Details</h2>
+      <button class="btn-icon" onclick="closeStudentModal()">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div id="studentDetailsContent" style="max-height: 60vh; overflow-y: auto;">
+      <!-- Content will be injected here -->
+    </div>
+    <div class="flex justify-end gap-md" style="margin-top: var(--spacing-lg); padding-top: var(--spacing-lg); border-top: 1px solid var(--surface-container-high);">
+      <button class="btn btn-secondary" onclick="closeStudentModal()">Close</button>
+      <button class="btn btn-primary" onclick="approveStudent()">Approve</button>
+      <button class="btn btn-tertiary" onclick="rejectStudent()">Reject</button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let selectedStudent = null;
+
+  // Search functionality
+  document.getElementById('studentSearch').addEventListener('keyup', function(e) {
+    const searchTerm = e.target.value.toLowerCase();
+    const rows = document.querySelectorAll('#studentsTable tbody tr');
+    rows.forEach(row => {
+      const text = row.textContent.toLowerCase();
+      row.style.display = text.includes(searchTerm) ? '' : 'none';
+    });
+  });
+
+  // Show student details
+  function showStudentDetails(regNum) {
+    selectedStudent = regNum;
+    const content = document.getElementById('studentDetailsContent');
+    content.innerHTML = '<p style="text-align: center; color: var(--on-surface-variant);">Loading...</p>';
+    
+    // Find student data from table row
+    const row = Array.from(document.querySelectorAll('#studentsTable tbody tr')).find(r => 
+      r.querySelector('td:nth-child(2)').textContent === regNum
+    );
+    
+    if (!row) return;
+    
+    const cells = row.querySelectorAll('td');
+    const name = cells[0].textContent;
+    const reg = cells[1].textContent;
+    const statusBadge = cells[2].querySelector('.badge');
+    const status = statusBadge.textContent.trim();
+    const section = cells[3].textContent;
+    const samplesText = cells[4].textContent.trim();
+    
+    content.innerHTML = `
+      <div style="display: flex; flex-direction: column; gap: var(--spacing-lg);">
+        <div>
+          <label class="text-label-md" style="color: var(--on-surface-variant);">Full Name</label>
+          <p class="text-body-md font-weight-semibold">${name}</p>
+        </div>
+        <div>
+          <label class="text-label-md" style="color: var(--on-surface-variant);">Registration Number</label>
+          <p class="text-body-md">${reg}</p>
+        </div>
+        <div>
+          <label class="text-label-md" style="color: var(--on-surface-variant);">Verification Status</label>
+          <p class="text-body-md">${statusBadge.outerHTML}</p>
+        </div>
+        <div>
+          <label class="text-label-md" style="color: var(--on-surface-variant);">Section</label>
+          <p class="text-body-md">${section}</p>
+        </div>
+        <div>
+          <label class="text-label-md" style="color: var(--on-surface-variant);">Face Samples</label>
+          <p class="text-body-md">${samplesText}</p>
+        </div>
+      </div>
+    `;
+    document.getElementById('studentModal').style.display = 'flex';
+  }
+
+  function closeStudentModal() {
+    document.getElementById('studentModal').style.display = 'none';
+    selectedStudent = null;
+  }
+
+  function approveStudent() {
+    if (!selectedStudent) return;
+    fetch(`/api/admin/students/${selectedStudent}/approve`, { method: 'POST' })
+      .then(r => r.json())
+      .then(d => {
+        Toast.success(`Student ${selectedStudent} approved`);
+        closeStudentModal();
+        location.reload();
+      })
+      .catch(e => Toast.error('Failed to approve student'));
+  }
+
+  function rejectStudent() {
+    if (!selectedStudent) return;
+    fetch(`/api/admin/students/${selectedStudent}/reject`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: 'Rejected by admin review' })
+    })
+      .then(r => r.json())
+      .then(d => {
+        Toast.success(`Student ${selectedStudent} rejected`);
+        closeStudentModal();
+        location.reload();
+      })
+      .catch(e => Toast.error('Failed to reject student'));
+  }
+
+  function deleteStudent(regNum) {
+    if (confirm('Are you sure you want to delete student ' + regNum + '? This cannot be undone.')) {
+      fetch('/api/students/' + encodeURIComponent(regNum), { method: 'DELETE' })
+        .then(r => r.json())
+        .then(d => {
+          if (d.deleted) {
+            location.reload();
+          } else {
+            alert('Failed to delete student: ' + (d.error || 'Unknown error'));
+          }
+        })
+        .catch(e => alert('Failed to delete student.'));
+    }
+  }
+
+  // Close modal on outside click
+  document.getElementById('studentModal').addEventListener('click', function(e) {
+    if (e.target === this) closeStudentModal();
+  });
+</script>
 {% endblock %}

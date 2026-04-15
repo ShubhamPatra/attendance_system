@@ -1,0 +1,11 @@
+# ============================================================
+# AUTOATTENDANCE - GPU RUNTIME
+# GPU-accelerated ONNX Runtime for inference
+# Python 3.9+ | Last updated: 2026-04-16
+# ============================================================
+
+# Include base dependencies
+-r base.txt
+
+# ONNX Runtime - GPU variant (CUDA 11/12 support)
+onnxruntime-gpu>=1.17,<2.0

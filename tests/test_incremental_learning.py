@@ -17,12 +17,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 def _mock_config(monkeypatch):
     monkeypatch.setenv("MONGO_URI", "mongodb+srv://test:test@cluster.mongodb.net/test")
     import importlib
-    import app_core.config as config
+    import core.config as config
     importlib.reload(config)
 
 
 def test_append_encoding_calls_database():
-    import app_vision.face_engine as face_engine
+    import vision.face_engine as face_engine
     sid = bson.ObjectId()
     enc = np.random.rand(128).astype(np.float64)
 
@@ -37,7 +37,7 @@ def test_append_encoding_calls_database():
 
 
 def test_append_encoding_handles_failure():
-    import app_vision.face_engine as face_engine
+    import vision.face_engine as face_engine
     sid = bson.ObjectId()
     enc = np.random.rand(128).astype(np.float64)
 
@@ -50,7 +50,7 @@ def test_append_encoding_handles_failure():
 
 
 def test_cache_add_encoding_to_student():
-    import app_vision.face_engine as face_engine
+    import vision.face_engine as face_engine
 
     sid = bson.ObjectId()
     enc1 = np.random.rand(128).astype(np.float64)
@@ -69,8 +69,8 @@ def test_cache_add_encoding_to_student():
 
 
 def test_cache_add_encoding_caps_at_max():
-    import app_vision.face_engine as face_engine
-    import app_core.config as config
+    import vision.face_engine as face_engine
+    import core.config as config
 
     sid = bson.ObjectId()
     # Fill up to max
@@ -91,7 +91,7 @@ def test_cache_add_encoding_caps_at_max():
 
 
 def test_cache_add_encoding_unknown_student():
-    import app_vision.face_engine as face_engine
+    import vision.face_engine as face_engine
 
     sid = bson.ObjectId()
     enc = np.random.rand(128).astype(np.float64)
@@ -107,7 +107,7 @@ def test_cache_add_encoding_unknown_student():
 
 
 def test_cache_upsert_student_replaces_existing_entry():
-    import app_vision.face_engine as face_engine
+    import vision.face_engine as face_engine
 
     sid = bson.ObjectId()
     enc1 = np.random.rand(128).astype(np.float64)

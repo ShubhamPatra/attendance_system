@@ -10,12 +10,14 @@ from functools import wraps
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_user, logout_user
 
-import app_core.config as config
-from app_core.utils import sanitize_string
+import core.config as config
+from core.utils import sanitize_string, setup_logging
 
 from . import database
 from .auth import StudentUser, authenticate_student
 from .verification import evaluate_student_samples
+
+logger = setup_logging()
 
 
 bp = Blueprint("student", __name__)
@@ -272,7 +274,13 @@ def attendance():
             error="registration_number is required in query or form data when not logged in.",
         ), 400
 
-    student = database.get_student_status(reg_no)
+    try:
+        student = database.get_student_status(reg_no)
+    except Exception as e:
+        logger.error(f"Error fetching student status for {reg_no}: {e}", exc_info=True)
+        flash("Error retrieving student information. Please try again.", "danger")
+        return redirect(url_for("student.status"))
+
     if not student:
         flash("Student record not found.", "danger")
         return redirect(url_for("student.status"))
@@ -282,7 +290,14 @@ def attendance():
 
     date = sanitize_string(request.args.get("date", "")).strip() or None
     month = sanitize_string(request.args.get("month", "")).strip() or None
-    overview = database.get_attendance_overview(reg_no, date=date, month=month)
+    
+    try:
+        overview = database.get_attendance_overview(reg_no, date=date, month=month)
+    except Exception as e:
+        logger.error(f"Error fetching attendance overview for {reg_no}: {e}", exc_info=True)
+        flash("Error retrieving attendance records. Please try again.", "danger")
+        return redirect(url_for("student.status"))
+    
     if overview is None:
         flash("Attendance history not found.", "danger")
         return redirect(url_for("student.status"))

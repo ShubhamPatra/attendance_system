@@ -14,18 +14,18 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 def _mock_config(monkeypatch):
     monkeypatch.setenv("MONGO_URI", "mongodb+srv://test:test@cluster.mongodb.net/test")
     import importlib
-    import app_core.config as config
+    import core.config as config
 
     importlib.reload(config)
 
 
 def test_detect_ppe_returns_none_when_disabled(monkeypatch):
     import importlib
-    import app_core.config as config
+    import core.config as config
 
     monkeypatch.setenv("PPE_DETECTION_ENABLED", "0")
     importlib.reload(config)
-    import app_vision.ppe_detection as ppe_detection
+    import vision.ppe_detection as ppe_detection
 
     importlib.reload(ppe_detection)
     frame = np.zeros((100, 100, 3), dtype=np.uint8)
@@ -36,13 +36,13 @@ def test_detect_ppe_returns_none_when_disabled(monkeypatch):
 
 def test_detect_ppe_mask_state_with_mocked_model(monkeypatch):
     import importlib
-    import app_core.config as config
+    import core.config as config
 
     monkeypatch.setenv("PPE_DETECTION_ENABLED", "1")
     monkeypatch.setenv("PPE_MASK_THRESHOLD", "0.6")
     monkeypatch.setenv("PPE_CAP_THRESHOLD", "0.6")
     importlib.reload(config)
-    import app_vision.ppe_detection as ppe_detection
+    import vision.ppe_detection as ppe_detection
 
     importlib.reload(ppe_detection)
 
@@ -64,11 +64,11 @@ def test_detect_ppe_mask_state_with_mocked_model(monkeypatch):
 
 def test_detect_ppe_invalid_bbox_is_safe(monkeypatch):
     import importlib
-    import app_core.config as config
+    import core.config as config
 
     monkeypatch.setenv("PPE_DETECTION_ENABLED", "1")
     importlib.reload(config)
-    import app_vision.ppe_detection as ppe_detection
+    import vision.ppe_detection as ppe_detection
 
     importlib.reload(ppe_detection)
 

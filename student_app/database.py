@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from bson import ObjectId
 
-import app_core.database as core_database
-from app_core.auth import hash_password
+import core.database as core_database
+from core.auth import hash_password
 
 
 def create_student_account(
@@ -97,31 +97,35 @@ def reject_student(reg_no: str, reason: str, score: float | None = None) -> bool
 
 
 def get_attendance_overview(reg_no: str, date: str | None = None, month: str | None = None) -> dict | None:
-    student = core_database.get_student_by_reg_no(reg_no, include_sensitive=False)
-    if not student:
-        return None
+    try:
+        student = core_database.get_student_by_reg_no(reg_no, include_sensitive=False)
+        if not student:
+            return None
 
-    records = core_database.get_attendance_by_student(reg_no)
-    if date:
-        records = [record for record in records if record.get("date") == date]
-    if month:
-        records = [record for record in records if str(record.get("date", "")).startswith(month)]
+        records = core_database.get_attendance_by_student(reg_no)
+        if date:
+            records = [record for record in records if record.get("date") == date]
+        if month:
+            records = [record for record in records if str(record.get("date", "")).startswith(month)]
 
-    distinct_dates = sorted({record.get("date") for record in records if record.get("date")})
-    total_days = len(distinct_dates)
-    days_present = sum(1 for record in records if record.get("status") == "Present")
-    percentage = round((days_present / total_days) * 100, 1) if total_days else 0.0
+        distinct_dates = sorted({record.get("date") for record in records if record.get("date")})
+        total_days = len(distinct_dates)
+        days_present = sum(1 for record in records if record.get("status") == "Present")
+        percentage = round((days_present / total_days) * 100, 1) if total_days else 0.0
 
-    return {
-        "name": student.get("name", ""),
-        "registration_number": student.get("registration_number", reg_no),
-        "semester": student.get("semester", ""),
-        "section": student.get("section", ""),
-        "verification_status": student.get("verification_status", "pending"),
-        "verification_score": student.get("verification_score", 0.0),
-        "percentage": percentage,
-        "days_present": days_present,
-        "days_total": total_days,
-        "records": records,
-        "filters": {"date": date, "month": month},
-    }
+        return {
+            "name": student.get("name", ""),
+            "registration_number": student.get("registration_number", reg_no),
+            "semester": student.get("semester", ""),
+            "section": student.get("section", ""),
+            "verification_status": student.get("verification_status", "pending"),
+            "verification_score": student.get("verification_score", 0.0),
+            "percentage": percentage,
+            "days_present": days_present,
+            "days_total": total_days,
+            "records": records,
+            "filters": {"date": date, "month": month},
+        }
+    except Exception as e:
+        # Re-raise the exception so the route handler can log and display a user-friendly message
+        raise

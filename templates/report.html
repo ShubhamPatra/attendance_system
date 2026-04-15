@@ -1,158 +1,179 @@
 {% extends "base.html" %}
-{% block title %}Report{% endblock %}
-{% from "partials/ui.html" import panel_section %}
+{% block title %}Reports - AutoAttendance{% endblock %}
+{% block page_title %}Reports{% endblock %}
 
 {% block content %}
-<!-- Header Section -->
-<div class="flex items-start justify-between mb-6" style="flex-wrap:wrap;gap:var(--space-4)">
-    <div class="page-header" style="margin-bottom:0">
-        <p class="page-header-eyebrow">Insights & Exports</p>
-        <h1>Attendance Records</h1>
-        <p class="page-header-desc">Review historical attendance data and export operational reports.</p>
-    </div>
-    <div class="flex items-center gap-3">
-        <a href="{{ url_for('main.report_csv', date=selected_date) }}" class="btn btn-primary">
-            <span class="material-symbols-outlined">download</span> Export CSV
-        </a>
-        <a href="{{ url_for('main.report_xlsx', date=selected_date) }}" class="btn btn-success">
-            <span class="material-symbols-outlined">table_chart</span> Export XLSX
-        </a>
-    </div>
-</div>
+<div>
+  <!-- Page Header -->
+  <div class="page-header mb-6">
+    <h1 style="font-size:1.75rem; font-weight:700; letter-spacing:-0.02em; color:var(--on-surface,var(--color-text)); margin:0;">Attendance Reports</h1>
+    <p class="page-header-desc" style="margin-top:0.25rem;">Review historical attendance data, generate insights, and export operational reports.</p>
+  </div>
 
-<!-- Filter Section -->
-{% call panel_section('Filters', 'filter_list', body_class='panel-body') %}
-<form class="flex items-end gap-4" method="GET" action="{{ url_for('main.report') }}" style="flex-wrap:wrap">
-    <div class="form-group" style="max-width:240px;flex:1">
-        <label class="form-label">Date</label>
-        <input type="date" class="form-input" name="date" value="{{ selected_date }}">
-    </div>
-    <button type="submit" class="btn btn-primary">
-        <span class="material-symbols-outlined">search</span> Filter
-    </button>
-</form>
-{% endcall %}
+  <!-- Export Buttons -->
+  <div class="flex items-center gap-3 mb-6" style="flex-wrap:wrap;">
+    <a href="{{ url_for('main.report_csv', date=selected_date) }}" class="btn btn-primary">
+      <span class="material-symbols-outlined">download</span> Export CSV
+    </a>
+    <a href="{{ url_for('main.report_xlsx', date=selected_date) }}" class="btn btn-secondary">
+      <span class="material-symbols-outlined">table_chart</span> Export Excel
+    </a>
+  </div>
 
-<!-- CSV Export Options -->
-<div style="margin-top:var(--space-6)">
-{% call panel_section('Advanced CSV Export', 'file_download', body_class='panel-body') %}
-<div class="grid grid-3 gap-6">
-    <!-- Export by Student -->
-    <div class="flex flex-col gap-3">
-        <span class="text-xs font-semibold uppercase tracking-wide text-muted">By Student</span>
-        <select id="csvStudent" class="form-select">
-            <option value="">Select student…</option>
-        </select>
-        <button type="button" id="exportStudentBtn" class="btn-tag">
-            <span class="material-symbols-outlined" style="font-size:14px">download</span> Export
-        </button>
-    </div>
-    <!-- Export by Date Range -->
-    <div class="flex flex-col gap-3">
-        <span class="text-xs font-semibold uppercase tracking-wide text-muted">By Date Range</span>
-        <div class="flex items-center gap-2">
-            <input type="date" id="csvStart" class="form-input">
-            <input type="date" id="csvEnd" class="form-input">
-        </div>
-        <button type="button" id="exportRangeBtn" class="btn-tag">
-            <span class="material-symbols-outlined" style="font-size:14px">download</span> Export
-        </button>
-    </div>
-    <!-- Export Full History -->
-    <div class="flex flex-col gap-3">
-        <span class="text-xs font-semibold uppercase tracking-wide text-muted">Full History</span>
-        <p class="text-xs text-muted">Download complete attendance records for all students.</p>
-        <a href="{{ url_for('main.report_csv', full=1) }}" class="btn-tag" style="margin-top:auto">
-            <span class="material-symbols-outlined" style="font-size:14px">download</span> Export All
-        </a>
-    </div>
-</div>
-{% endcall %}
-</div>
-
-<!-- Data Table -->
-<div class="panel mt-6">
+  <!-- Filters -->
+  <div class="panel mb-6">
     <div class="panel-header">
-        <div class="panel-header-left">
-            <span class="material-symbols-outlined">table_view</span>
-            <h3>Student Records</h3>
-        </div>
-        <div class="flex items-center gap-2">
-            <span class="legend-swatch" style="background:#16a34a;width:8px;height:8px;border-radius:50%"></span>
-            <span class="text-xs text-muted">Present</span>
-        </div>
+      <div class="panel-header-left">
+        <span class="material-symbols-outlined">filter_alt</span>
+        <h3>Filter Records</h3>
+      </div>
     </div>
-    <div class="table-wrap custom-scrollbar">
+    <div class="panel-body">
+      <form class="flex items-end gap-4" style="flex-wrap:wrap;">
+        <div class="form-group" style="flex:1; min-width:180px;">
+          <label class="form-label" for="dateFilter">Date</label>
+          <input type="date" id="dateFilter" name="date" value="{{ selected_date }}" class="form-input">
+        </div>
+        <button type="submit" class="btn btn-primary">
+          <span class="material-symbols-outlined">search</span> Filter
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Advanced Export Options -->
+  <div class="panel mb-6">
+    <div class="panel-header">
+      <div class="panel-header-left">
+        <span class="material-symbols-outlined">ios_share</span>
+        <h3>Advanced Export</h3>
+      </div>
+    </div>
+    <div class="panel-body">
+      <div class="grid grid-3 gap-4">
+        <!-- By Student -->
+        <div style="display:flex; flex-direction:column; gap:0.75rem; padding:var(--space-4); background:var(--color-bg-alt,var(--surface-container-low,#f3f4f5)); border-radius:var(--radius-lg);">
+          <p class="text-xs font-semibold uppercase tracking-wide text-muted" style="margin:0;">By Student</p>
+          <select id="csvStudent" class="form-input">
+            <option value="">Select student...</option>
+          </select>
+          <button type="button" id="exportStudentBtn" class="btn btn-secondary btn-sm">
+            <span class="material-symbols-outlined">download</span> Export
+          </button>
+        </div>
+
+        <!-- By Date Range -->
+        <div style="display:flex; flex-direction:column; gap:0.75rem; padding:var(--space-4); background:var(--color-bg-alt,var(--surface-container-low,#f3f4f5)); border-radius:var(--radius-lg);">
+          <p class="text-xs font-semibold uppercase tracking-wide text-muted" style="margin:0;">By Date Range</p>
+          <div class="flex gap-3">
+            <input type="date" id="csvStart" class="form-input" style="flex:1;" placeholder="Start">
+            <input type="date" id="csvEnd" class="form-input" style="flex:1;" placeholder="End">
+          </div>
+          <button type="button" id="exportRangeBtn" class="btn btn-secondary btn-sm">
+            <span class="material-symbols-outlined">download</span> Export
+          </button>
+        </div>
+
+        <!-- Full History -->
+        <div style="display:flex; flex-direction:column; gap:0.75rem; padding:var(--space-4); background:var(--color-bg-alt,var(--surface-container-low,#f3f4f5)); border-radius:var(--radius-lg);">
+          <p class="text-xs font-semibold uppercase tracking-wide text-muted" style="margin:0;">Full History</p>
+          <p class="text-xs text-muted" style="margin:0;">All records for all students</p>
+          <a href="{{ url_for('main.report_csv', full=1) }}" class="btn btn-secondary btn-sm" style="margin-top:auto;">
+            <span class="material-symbols-outlined">download</span> Export All
+          </a>
+        </div>
+      </div>
+      <div id="exportStatus" class="text-xs text-muted mt-3"></div>
+    </div>
+  </div>
+
+  <!-- Data Table -->
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-header-left">
+        <span class="material-symbols-outlined">description</span>
+        <h3>Attendance Records</h3>
+      </div>
+    </div>
+    <div class="panel-body--flush">
+      <div class="table-wrap">
         <table class="data-table">
-            <thead>
-                <tr>
-                    <th>#</th>
-                    <th>Name</th>
-                    <th>Reg. No.</th>
-                    <th>Section</th>
-                    <th>Semester</th>
-                    <th>Date</th>
-                    <th>Time</th>
-                    <th>Status</th>
-                    <th class="col-right">Confidence</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for r in records %}
-                <tr>
-                    <td class="text-xs text-muted">{{ loop.index }}</td>
-                    <td class="font-medium">{{ r.name }}</td>
-                    <td class="text-muted">{{ r.registration_number }}</td>
-                    <td class="text-muted">{{ r.section }}</td>
-                    <td class="text-muted">{{ r.semester }}</td>
-                    <td class="text-muted">{{ r.date }}</td>
-                    <td class="text-muted">{{ r.time }}</td>
-                    <td><span class="badge badge-success">{{ r.status }}</span></td>
-                    <td class="col-right text-muted text-mono text-xs">{{ "%.1f"|format(r.confidence_score * 100) }}%</td>
-                </tr>
-                {% else %}
-                <tr><td colspan="9" class="empty-row">No records for this date.</td></tr>
-                {% endfor %}
-            </tbody>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Name</th>
+              <th>Registration</th>
+              <th>Section</th>
+              <th>Date</th>
+              <th>Time</th>
+              <th>Status</th>
+              <th class="col-right">Confidence</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in records %}
+            <tr>
+              <td class="text-muted">{{ loop.index }}</td>
+              <td class="font-medium">{{ r.name }}</td>
+              <td class="text-muted">{{ r.registration_number }}</td>
+              <td class="text-muted">{{ r.section }}</td>
+              <td class="text-muted">{{ r.date }}</td>
+              <td class="text-muted">{{ r.time }}</td>
+              <td><span class="badge badge-success">{{ r.status }}</span></td>
+              <td class="col-right">{{ "%.1f"|format(r.confidence_score * 100) }}%</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="8" class="empty-row">No records for this date.</td></tr>
+            {% endfor %}
+          </tbody>
         </table>
+      </div>
     </div>
+  </div>
 </div>
+
 {% endblock %}
 
 {% block scripts %}
 <script>
 (function() {
-    var csvBase = "{{ url_for('main.report_csv') }}";
-    var exportStatus = document.createElement('p');
-    exportStatus.className = 'mt-3 text-xs text-muted';
-    exportStatus.id = 'exportStatus';
+  const csvBase = "{{ url_for('main.report_csv') }}";
+  const exportStatus = document.getElementById('exportStatus');
 
-    // Populate student dropdown
-    fetch("{{ url_for('main.api_registration_numbers') }}")
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-            var sel = document.getElementById('csvStudent');
-            (data.registration_numbers || []).forEach(function(rn) {
-                var opt = document.createElement('option');
-                opt.value = rn;
-                opt.textContent = rn;
-                sel.appendChild(opt);
-            });
-        }).catch(function() {});
+  // Populate student dropdown
+  fetch("{{ url_for('main.api_registration_numbers') }}")
+    .then(r => r.json())
+    .then(data => {
+      const sel = document.getElementById('csvStudent');
+      (data.registration_numbers || []).forEach(rn => {
+        const opt = document.createElement('option');
+        opt.value = rn;
+        opt.textContent = rn;
+        sel.appendChild(opt);
+      });
+    })
+    .catch(() => {});
 
-    document.getElementById('exportStudentBtn').addEventListener('click', function() {
-        var rn = document.getElementById('csvStudent').value;
-        if (!rn) { exportStatus.textContent = 'Choose a student to export.'; return; }
-        exportStatus.textContent = '';
-        window.location.href = csvBase + '?reg_no=' + encodeURIComponent(rn);
-    });
-    document.getElementById('exportRangeBtn').addEventListener('click', function() {
-        var s = document.getElementById('csvStart').value;
-        var e = document.getElementById('csvEnd').value;
-        if (!s || !e) { exportStatus.textContent = 'Select both start and end dates.'; return; }
-        exportStatus.textContent = '';
-        window.location.href = csvBase + '?start_date=' + encodeURIComponent(s) + '&end_date=' + encodeURIComponent(e);
-    });
+  document.getElementById('exportStudentBtn').addEventListener('click', function() {
+    const rn = document.getElementById('csvStudent').value;
+    if (!rn) {
+      exportStatus.textContent = 'Please select a student to export.';
+      return;
+    }
+    exportStatus.textContent = '';
+    window.location.href = csvBase + '?reg_no=' + encodeURIComponent(rn);
+  });
+
+  document.getElementById('exportRangeBtn').addEventListener('click', function() {
+    const s = document.getElementById('csvStart').value;
+    const e = document.getElementById('csvEnd').value;
+    if (!s || !e) {
+      exportStatus.textContent = 'Please select both start and end dates.';
+      return;
+    }
+    exportStatus.textContent = '';
+    window.location.href = csvBase + '?start_date=' + encodeURIComponent(s) + '&end_date=' + encodeURIComponent(e);
+  });
 })();
 </script>
 {% endblock %}

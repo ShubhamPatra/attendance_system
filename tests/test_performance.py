@@ -14,14 +14,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 def _mock_config(monkeypatch):
     monkeypatch.setenv("MONGO_URI", "mongodb+srv://test:test@cluster.mongodb.net/test")
     import importlib
-    import app_core.config as config
+    import core.config as config
     importlib.reload(config)
 
 
 @pytest.fixture
 def fresh_tracker():
     """Return a fresh PerformanceTracker instance."""
-    from app_core.performance import PerformanceTracker
+    from core.performance import PerformanceTracker
     return PerformanceTracker()
 
 
