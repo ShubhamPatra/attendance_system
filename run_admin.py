@@ -1,6 +1,6 @@
 """Admin application runner using the migrated package layout."""
 
-from app import create_app, socketio
+from admin_app.app import create_app, socketio
 import app_core.config as config
 
 
