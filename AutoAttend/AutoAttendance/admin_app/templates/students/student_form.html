@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Student Form{% endblock %}
+{% block page_title %}{% if action == 'add' %}Add Student{% else %}Edit Student{% endif %}{% endblock %}
+
+{% block content %}
+  <section class="card stack">
+    <form method="post" class="form-row cols-2">
+      {{ form.csrf_token }}
+      <div class="field">
+        <label class="field-label" for="student_id">{{ form.student_id.label.text }}</label>
+        {{ form.student_id(id='student_id', class_='input', aria_label='Student ID') }}
+      </div>
+      <div class="field">
+        <label class="field-label" for="name">{{ form.name.label.text }}</label>
+        {{ form.name(id='name', class_='input', aria_label='Name') }}
+      </div>
+      <div class="field">
+        <label class="field-label" for="email">{{ form.email.label.text }}</label>
+        {{ form.email(id='email', class_='input', aria_label='Email') }}
+      </div>
+      <div class="field">
+        <label class="field-label" for="department">{{ form.department.label.text }}</label>
+        {{ form.department(id='department', class_='input', aria_label='Department') }}
+      </div>
+      <div class="field">
+        <label class="field-label" for="year">{{ form.year.label.text }}</label>
+        {{ form.year(id='year', class_='input', aria_label='Year') }}
+      </div>
+      <div class="field">
+        <label class="field-label" for="face_photo_path">{{ form.face_photo_path.label.text }}</label>
+        {{ form.face_photo_path(id='face_photo_path', class_='input', aria_label='Face photo path') }}
+      </div>
+      <div>
+        {{ form.submit(class_='btn btn-primary') }}
+      </div>
+    </form>
+  </section>
+{% endblock %}

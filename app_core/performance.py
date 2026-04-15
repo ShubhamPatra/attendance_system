@@ -37,6 +37,7 @@ class PerformanceTracker:
             "ppe_model_error": 0,
         }
         self._frame_times: list[float] = []
+        self._stage_times: dict[str, list[float]] = {}
 
     # ── recording ─────────────────────────────────────────────────────────
 
@@ -58,6 +59,14 @@ class PerformanceTracker:
             # Keep last 500 measurements
             if len(self._frame_times) > 500:
                 self._frame_times = self._frame_times[-500:]
+
+    def record_stage_time(self, stage_name: str, elapsed: float):
+        """Record latency for a named pipeline stage."""
+        with self._lock:
+            bucket = self._stage_times.setdefault(stage_name, [])
+            bucket.append(elapsed)
+            if len(bucket) > 500:
+                self._stage_times[stage_name] = bucket[-500:]
 
     def record_liveness_event(self, event_name: str):
         """Record anti-spoof/liveness diagnostics events."""
@@ -90,6 +99,12 @@ class PerformanceTracker:
             )
             fps = 1.0 / avg_frame if avg_frame > 0 else 0.0
 
+            stage_latency_ms = {
+                name: round((sum(times) / len(times)) * 1000, 2)
+                for name, times in self._stage_times.items()
+                if times
+            }
+
             return {
                 "total_recognitions": total,
                 "true_positives": self._tp,
@@ -102,6 +117,7 @@ class PerformanceTracker:
                 "false_rejection_rate_pct": round(frr, 2),
                 "avg_frame_time_ms": round(avg_frame * 1000, 2),
                 "fps": round(fps, 1),
+                "stage_latency_ms": stage_latency_ms,
                 **self._liveness_counters,
             }
 

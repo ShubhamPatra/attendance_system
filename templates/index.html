@@ -3,78 +3,70 @@
 {% from "partials/ui.html" import page_header %}
 
 {% block content %}
-<div class="flex flex-col gap-6 pt-2 md:pt-6">
+<div class="flex flex-col gap-6">
     {{ page_header('Smart Campus Desk', 'Welcome to AutoAttendance', 'Run realtime face-recognition attendance with anti-spoofing checks, live analytics, and academic reporting from one operational hub.') }}
 
-    <div class="flex flex-col lg:flex-row items-start gap-6">
-    <!-- Left: Welcome Card -->
-    <div class="w-full lg:w-[420px] shrink-0 bg-white rounded-xl border border-border-light shadow-panel p-8 md:p-10">
-        <!-- Logo / Icon -->
-        <div class="flex justify-center mb-6">
-            <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                <span class="material-symbols-outlined text-3xl">school</span>
+    <div class="two-col two-col--wide-left">
+        <!-- Left: Welcome Card -->
+        <div class="card card-body" style="text-align:center">
+            <div style="display:flex;justify-content:center;margin-bottom:var(--space-6)">
+                <span class="navbar-brand-icon" style="width:48px;height:48px;border-radius:var(--radius-xl)">
+                    <span class="material-symbols-outlined" style="font-size:28px">school</span>
+                </span>
             </div>
-        </div>
-        <!-- Heading -->
-        <h2 class="font-serif text-2xl font-semibold text-text-primary text-center mb-2 tracking-tight">Start Operations</h2>
-        <p class="text-sm text-text-muted text-center mb-8 leading-relaxed">Use the main workflows below to start attendance, enroll students, or review academic insights.</p>
+            <h2 class="mb-2">Start Operations</h2>
+            <p class="text-sm text-muted mb-6" style="line-height:1.6">Use the main workflows below to start attendance, enroll students, or review academic insights.</p>
 
-        <!-- Primary Actions -->
-        <div class="flex flex-col gap-3 mb-6">
-            <a href="{{ url_for('main.attendance') }}" class="w-full bg-primary hover:bg-primary-dark text-white font-semibold py-3 px-4 rounded-md transition-colors flex items-center justify-between text-sm">
-                <span>Start Attendance</span>
-                <span class="material-symbols-outlined text-lg">arrow_forward</span>
+            <div class="flex flex-col gap-3 mb-5">
+                <a href="{{ url_for('main.attendance') }}" class="btn btn-primary btn-block btn-lg justify-between">
+                    <span>Start Attendance</span>
+                    <span class="material-symbols-outlined">arrow_forward</span>
+                </a>
+                <a href="{{ url_for('main.register') }}" class="btn btn-secondary btn-block btn-lg justify-between">
+                    <span>Register Student</span>
+                    <span class="material-symbols-outlined">arrow_forward</span>
+                </a>
+            </div>
+
+            <div class="divider"><span>Or explore the system</span></div>
+
+            <a href="{{ url_for('main.dashboard') }}" class="btn btn-secondary btn-block btn-lg justify-between">
+                <span>View Dashboard</span>
+                <span class="material-symbols-outlined">arrow_forward</span>
             </a>
-            <a href="{{ url_for('main.register') }}" class="w-full bg-white hover:bg-background-light text-text-primary font-semibold py-3 px-4 rounded-md transition-colors flex items-center justify-between text-sm border border-border-light">
-                <span>Register Student</span>
-                <span class="material-symbols-outlined text-lg">arrow_forward</span>
-            </a>
         </div>
 
-        <!-- Divider -->
-        <div class="relative my-6">
-            <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-border-light"></div></div>
-            <div class="relative flex justify-center"><span class="bg-white px-3 text-xs text-text-muted">Or explore the system</span></div>
-        </div>
-
-        <!-- Secondary Action -->
-        <a href="{{ url_for('main.dashboard') }}" class="w-full bg-background-light hover:bg-gray-100 text-text-muted font-semibold py-3 px-4 rounded-md transition-colors flex items-center justify-between text-sm border border-border-light">
-            <span>View Dashboard</span>
-            <span class="material-symbols-outlined text-lg">arrow_forward</span>
-        </a>
-    </div>
-
-    <!-- Right: Feature Cards grid -->
-    <div class="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div class="flex flex-col gap-3 rounded-xl border border-border-light bg-white p-5 shadow-panel hover:shadow-md transition-shadow">
-            <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <span class="material-symbols-outlined text-xl">face</span>
+        <!-- Right: Feature Cards grid -->
+        <div class="grid grid-2 gap-4">
+            <div class="feature-card">
+                <div class="feature-card-icon feature-card-icon--primary">
+                    <span class="material-symbols-outlined">face</span>
+                </div>
+                <h5>Face Detection</h5>
+                <p>Detect and recognise faces via webcam in real time with high accuracy.</p>
             </div>
-            <h5 class="text-sm font-semibold text-text-primary">Face Detection</h5>
-            <p class="text-xs text-text-muted leading-relaxed">Detect and recognise faces via webcam in real time with high accuracy.</p>
-        </div>
-        <div class="flex flex-col gap-3 rounded-xl border border-border-light bg-white p-5 shadow-panel hover:shadow-md transition-shadow">
-            <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-secondary/10 text-secondary">
-                <span class="material-symbols-outlined text-xl">visibility</span>
+            <div class="feature-card">
+                <div class="feature-card-icon feature-card-icon--blue">
+                    <span class="material-symbols-outlined">visibility</span>
+                </div>
+                <h5>Liveness Check</h5>
+                <p>Blink-based anti-spoofing ensures real physical presence of each student.</p>
             </div>
-            <h5 class="text-sm font-semibold text-text-primary">Liveness Check</h5>
-            <p class="text-xs text-text-muted leading-relaxed">Blink-based anti-spoofing ensures real physical presence of each student.</p>
-        </div>
-        <div class="flex flex-col gap-3 rounded-xl border border-border-light bg-white p-5 shadow-panel hover:shadow-md transition-shadow">
-            <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
-                <span class="material-symbols-outlined text-xl">check_circle</span>
+            <div class="feature-card">
+                <div class="feature-card-icon feature-card-icon--success">
+                    <span class="material-symbols-outlined">check_circle</span>
+                </div>
+                <h5>Auto Attendance</h5>
+                <p>Duplicate-free attendance records stored securely in MongoDB Atlas.</p>
             </div>
-            <h5 class="text-sm font-semibold text-text-primary">Auto Attendance</h5>
-            <p class="text-xs text-text-muted leading-relaxed">Duplicate-free attendance records stored securely in MongoDB Atlas.</p>
-        </div>
-        <div class="flex flex-col gap-3 rounded-xl border border-border-light bg-white p-5 shadow-panel hover:shadow-md transition-shadow">
-            <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <span class="material-symbols-outlined text-xl">analytics</span>
+            <div class="feature-card">
+                <div class="feature-card-icon feature-card-icon--primary">
+                    <span class="material-symbols-outlined">analytics</span>
+                </div>
+                <h5>Reports</h5>
+                <p>Dashboard analytics, attendance trends, and CSV export for records.</p>
             </div>
-            <h5 class="text-sm font-semibold text-text-primary">Reports</h5>
-            <p class="text-xs text-text-muted leading-relaxed">Dashboard analytics, attendance trends, and CSV export for records.</p>
         </div>
-    </div>
     </div>
 </div>
 {% endblock %}

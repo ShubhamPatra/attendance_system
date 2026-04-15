@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block title %}Face Capture{% endblock %}
+
+{% block content %}
+<div class="two-col two-col--sidebar">
+    <!-- Main Capture Area -->
+    <div class="card card-body">
+        <h1 class="mb-1">Capture Face Samples</h1>
+        <p class="text-sm text-muted mb-5">Take {{ min_images }} to {{ max_images }} clear webcam images with different head angles.</p>
+
+        <div class="video-container mb-4" style="aspect-ratio:16/9">
+            <video id="cam" autoplay playsinline class="video-feed-img"></video>
+        </div>
+
+        <div class="flex items-center gap-3 mb-4" style="flex-wrap:wrap">
+            <button id="startBtn" type="button" class="btn btn-primary">
+                <span class="material-symbols-outlined">videocam</span> Start Camera
+            </button>
+            <button id="snapBtn" type="button" class="btn btn-secondary" disabled>
+                <span class="material-symbols-outlined">camera</span> Capture Frame
+            </button>
+            <button id="submitBtn" type="button" class="btn btn-primary" style="background:var(--color-text);border-color:var(--color-text)" disabled>Submit Samples</button>
+            <p id="counter" class="text-sm text-muted">0 frame(s) captured</p>
+        </div>
+
+        <div id="errorBox" class="alert alert-error hidden"></div>
+        <div id="okBox" class="alert alert-success hidden"></div>
+
+        <div id="thumbs" class="preview-grid preview-grid--4 mt-5"></div>
+    </div>
+
+    <!-- Tips Sidebar -->
+    <div class="card card-body">
+        <h3 class="text-xs font-semibold uppercase tracking-wide text-muted mb-4">Tips</h3>
+        <ul style="list-style:disc;padding-left:var(--space-5);font-size:var(--font-size-sm);color:var(--color-text-muted);display:flex;flex-direction:column;gap:var(--space-2)">
+            <li>Keep one face in frame.</li>
+            <li>Use balanced lighting.</li>
+            <li>Capture front, left, right, slight up/down angles.</li>
+            <li>Avoid blur and heavy backlight.</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(() => {
+    const minImages = {{ min_images|int }};
+    const maxImages = {{ max_images|int }};
+    const cam = document.getElementById("cam");
+    const startBtn = document.getElementById("startBtn");
+    const snapBtn = document.getElementById("snapBtn");
+    const submitBtn = document.getElementById("submitBtn");
+    const counter = document.getElementById("counter");
+    const thumbs = document.getElementById("thumbs");
+    const errorBox = document.getElementById("errorBox");
+    const okBox = document.getElementById("okBox");
+
+    let stream = null;
+    const frames = [];
+
+    function showError(msg) {
+        errorBox.textContent = msg;
+        errorBox.classList.remove("hidden");
+    }
+
+    function clearError() {
+        errorBox.classList.add("hidden");
+        errorBox.textContent = "";
+    }
+
+    function showOk(msg) {
+        okBox.textContent = msg;
+        okBox.classList.remove("hidden");
+    }
+
+    function updateButtons() {
+        counter.textContent = `${frames.length} frame(s) captured`;
+        snapBtn.disabled = !stream || frames.length >= maxImages;
+        submitBtn.disabled = frames.length < minImages;
+    }
+
+    startBtn.addEventListener("click", async () => {
+        clearError();
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+            cam.srcObject = stream;
+            snapBtn.disabled = false;
+            startBtn.disabled = true;
+            startBtn.textContent = "Camera Ready";
+        } catch (err) {
+            showError(`Unable to access webcam: ${err.message}`);
+        }
+        updateButtons();
+    });
+
+    snapBtn.addEventListener("click", () => {
+        clearError();
+        if (!stream || frames.length >= maxImages) return;
+        const canvas = document.createElement("canvas");
+        canvas.width = cam.videoWidth || 640;
+        canvas.height = cam.videoHeight || 480;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(cam, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
+        frames.push(dataUrl);
+
+        const card = document.createElement("div");
+        card.className = "preview-card";
+        const img = document.createElement("img");
+        img.src = dataUrl;
+        img.alt = `Capture ${frames.length}`;
+        const label = document.createElement("div");
+        label.className = "preview-card-label";
+        label.textContent = `Frame ${frames.length}`;
+        card.appendChild(img);
+        card.appendChild(label);
+        thumbs.appendChild(card);
+
+        updateButtons();
+    });
+
+    submitBtn.addEventListener("click", async () => {
+        clearError();
+        showOk("Submitting samples...");
+        try {
+            const res = await fetch("{{ url_for('student.api_capture') }}", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ frames }),
+            });
+            const payload = await res.json();
+            if (!res.ok) {
+                throw new Error(payload.error || "Capture verification failed.");
+            }
+            const score = typeof payload.score === "number" ? payload.score.toFixed(1) : "0.0";
+            showOk(`Capture submitted. Status: ${payload.status}. Score: ${score}%`);
+            setTimeout(() => {
+                window.location.href = "{{ url_for('student.status') }}";
+            }, 1200);
+        } catch (err) {
+            showError(err.message);
+            okBox.classList.add("hidden");
+        }
+    });
+
+    window.addEventListener("beforeunload", () => {
+        if (stream) {
+            stream.getTracks().forEach(t => t.stop());
+        }
+    });
+
+    updateButtons();
+})();
+</script>
+{% endblock %}

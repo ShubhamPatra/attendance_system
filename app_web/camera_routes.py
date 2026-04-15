@@ -5,13 +5,17 @@ import time
 import cv2
 from flask import Response, render_template
 
+from app_web.decorators import require_roles
+
 
 def register_camera_routes(bp):
     @bp.route("/attendance")
+    @require_roles("admin", "teacher")
     def attendance():
         return render_template("attendance.html")
 
     @bp.route("/video_feed")
+    @require_roles("admin", "teacher")
     def video_feed():
         from app_web import routes as routes_module
 

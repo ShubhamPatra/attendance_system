@@ -41,6 +41,7 @@ def test_insert_student_success(mock_db):
     import app_core.database as database
 
     fake_id = bson.ObjectId()
+    mock_db.students.find_one.return_value = None
     mock_db.students.insert_one.return_value = MagicMock(inserted_id=fake_id)
 
     encodings = [np.random.rand(128).astype(np.float64) for _ in range(3)]
@@ -121,7 +122,7 @@ def test_get_all_students(mock_db):
     assert result[0]["name"] == "Alice"
     # Verify both encoding fields are excluded from projection
     call_args = mock_db.students.find.call_args
-    assert call_args[0][1] == {"face_encoding": 0, "encodings": 0}
+    assert call_args[0][1] == {"face_encoding": 0, "encodings": 0, "password_hash": 0}
 
 
 def test_get_student_by_id_excludes_encodings(mock_db):
@@ -130,7 +131,12 @@ def test_get_student_by_id_excludes_encodings(mock_db):
 
     database.get_student_by_id(sid)
     args, _ = mock_db.students.find_one.call_args
-    assert args[1] == {"face_encoding": 0, "encodings": 0, "created_at": 0}
+    assert args[1] == {
+        "face_encoding": 0,
+        "encodings": 0,
+        "created_at": 0,
+        "password_hash": 0,
+    }
 
 
 def test_ensure_indexes(mock_db):
@@ -147,6 +153,68 @@ def test_ensure_indexes(mock_db):
         [("date", 1)],
         name="idx_date",
     )
+    mock_db.attendance_sessions.create_index.assert_any_call(
+        [("camera_id", 1), ("status", 1)],
+        unique=True,
+        partialFilterExpression={"status": "active"},
+        name="uq_active_session_per_camera",
+    )
+
+
+def test_create_attendance_session_success(mock_db):
+    import app_core.database as database
+
+    sid = bson.ObjectId()
+    mock_db.attendance_sessions.find_one.return_value = None
+    mock_db.attendance_sessions.insert_one.return_value = MagicMock(inserted_id=sid)
+
+    out = database.create_attendance_session("CS101", "cam-1")
+    assert out == sid
+
+    mock_db.attendance_sessions.insert_one.assert_called_once()
+    doc = mock_db.attendance_sessions.insert_one.call_args[0][0]
+    assert doc["course_id"] == "CS101"
+    assert doc["camera_id"] == "cam-1"
+    assert doc["status"] == "active"
+    assert doc["end_time"] is None
+    assert doc["last_activity_at"] is not None
+
+
+def test_create_attendance_session_rejects_existing_active(mock_db):
+    import app_core.database as database
+
+    mock_db.attendance_sessions.find_one.return_value = {"_id": bson.ObjectId()}
+
+    with pytest.raises(ValueError, match="already exists"):
+        database.create_attendance_session("CS101", "cam-1")
+
+
+def test_get_active_attendance_session(mock_db):
+    import app_core.database as database
+
+    session_doc = {"_id": bson.ObjectId(), "camera_id": "cam-1", "status": "active"}
+    mock_db.attendance_sessions.find_one.return_value = session_doc
+
+    out = database.get_active_attendance_session("cam-1")
+    assert out == session_doc
+
+
+def test_end_attendance_session(mock_db):
+    import app_core.database as database
+
+    sid = bson.ObjectId()
+    mock_db.attendance_sessions.update_one.return_value = MagicMock(modified_count=1)
+
+    assert database.end_attendance_session(sid) is True
+
+
+def test_auto_close_idle_attendance_sessions(mock_db):
+    import app_core.database as database
+
+    mock_db.attendance_sessions.update_many.return_value = MagicMock(modified_count=2)
+
+    closed = database.auto_close_idle_attendance_sessions(idle_seconds=600)
+    assert closed == 2
 
 
 # ── get_student_encodings ────────────────────────────────────────────────
@@ -199,6 +267,41 @@ def test_student_count(mock_db):
 
     mock_db.students.count_documents.return_value = 7
     assert database.student_count() == 7
+
+
+def test_update_student(mock_db):
+    import app_core.database as database
+
+    mock_db.students.update_one.return_value = MagicMock(modified_count=1)
+    assert database.update_student("FA21-BCS-001", {"name": "New Name", "semester": 5}) is True
+    args, kwargs = mock_db.students.update_one.call_args
+    assert args[0]["registration_number"] == "FA21-BCS-001"
+    assert args[1]["$set"]["name"] == "New Name"
+    assert args[1]["$set"]["semester"] == 5
+
+
+def test_replace_student_encodings(mock_db):
+    import app_core.database as database
+
+    mock_db.students.update_one.return_value = MagicMock(modified_count=1)
+    enc = np.random.rand(128).astype(np.float64)
+    assert database.replace_student_encodings("FA21-BCS-001", [enc]) is True
+    args, kwargs = mock_db.students.update_one.call_args
+    assert args[0]["registration_number"] == "FA21-BCS-001"
+    assert len(args[1]["$set"]["encodings"]) == 1
+
+
+def test_insert_and_list_notification_events(mock_db):
+    import app_core.database as database
+
+    mock_db.notification_events.insert_one.return_value = MagicMock(inserted_id=bson.ObjectId())
+    mock_db.notification_events.find.return_value.sort.return_value.limit.return_value = [
+        {"event_type": "absence_alert"}
+    ]
+    inserted_id = database.insert_notification_event({"event_type": "absence_alert"})
+    assert inserted_id is not None
+    events = database.get_notification_events()
+    assert events[0]["event_type"] == "absence_alert"
 
 
 # ── today_attendance_count ────────────────────────────────────────────────
@@ -335,6 +438,32 @@ def test_mark_attendance_with_confidence_field(mock_db):
     assert doc["confidence_score"] == 0.92
 
 
+def test_mark_attendance_with_active_session(mock_db):
+    import app_core.database as database
+
+    sid = bson.ObjectId()
+    session_id = bson.ObjectId()
+    mock_db.attendance_sessions.find_one.return_value = {"_id": session_id, "status": "active"}
+    mock_db.attendance.insert_one.return_value = MagicMock()
+
+    result = database.mark_attendance(sid, 0.92, session_id=session_id)
+    assert result is True
+    doc = mock_db.attendance.insert_one.call_args[0][0]
+    assert doc["session_id"] == session_id
+
+
+def test_mark_attendance_with_inactive_session_returns_false(mock_db):
+    import app_core.database as database
+
+    sid = bson.ObjectId()
+    session_id = bson.ObjectId()
+    mock_db.attendance_sessions.find_one.return_value = None
+
+    result = database.mark_attendance(sid, 0.92, session_id=session_id)
+    assert result is False
+    mock_db.attendance.insert_one.assert_not_called()
+
+
 def test_bulk_upsert_attendance(mock_db):
     import app_core.database as database
 
@@ -351,6 +480,17 @@ def test_bulk_upsert_attendance(mock_db):
 
     result = database.bulk_upsert_attendance(entries)
     assert result == 2
+
+
+def test_bulk_upsert_attendance_with_inactive_session_raises(mock_db):
+    import app_core.database as database
+
+    session_id = bson.ObjectId()
+    entries = [{"student_id": bson.ObjectId(), "status": "Present"}]
+    mock_db.attendance_sessions.find_one.return_value = None
+
+    with pytest.raises(ValueError, match="not active"):
+        database.bulk_upsert_attendance(entries, session_id=session_id)
 
 
 def test_get_student_by_reg_no(mock_db):

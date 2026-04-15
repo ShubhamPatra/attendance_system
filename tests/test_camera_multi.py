@@ -25,12 +25,14 @@ def _mock_config(monkeypatch):
 def _reset_cameras():
     """Reset the global camera dict between tests."""
     import app_camera.camera as camera
-    camera._cameras = {}
-    camera._camera_viewers = {}
+    camera.release_camera()
+    camera._cameras.clear()
+    camera._camera_viewers.clear()
     camera._socketio = None
     yield
-    camera._cameras = {}
-    camera._camera_viewers = {}
+    camera.release_camera()
+    camera._cameras.clear()
+    camera._camera_viewers.clear()
     camera._socketio = None
 
 
@@ -119,6 +121,22 @@ def test_stream_acquire_release_stops_on_last_viewer():
             assert 0 not in camera._camera_viewers
             assert 0 not in camera._cameras
             mock_stop.assert_called_once()
+
+
+def test_camera_manager_diagnostics_reports_fps():
+    import app_camera.camera as camera
+
+    manager = camera.CameraManager()
+    fake_cam = MagicMock()
+    fake_cam.diagnostics.return_value = {"source": 0, "fps": 11.5}
+    manager._cameras[0] = fake_cam
+    manager._camera_viewers[0] = 2
+
+    data = manager.diagnostics()
+
+    assert data["active_cameras"] == 1
+    assert data["viewers"][0] == 2
+    assert data["cameras"][0]["fps"] == 11.5
 
 
 # ---------------------------------------------------------------------------

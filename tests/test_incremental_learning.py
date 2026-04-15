@@ -104,3 +104,24 @@ def test_cache_add_encoding_unknown_student():
 
     with pytest.raises(ValueError):
         cache.add_encoding_to_student(sid, enc)
+
+
+def test_cache_upsert_student_replaces_existing_entry():
+    import app_vision.face_engine as face_engine
+
+    sid = bson.ObjectId()
+    enc1 = np.random.rand(128).astype(np.float64)
+    enc2 = np.random.rand(128).astype(np.float64)
+
+    cache = face_engine.encoding_cache
+    cache._ids = [sid]
+    cache._names = ["Alice"]
+    cache._encodings = [[enc1]]
+    cache._rebuild_flat()
+
+    cache.upsert_student(sid, "Alicia", [enc2])
+
+    ids, names, encodings = cache.get_all()
+    assert ids == [sid]
+    assert names == ["Alicia"]
+    np.testing.assert_array_equal(encodings[0][0], enc2)

@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block title %}Course Form{% endblock %}
+{% block page_title %}{% if action == 'add' %}Add Course{% else %}Edit Course{% endif %}{% endblock %}
+
+{% block content %}
+  <section class="card stack">
+    <form method="post" class="form-row cols-2">
+      {{ form.csrf_token }}
+      <div class="field"><label class="field-label" for="course_code">{{ form.course_code.label.text }}</label>{{ form.course_code(id='course_code', class_='input') }}</div>
+      <div class="field"><label class="field-label" for="course_name">{{ form.course_name.label.text }}</label>{{ form.course_name(id='course_name', class_='input') }}</div>
+      <div class="field"><label class="field-label" for="department">{{ form.department.label.text }}</label>{{ form.department(id='department', class_='input') }}</div>
+      <div class="field"><label class="field-label" for="instructor">{{ form.instructor.label.text }}</label>{{ form.instructor(id='instructor', class_='input') }}</div>
+      <div class="field" style="grid-column: 1 / -1;"><label class="field-label" for="schedule_json">{{ form.schedule_json.label.text }}</label>{{ form.schedule_json(id='schedule_json', class_='textarea') }}</div>
+      <div>{{ form.submit(class_='btn btn-primary') }}</div>
+    </form>
+  </section>
+{% endblock %}

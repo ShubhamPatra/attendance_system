@@ -19,6 +19,8 @@ Multi-camera support: multiple Camera instances can run concurrently
 """
 
 import collections
+import atexit
+from concurrent.futures import ThreadPoolExecutor
 import os
 import threading
 import time
@@ -41,6 +43,12 @@ _lazy_face_engine = None
 _lazy_recognition = None
 _lazy_anti_spoofing = None
 _lazy_ppe_detection = None
+_snapshot_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="unknown-snapshot")
+
+
+@atexit.register
+def _shutdown_snapshot_executor():
+    _snapshot_executor.shutdown(wait=False, cancel_futures=True)
 
 
 def _face_engine_module():
@@ -89,9 +97,92 @@ def encode_face(*args, **kwargs):
     return _recognition_module().encode_face(*args, **kwargs)
 
 
+def _compute_smoothed_embedding(embedding_history: list) -> np.ndarray | None:
+    """Compute L2-normalised average of recent embeddings."""
+    if not embedding_history:
+        return None
+    stacked = np.stack(embedding_history, axis=0)
+    avg = np.mean(stacked, axis=0)
+    norm = np.linalg.norm(avg)
+    if norm > 0:
+        avg = avg / norm
+    return avg.astype(np.float32)
+
+
 def detect_ppe(*args, **kwargs):
     """Compatibility wrapper for tests and monkeypatching."""
     return _ppe_detection_module().detect_ppe(*args, **kwargs)
+
+
+def _extract_landmarks_5_from_bbox(
+    frame_bgr: np.ndarray,
+    bbox_xywh: tuple[int, int, int, int],
+) -> tuple[np.ndarray | None, np.ndarray | None]:
+    """Extract InsightFace 5-point landmarks and embedding in ONE call.
+
+    Runs InsightFace detection+recognition on a padded ROI around the
+    track box, then maps keypoints back to the original frame coordinate
+    system.
+
+    Returns
+    -------
+    (landmarks_5, embedding) where either may be None on failure.
+    Returning the embedding here avoids a redundant InsightFace inference
+    in the encoding step.
+    """
+    if config.EMBEDDING_BACKEND != "arcface":
+        return None, None
+
+    x, y, w, h = bbox_xywh
+    fh, fw = frame_bgr.shape[:2]
+
+    pad = int(max(w, h) * 0.25)
+    px1 = max(0, x - pad)
+    py1 = max(0, y - pad)
+    px2 = min(fw, x + w + pad)
+    py2 = min(fh, y + h + pad)
+    if px2 <= px1 or py2 <= py1:
+        return None, None
+
+    roi = frame_bgr[py1:py2, px1:px2]
+    try:
+        af = _face_engine_module().get_arcface_backend()
+        faces = af.get_faces(roi)
+    except Exception as exc:
+        logger.debug("Could not extract ArcFace landmarks for blink tracking: %s", exc)
+        return None, None
+
+    try:
+        faces = list(faces)
+    except TypeError:
+        faces = []
+
+    if not faces:
+        return None, None
+
+    face = max(
+        faces,
+        key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]),
+    )
+
+    # Extract embedding from the same face object (no extra inference!)
+    embedding = None
+    try:
+        embedding = af.get_embedding_from_face(face)
+    except Exception:
+        pass
+
+    kps = getattr(face, "kps", None)
+    if kps is None:
+        return None, embedding
+
+    kps = np.asarray(kps, dtype=np.float32)
+    if kps.shape != (5, 2):
+        return None, embedding
+
+    kps[:, 0] += px1
+    kps[:, 1] += py1
+    return kps, embedding
 
 
 def set_socketio(sio):
@@ -110,14 +201,21 @@ def _emit_event(event_name: str, data: dict):
 
 
 def _resize_to_process_width(frame: np.ndarray) -> np.ndarray:
-    """Resize *frame* to :data:`config.FRAME_PROCESS_WIDTH` maintaining
-    aspect ratio.  Returns the original frame unchanged if it is already
-    at or below the target width."""
+    """Resize *frame* to ``FRAME_PROCESS_WIDTH × PERF_FRAME_SCALE``
+    maintaining aspect ratio.  Returns the original frame unchanged if
+    it is already at or below the target width.
+
+    ``PERF_FRAME_SCALE`` (default 1.0) provides an additional scaling
+    knob on top of the base processing width — e.g. 0.75 makes the
+    processing frame 75 % of ``FRAME_PROCESS_WIDTH``, reducing both
+    detection and tracking cost.
+    """
+    target_w = int(config.FRAME_PROCESS_WIDTH * max(0.1, min(1.0, config.PERF_FRAME_SCALE)))
     h, w = frame.shape[:2]
-    if w <= config.FRAME_PROCESS_WIDTH:
+    if w <= target_w:
         return frame
-    scale = config.FRAME_PROCESS_WIDTH / w
-    new_w = config.FRAME_PROCESS_WIDTH
+    scale = target_w / w
+    new_w = target_w
     new_h = int(h * scale)
     return cv2.resize(frame, (new_w, new_h))
 
@@ -135,6 +233,11 @@ class Camera:
         self._thread: threading.Thread | None = None
         self._process_thread: threading.Thread | None = None
 
+        # Reconnection backoff tracking
+        self._reconnect_attempts = 0
+        self._last_reconnect_time = time.time()
+        self._reconnect_backoff_delay = config.CAMERA_RECONNECT_INITIAL_DELAY_SECONDS
+
         # Latest attendance events (for UI overlay / SSE -- consumed on read)
         self._events: collections.deque[dict] = collections.deque(
             maxlen=config.EVENT_BUFFER_MAX,
@@ -151,8 +254,18 @@ class Camera:
         self._seen: dict = {}
         self._seen_lock = threading.Lock()
 
+        # Per-track recognition cache: track_id -> {result, expires_at}
+        self._track_identity_cache: dict[int, dict] = {}
+
+        # Per-camera active session cache (short TTL to reduce DB lookups)
+        self._active_session_cache: dict | None = None
+        self._active_session_cached_at: float = 0.0
+
         # Unknown face snapshot cooldown
         self._last_unknown_save: float = 0
+        self._last_unknown_track_id: int | None = None
+        self._last_unknown_confidence: float = 0.0
+        self._process_frame_times: collections.deque[float] = collections.deque(maxlen=120)
 
         # Last encoded JPEG for MJPEG stream when no fresh frame available
         self._last_jpeg: bytes | None = None
@@ -167,6 +280,49 @@ class Camera:
         self._next_track_id: int = 0
         self._prev_gray: np.ndarray | None = None
 
+    def _get_track_cached_result(self, track_id: int):
+        """Return cached recognition result for a track if entry is still valid."""
+        entry = self._track_identity_cache.get(track_id)
+        if not entry:
+            return None, False
+        if float(entry.get("expires_at", 0.0)) <= time.monotonic():
+            self._track_identity_cache.pop(track_id, None)
+            return None, False
+        return entry.get("result"), True
+
+    def _set_track_cached_result(self, track_id: int, result):
+        """Store recognition result for a track with TTL-based expiry."""
+        ttl = max(0.0, float(config.RECOGNITION_TRACK_CACHE_TTL_SECONDS))
+        self._track_identity_cache[track_id] = {
+            "result": result,
+            "expires_at": time.monotonic() + ttl,
+        }
+
+        max_entries = max(1, int(config.RECOGNITION_TRACK_CACHE_MAX_ENTRIES))
+        if len(self._track_identity_cache) <= max_entries:
+            return
+
+        now = time.monotonic()
+        expired_ids = [
+            tid
+            for tid, item in self._track_identity_cache.items()
+            if float(item.get("expires_at", 0.0)) <= now
+        ]
+        for tid in expired_ids:
+            self._track_identity_cache.pop(tid, None)
+
+        if len(self._track_identity_cache) > max_entries:
+            overflow = len(self._track_identity_cache) - max_entries
+            oldest = sorted(
+                self._track_identity_cache.items(),
+                key=lambda kv: float(kv[1].get("expires_at", 0.0)),
+            )[:overflow]
+            for tid, _ in oldest:
+                self._track_identity_cache.pop(tid, None)
+
+    def _record_stage_time(self, stage_name: str, start_time: float) -> None:
+        tracker.record_stage_time(stage_name, time.perf_counter() - start_time)
+
     @staticmethod
     def _track_priority(trk: FaceTrack) -> tuple[int, int, int]:
         """Return a sortable priority for keeping the best duplicate track."""
@@ -174,7 +330,7 @@ class Camera:
         if trk.identity is not None:
             try:
                 match_conf = float(trk.identity[2])
-            except Exception:
+            except (ValueError, TypeError, IndexError):
                 match_conf = 0.0
         return (
             1 if trk.identity is not None else 0,
@@ -303,14 +459,55 @@ class Camera:
         logger.info("Camera %d stopped.", self._source)
 
     def _capture_loop(self):
+        """Capture frames from camera with exponential backoff on read failures."""
         while self._running:
             ok, frame = self._cap.read()
-            if not ok:
-                time.sleep(0.01)
-                continue
-            with self._lock:
-                self._frame = frame
-                self._frame_fresh = True
+            if ok:
+                # Reset backoff on successful read
+                self._reconnect_attempts = 0
+                self._reconnect_backoff_delay = config.CAMERA_RECONNECT_INITIAL_DELAY_SECONDS
+                with self._lock:
+                    self._frame = frame
+                    self._frame_fresh = True
+            else:
+                # Handle read failure with exponential backoff
+                self._reconnect_attempts += 1
+                if self._reconnect_attempts == 1:
+                    logger.warning(
+                        "Camera %d read failed; starting exponential backoff reconnection.",
+                        self._source,
+                    )
+                
+                if self._reconnect_attempts >= config.CAMERA_RECONNECT_MAX_ATTEMPTS:
+                    logger.error(
+                        "Camera %d: max reconnection attempts (%d) reached; "
+                        "reconnection will continue but please check device.",
+                        self._source,
+                        config.CAMERA_RECONNECT_MAX_ATTEMPTS,
+                    )
+                    # Keep trying but log warning less frequently
+                    if self._reconnect_attempts % config.CAMERA_RECONNECT_MAX_ATTEMPTS == 0:
+                        logger.warning(
+                            "Camera %d still disconnected after %d attempts; "
+                            "still retrying with %0.1f second interval.",
+                            self._source,
+                            self._reconnect_attempts,
+                            self._reconnect_backoff_delay,
+                        )
+                else:
+                    # Exponential backoff: double the delay, capped at max
+                    self._reconnect_backoff_delay = min(
+                        self._reconnect_backoff_delay * 2,
+                        config.CAMERA_RECONNECT_MAX_DELAY_SECONDS,
+                    )
+                    logger.debug(
+                        "Camera %d read attempt %d; backoff delay: %.1f seconds",
+                        self._source,
+                        self._reconnect_attempts,
+                        self._reconnect_backoff_delay,
+                    )
+                
+                time.sleep(self._reconnect_backoff_delay)
 
     def _process_loop(self):
         min_interval = 1.0 / max(config.MJPEG_TARGET_FPS, 1)
@@ -382,11 +579,46 @@ class Camera:
                 ts = time.strftime("%Y-%m-%d_%H-%M-%S")
                 path = os.path.join(config.UNKNOWN_FACES_DIR, f"{ts}.jpg")
                 cv2.imwrite(path, frame)
-                logger.info("Unknown face snapshot saved: %s", path)
+                logger.info(
+                    "Unknown face snapshot saved: %s (track=%s confidence=%.4f)",
+                    path,
+                    self._last_unknown_track_id,
+                    self._last_unknown_confidence,
+                )
             except Exception as exc:
                 logger.error("Failed to save unknown face snapshot: %s", exc)
 
-        threading.Thread(target=_save, daemon=True).start()
+        try:
+            _snapshot_executor.submit(_save)
+        except Exception as exc:
+            logger.error("Failed to queue unknown face snapshot: %s", exc)
+
+    def _get_active_session_for_camera(self, force_refresh: bool = False) -> dict | None:
+        """Return active attendance session for this camera, if available."""
+        now = time.monotonic()
+        if (
+            not force_refresh
+            and (now - self._active_session_cached_at) < config.ATTENDANCE_SESSION_CACHE_SECONDS
+        ):
+            return self._active_session_cache
+
+        camera_id = str(self._source)
+        try:
+            database.auto_close_idle_attendance_sessions(
+                idle_seconds=config.ATTENDANCE_SESSION_IDLE_TIMEOUT_SECONDS
+            )
+            active = database.get_active_attendance_session(camera_id)
+        except RuntimeError as exc:
+            logger.error(
+                "Could not resolve active attendance session for camera %s: %s",
+                camera_id,
+                exc,
+            )
+            active = None
+
+        self._active_session_cache = active
+        self._active_session_cached_at = now
+        return active
 
     @staticmethod
     def _to_raw_bbox(
@@ -441,9 +673,19 @@ class Camera:
         liveness_frame: np.ndarray,
         liveness_box: tuple[int, int, int, int],
     ) -> tuple[str, float]:
-        """Evaluate liveness with temporal voting and spoof hold cooldown."""
+        """Evaluate liveness with temporal voting and spoof hold cooldown.
+        
+        Decision logic (in order):
+        1. If in spoof hold timeout: return "spoof"
+        2. If strong real evidence (label=1, conf >= 0.72 fast threshold): return "real"
+        3. If strong spoof evidence (label∈{0,2}, conf >= 0.85): return "spoof" + Set hold
+        4. Use temporal voting on history (require 3+ frames):
+           - Real vote: label=1 AND conf >= 0.55 (threshold); ratio >= 70% → "real"
+           - Spoof vote: label∈{0,2} AND conf >= 0.60 (threshold); ratio >= 60% → "spoof"
+           - Weak spoof vote: label∈{0,2}, any conf, if weak ratio >= 60% and avg conf >= 0.45 → "spoof"
+        5. Default: "uncertain"
+        """
         now = time.monotonic()
-        temporal_override = False
 
         if config.BYPASS_ANTISPOOF:
             label, conf = 1, 1.0
@@ -461,70 +703,25 @@ class Camera:
         if len(trk.liveness_history) > config.LIVENESS_HISTORY_SIZE:
             trk.liveness_history.pop(0)
 
+        # Check spoof hold temporal override
         if now < trk.spoof_hold_until:
-            temporal_override = True
             state = "spoof"
             score = max(conf, config.LIVENESS_SPOOF_CONFIDENCE_MIN)
-        elif (
-            label == 1
-            and conf >= max(
-                config.LIVENESS_CONFIDENCE_THRESHOLD,
-                config.LIVENESS_REAL_FAST_CONFIDENCE,
-            )
-        ):
+            tracker.record_liveness_event("temporal_override")
+        # Check for strong real signal (fast path)
+        elif self._is_real_fast(label, conf):
             state = "real"
             score = conf
-        elif label not in (1, -1) and conf >= config.LIVENESS_STRONG_SPOOF_CONFIDENCE:
+        # Check for strong spoof signal
+        elif self._is_spoof_strong(label, conf):
             state = "spoof"
             score = conf
             trk.spoof_hold_until = now + config.SPOOF_HOLD_SECONDS
+        # Otherwise, use temporal voting on history
         else:
-            valid = [(l, c) for l, c in trk.liveness_history if l != -1]
-            min_hist = max(1, config.LIVENESS_MIN_HISTORY)
+            state, score = self._decide_liveness_from_history(trk)
 
-            if len(valid) >= min_hist:
-                real_scores = [
-                    c for l, c in valid
-                    if l == 1 and c >= config.LIVENESS_CONFIDENCE_THRESHOLD
-                ]
-                spoof_scores = [
-                    c for l, c in valid
-                    if l not in (1, -1) and c >= config.LIVENESS_SPOOF_CONFIDENCE_MIN
-                ]
-                weak_spoof_scores = [
-                    c for l, c in valid
-                    if l not in (1, -1)
-                ]
-                real_ratio = len(real_scores) / len(valid)
-                spoof_ratio = len(spoof_scores) / len(valid)
-                weak_spoof_ratio = len(weak_spoof_scores) / len(valid)
-
-                if real_ratio >= config.LIVENESS_REAL_VOTE_RATIO and real_scores:
-                    state = "real"
-                    score = float(sum(real_scores) / len(real_scores))
-                elif spoof_ratio >= config.LIVENESS_SPOOF_VOTE_RATIO and spoof_scores:
-                    state = "spoof"
-                    score = float(sum(spoof_scores) / len(spoof_scores))
-                    trk.spoof_hold_until = now + config.SPOOF_HOLD_SECONDS
-                elif (
-                    weak_spoof_ratio >= config.LIVENESS_SPOOF_VOTE_RATIO
-                    and weak_spoof_scores
-                    and (sum(weak_spoof_scores) / len(weak_spoof_scores))
-                    >= config.LIVENESS_SPOOF_WEAK_CONFIDENCE_MIN
-                ):
-                    state = "spoof"
-                    score = float(sum(weak_spoof_scores) / len(weak_spoof_scores))
-                    trk.spoof_hold_until = now + config.SPOOF_HOLD_SECONDS
-                else:
-                    state = "uncertain"
-                    score = conf
-            else:
-                state = "uncertain"
-                score = conf
-
-        if temporal_override:
-            tracker.record_liveness_event("temporal_override")
-
+        # Map decision to internal label
         if state == "real":
             trk.liveness = (1, score)
         elif state == "spoof":
@@ -535,6 +732,90 @@ class Camera:
             trk.liveness = (2, score)
 
         return state, score
+
+    def _is_real_fast(self, label: int, conf: float) -> bool:
+        """Fast path: Mark real if label=1 and confidence high (≥0.72)."""
+        return (
+            label == 1
+            and conf >= config.LIVENESS_REAL_FAST_CONFIDENCE
+        )
+
+    def _is_spoof_strong(self, label: int, conf: float) -> bool:
+        """Strong spoof signal: label∈{0,2} and confidence high (≥0.85)."""
+        return (
+            label in (0, 2)
+            and conf >= config.LIVENESS_STRONG_SPOOF_CONFIDENCE
+        )
+
+    def _decide_liveness_from_history(self, trk: FaceTrack) -> tuple[str, float]:
+        """Use temporal voting on liveness history to make decision.
+        
+        Requires at least config.LIVENESS_MIN_HISTORY (default 3) valid frames.
+        Incorporates blink detection evidence if enabled.
+        Returns (state, score) where state ∈ {"real", "spoof", "uncertain"}.
+        """
+        latest_label, latest_conf = trk.liveness_history[-1]
+        
+        # Filter out error markers
+        valid_history = [
+            (l, c) for l, c in trk.liveness_history if l != -1
+        ]
+
+        min_hist = max(1, config.LIVENESS_MIN_HISTORY)
+        if len(valid_history) < min_hist:
+            # Not enough history; return uncertain
+            return "uncertain", latest_conf
+
+        # Count votes: real vs spoof at different confidence thresholds
+        real_votes = [
+            c for l, c in valid_history
+            if l == 1 and c >= config.LIVENESS_CONFIDENCE_THRESHOLD
+        ]
+        spoof_votes = [
+            c for l, c in valid_history
+            if l in (0, 2) and c >= config.LIVENESS_SPOOF_CONFIDENCE_MIN
+        ]
+        weak_spoof_votes = [
+            c for l, c in valid_history
+            if l in (0, 2)  # No confidence threshold
+        ]
+
+        total_valid = len(valid_history)
+        real_ratio = len(real_votes) / total_valid
+        spoof_ratio = len(spoof_votes) / total_valid
+        weak_spoof_ratio = len(weak_spoof_votes) / total_valid
+
+        # Get blink evidence (blink count > 0 indicates natural movement/real face)
+        has_blink_evidence = getattr(trk, "blink_count", 0) > 0
+
+        # Decide based on vote ratios
+        if real_ratio >= config.LIVENESS_REAL_VOTE_RATIO and real_votes:
+            # Majority voted real
+            avg_score = float(sum(real_votes) / len(real_votes))
+            return "real", avg_score
+        elif spoof_ratio >= config.LIVENESS_SPOOF_VOTE_RATIO and spoof_votes:
+            # Majority voted spoof (strong confidence)
+            avg_score = float(sum(spoof_votes) / len(spoof_votes))
+            return "spoof", avg_score
+        elif (
+            weak_spoof_ratio >= config.LIVENESS_SPOOF_VOTE_RATIO
+            and weak_spoof_votes
+            and (sum(weak_spoof_votes) / len(weak_spoof_votes))
+            >= config.LIVENESS_SPOOF_WEAK_CONFIDENCE_MIN
+        ):
+            # Majority voted spoof even with weak confidence threshold
+            avg_score = float(sum(weak_spoof_votes) / len(weak_spoof_votes))
+            return "spoof", avg_score
+        elif real_ratio >= 0.5 and has_blink_evidence and config.BLINK_DETECTION_ENABLED:
+            # Borderline real + has blink evidence = likely real
+            avg_score = float(sum([c for l, c in valid_history if l == 1]) / len([c for l, c in valid_history if l == 1]))
+            logger.debug("Track #%d: Upgrading to 'real' based on blink evidence (ratio=%.2f, blinks=%d)", trk.track_id, real_ratio, getattr(trk, "blink_count", 0))
+            return "real", avg_score
+        else:
+            # No clear verdict
+            return "uncertain", latest_conf
+
+
 
     def _set_track_liveness_state(self, trk: FaceTrack, state: str, score: float):
         prev_state = trk.liveness_state
@@ -585,7 +866,8 @@ class Camera:
 
         try:
             result = detect_ppe(frame, bbox_xywh)
-        except Exception:
+        except (RuntimeError, ValueError) as exc:
+            logger.debug("PPE detection error: %s", exc)
             tracker.record_liveness_event("ppe_model_error")
             trk.ppe_state = "none"
             trk.ppe_confidence = 0.0
@@ -647,14 +929,95 @@ class Camera:
         ppe_state: str = "none",
         ppe_confidence: float = 0.0,
     ) -> None:
-        """Run encoding+recognition for a track only when liveness is stable."""
+        """Run encoding+recognition for a track with multi-frame smoothing.
+
+        Instead of making a recognition decision on each individual
+        frame's embedding, embeddings are accumulated in
+        ``trk.embedding_history`` and averaged once enough frames have
+        been collected (``SMOOTHING_MIN_FRAMES``).  The smoothed
+        embedding is then matched against the cache.
+
+        Blink detection via EAR is also evaluated here when landmarks
+        are available.
+        """
         if liveness_conf < (config.LIVENESS_CONFIDENCE_THRESHOLD + config.LIVENESS_NO_ENCODE_MARGIN):
             tracker.record_liveness_event("no_encode_guard")
             trk.is_unknown = True
             trk.state = "liveness_pending"
             return
 
-        encoding, quality_reason = _recognition_module().encode_face_with_reason(raw_frame, raw_bbox_xywh)
+        # Backward-compatible defaults for lightweight test doubles / legacy tracks.
+        if not hasattr(trk, "embedding_history"):
+            trk.embedding_history = []
+        if not hasattr(trk, "candidate_student_id"):
+            trk.candidate_student_id = None
+        if not hasattr(trk, "candidate_name"):
+            trk.candidate_name = ""
+        if not hasattr(trk, "candidate_hits"):
+            trk.candidate_hits = 0
+        if not hasattr(trk, "candidate_best_confidence"):
+            trk.candidate_best_confidence = 0.0
+        if not hasattr(trk, "identity_prediction_buffer"):
+            trk.identity_prediction_buffer = []
+        if not hasattr(trk, "student_metadata"):
+            trk.student_metadata = {}
+        if not hasattr(trk, "ear_history"):
+            trk.ear_history = []
+        if not hasattr(trk, "blink_count"):
+            trk.blink_count = 0
+        if not hasattr(trk, "blink_frames_below"):
+            trk.blink_frames_below = 0
+
+        # Refresh 5-point landmarks for blink/EAR logic, but not every cycle.
+        # The landmark extraction ALSO returns an embedding from the same
+        # InsightFace call, so we reuse it to avoid a redundant encode pass.
+        now = time.monotonic()
+        pre_extracted_embedding = None
+        if (
+            not config.BLINK_DETECTION_ENABLED
+        ):
+            trk.landmarks_5 = None
+        elif (
+            getattr(trk, "landmarks_5", None) is None
+            or (now - getattr(trk, "landmarks_5_updated_at", 0.0))
+            >= config.BLINK_LANDMARK_REFRESH_SECONDS
+        ):
+            new_landmarks, pre_extracted_embedding = _extract_landmarks_5_from_bbox(raw_frame, raw_bbox_xywh)
+            if new_landmarks is not None:
+                trk.landmarks_5 = new_landmarks
+                trk.landmarks_5_updated_at = now
+
+        # -- Blink detection (runs every recognition cycle) --
+        if (
+            config.BLINK_DETECTION_ENABLED
+            and getattr(trk, "landmarks_5", None) is not None
+        ):
+            from app_vision.anti_spoofing import (
+                compute_ear_from_5point,
+                update_blink_state,
+            )
+            ear = compute_ear_from_5point(trk.landmarks_5)
+            trk.ear_history, trk.blink_count, trk.blink_frames_below = (
+                update_blink_state(
+                    ear,
+                    trk.ear_history,
+                    trk.blink_count,
+                    trk.blink_frames_below,
+                )
+            )
+
+        # -- Encoding --
+        # Use the pre-extracted embedding from the landmark call if available.
+        # This is the KEY performance optimisation: one InsightFace call
+        # instead of two (landmark + encode).
+        if pre_extracted_embedding is not None:
+            encoding = pre_extracted_embedding
+            quality_reason = ""
+        else:
+            landmarks = getattr(trk, "landmarks_5", None)
+            encoding, quality_reason = _recognition_module().encode_face_with_reason(
+                raw_frame, raw_bbox_xywh, landmarks,
+            )
         if encoding is None:
             trk.is_unknown = True
             trk.state = "liveness_pending"
@@ -669,37 +1032,128 @@ class Camera:
             tracker.record_recognition(False, False)
             return
 
-        result = _face_engine_module().recognize_face(
-            encoding,
-            ppe_state=ppe_state,
-            ppe_confidence=ppe_confidence,
-        )
+        # -- Multi-frame embedding accumulation --
+        trk.embedding_history.append(encoding)
+        if len(trk.embedding_history) > config.SMOOTHING_WINDOW:
+            trk.embedding_history.pop(0)
+
+        # Not enough frames accumulated yet — show progress
+        smoothing_min = max(1, config.SMOOTHING_MIN_FRAMES)
+        if len(trk.embedding_history) < smoothing_min:
+            trk.is_unknown = True
+            trk.state = "liveness_pending"
+            trk.quality_reason = (
+                f"Accumulating frames ({len(trk.embedding_history)}/{smoothing_min})"
+            )
+            return
+
+        # Compute smoothed (averaged + L2-normalised) embedding
+        smoothed = _compute_smoothed_embedding(trk.embedding_history)
+        if smoothed is None:
+            trk.is_unknown = True
+            trk.state = "liveness_pending"
+            return
+        trk.smoothed_embedding = smoothed
+
+        result, cache_hit = self._get_track_cached_result(trk.track_id)
+        if not cache_hit:
+            recognition_start = time.perf_counter()
+            # -- Image quality for dynamic threshold --
+            from app_vision.preprocessing import assess_image_quality as _assess_quality
+            x, y, w, h = raw_bbox_xywh
+            fh, fw = raw_frame.shape[:2]
+            roi = raw_frame[max(0, y):min(fh, y + h), max(0, x):min(fw, x + w)]
+            image_quality = _assess_quality(roi) if roi.size > 0 else None
+
+            candidate_student_ids = []
+            if trk.candidate_student_id is not None:
+                candidate_student_ids.append(trk.candidate_student_id)
+            for pred in trk.identity_prediction_buffer:
+                sid = pred.get("student_id")
+                if sid is not None:
+                    candidate_student_ids.append(sid)
+            if candidate_student_ids:
+                # Preserve order while deduplicating.
+                candidate_student_ids = list(dict.fromkeys(candidate_student_ids))
+
+            result = _face_engine_module().recognize_face(
+                smoothed,
+                ppe_state=ppe_state,
+                ppe_confidence=ppe_confidence,
+                image_quality=image_quality,
+                candidate_student_ids=candidate_student_ids,
+            )
+            self._record_stage_time("recognition", recognition_start)
+            self._set_track_cached_result(trk.track_id, result)
         if result is not None:
             student_id, name, confidence = result
-            required_hits = max(1, int(config.RECOGNITION_CONFIRM_FRAMES))
 
-            if getattr(trk, "candidate_student_id", None) == student_id:
-                trk.candidate_hits = int(getattr(trk, "candidate_hits", 0)) + 1
-                trk.candidate_best_confidence = max(
-                    float(getattr(trk, "candidate_best_confidence", 0.0)),
-                    float(confidence),
-                )
-            else:
-                trk.candidate_student_id = student_id
-                trk.candidate_name = name
-                trk.candidate_hits = 1
-                trk.candidate_best_confidence = float(confidence)
+            window = max(3, int(config.RECOGNITION_STABILITY_WINDOW))
+            required_hits = max(
+                1,
+                int(
+                    min(
+                        window,
+                        max(config.RECOGNITION_STABILITY_MIN_HITS, config.RECOGNITION_CONFIRM_FRAMES),
+                    )
+                ),
+            )
+            trk.identity_prediction_buffer.append(
+                {
+                    "student_id": student_id,
+                    "name": name,
+                    "confidence": float(confidence),
+                }
+            )
+            if len(trk.identity_prediction_buffer) > window:
+                trk.identity_prediction_buffer.pop(0)
 
-            if trk.candidate_hits < required_hits:
+            counts: dict = {}
+            confidence_buckets: dict = {}
+            names: dict = {}
+            for pred in trk.identity_prediction_buffer:
+                sid = pred["student_id"]
+                counts[sid] = counts.get(sid, 0) + 1
+                confidence_buckets.setdefault(sid, []).append(float(pred["confidence"]))
+                names[sid] = pred["name"]
+
+            ranked = sorted(counts.items(), key=lambda kv: kv[1], reverse=True)
+            best_student_id, best_hits = ranked[0]
+            best_name = names.get(best_student_id, name)
+            best_confidence = max(confidence_buckets.get(best_student_id, [float(confidence)]))
+
+            second_hits = ranked[1][1] if len(ranked) > 1 else 0
+            if best_hits == second_hits and len(ranked) > 1:
                 trk.is_unknown = True
                 trk.state = "liveness_pending"
                 trk.quality_reason = (
-                    f"Confirming identity ({trk.candidate_hits}/{required_hits})"
+                    "Unstable identity predictions across recent frames"
                 )
                 return
 
-            final_confidence = float(trk.candidate_best_confidence)
-            trk.identity = (student_id, name, final_confidence)
+            if best_hits < required_hits:
+                trk.is_unknown = True
+                trk.state = "liveness_pending"
+                trk.quality_reason = (
+                    f"Confirming identity ({best_hits}/{required_hits}) in recent frames"
+                )
+                return
+
+            final_confidence = float(best_confidence)
+            trk.identity = (best_student_id, best_name, final_confidence)
+            # Cache student metadata to avoid repeated DB lookups in _handle_recognized
+            try:
+                student_doc = database.get_student_by_id(best_student_id)
+                if student_doc:
+                    trk.student_metadata = {
+                        "registration_number": student_doc.get("registration_number", ""),
+                        "semester": student_doc.get("semester", ""),
+                        "section": student_doc.get("section", ""),
+                    }
+            except Exception as exc:
+                logger.debug("Failed to cache student metadata for %s: %s", student_id, exc)
+                trk.student_metadata = {}
+
             trk.is_unknown = False
             trk.state = "recognized"
             trk.quality_reason = ""
@@ -707,13 +1161,17 @@ class Camera:
             trk.candidate_name = ""
             trk.candidate_hits = 0
             trk.candidate_best_confidence = 0.0
+            trk.identity_prediction_buffer = []
             logger.info(
-                "Track #%d: RECOGNIZED %s (confidence=%.4f)",
-                trk.track_id, name, final_confidence,
+                "Track #%d: RECOGNIZED %s (confidence=%.4f, smoothed_frames=%d, blinks=%d)",
+                trk.track_id, best_name, final_confidence,
+                len(trk.embedding_history),
+                getattr(trk, "blink_count", 0),
             )
             self._handle_recognized(
-                student_id, name, final_confidence, liveness_conf, frame,
-                encoding=encoding,
+                best_student_id, best_name, final_confidence, liveness_conf, frame,
+                track=trk,
+                encoding=smoothed,  # use the smoothed embedding for incremental learning
                 ppe_state=ppe_state,
                 ppe_confidence=ppe_confidence,
             )
@@ -723,9 +1181,12 @@ class Camera:
         trk.candidate_name = ""
         trk.candidate_hits = 0
         trk.candidate_best_confidence = 0.0
+        trk.identity_prediction_buffer = []
         trk.is_unknown = True
         trk.state = "liveness_pending"
         trk.quality_reason = "Face not confidently matched to a single student."
+        self._last_unknown_track_id = trk.track_id
+        self._last_unknown_confidence = float(getattr(trk, "candidate_best_confidence", 0.0))
         tracker.record_recognition(False, False)
         self._save_unknown_snapshot(raw_frame)
 
@@ -786,6 +1247,7 @@ class Camera:
         confidence: float,
         liveness_conf: float,
         frame: np.ndarray,
+        track=None,
         encoding: np.ndarray | None = None,
         ppe_state: str = "none",
         ppe_confidence: float = 0.0,
@@ -801,16 +1263,63 @@ class Camera:
             # another frame passes cooldown check before we mark attendance
             self._seen[student_id] = now
 
-        student_doc = database.get_student_by_id(student_id)
+        # Use cached metadata from track to avoid DB lookup on every recognition
         student_meta = {}
-        if student_doc:
-            student_meta = {
-                "registration_number": student_doc.get("registration_number", ""),
-                "semester": student_doc.get("semester", ""),
-                "section": student_doc.get("section", ""),
-            }
+        if track and track.student_metadata:
+            student_meta = track.student_metadata
+        else:
+            # Fallback: fetch if cache not available (shouldn't happen in normal flow)
+            student_doc = database.get_student_by_id(student_id)
+            if student_doc:
+                student_meta = {
+                    "registration_number": student_doc.get("registration_number", ""),
+                    "semester": student_doc.get("semester", ""),
+                    "section": student_doc.get("section", ""),
+                }
 
-        marked = database.mark_attendance(student_id, confidence)
+        active_session = self._get_active_session_for_camera()
+        if active_session is None:
+            with self._seen_lock:
+                self._seen.pop(student_id, None)
+            tracker.record_recognition(True, False)
+            self._push_event({
+                "name": name,
+                "status": "session_inactive",
+                "error": "No active attendance session for this camera",
+                "confidence": round(confidence, 4),
+                "liveness_confidence": round(liveness_conf, 4),
+                "attendance_marked": False,
+                "camera_id": str(self._source),
+                **student_meta,
+            })
+            return
+
+        session_id = active_session.get("_id")
+        try:
+            marked = database.mark_attendance(
+                student_id,
+                confidence,
+                session_id=session_id,
+            )
+            if marked and session_id is not None:
+                database.touch_attendance_session(session_id)
+        except RuntimeError as exc:
+            # Circuit breaker is open or other fatal DB error
+            logger.error(
+                "Failed to mark attendance due to database circuit breaker or connection error: %s",
+                exc,
+            )
+            marked = False
+            self._push_event({
+                "name": name,
+                "status": "error",
+                "error": "Database unavailable; attendance not marked",
+                "confidence": round(confidence, 4),
+                "liveness_confidence": round(liveness_conf, 4),
+                "attendance_marked": False,
+                **student_meta,
+            })
+            return
 
         self._push_event({
             "name": name,
@@ -820,6 +1329,7 @@ class Camera:
             "ppe_state": ppe_state,
             "ppe_confidence": round(float(ppe_confidence), 4),
             "attendance_marked": marked,
+            "session_id": str(session_id) if session_id is not None else None,
             **student_meta,
         })
         tracker.record_recognition(True, True)
@@ -846,16 +1356,19 @@ class Camera:
                     student_idx = ids.index(student_id)
                     student_rows = np.where(flat_idx == student_idx)[0]
                     if len(student_rows) > 0:
-                        min_dist = float(
-                            np.min(np.linalg.norm(flat_enc[student_rows] - encoding, axis=1))
-                        )
-                        # Increased threshold from 0.15 to 0.20 to reduce duplicate encodings
-                        # while still skipping very similar faces
-                        if min_dist < 0.20:
+                        # Use cosine similarity for duplicate detection
+                        query = encoding.astype(np.float32).flatten()
+                        q_norm = np.linalg.norm(query)
+                        if q_norm > 0:
+                            query = query / q_norm
+                        sims = flat_enc[student_rows] @ query
+                        max_sim = float(np.max(sims))
+                        # Skip if very similar embedding already exists (cosine > 0.95)
+                        if max_sim > 0.95:
                             logger.debug(
-                                "Incremental learning skipped for %s (duplicate: dist=%.4f < threshold 0.20)",
+                                "Incremental learning skipped for %s (duplicate: cosine_sim=%.4f > 0.95)",
                                 name,
-                                min_dist,
+                                max_sim,
                             )
                             return
 
@@ -896,6 +1409,11 @@ class Camera:
                 cutoff = time.monotonic() - (config.RECOGNITION_COOLDOWN * 2)
                 with self._seen_lock:
                     self._seen = {k: v for k, v in self._seen.items() if v > cutoff}
+                self._track_identity_cache = {
+                    tid: entry
+                    for tid, entry in self._track_identity_cache.items()
+                    if float(entry.get("expires_at", 0.0)) > time.monotonic()
+                }
 
             surviving: list[FaceTrack] = []
             for trk in self._tracks:
@@ -904,6 +1422,7 @@ class Camera:
                     surviving.append(trk)
                 else:
                     trk.state = "expired"
+                    self._track_identity_cache.pop(trk.track_id, None)
                     tracker.record_liveness_event("tracker_expired")
                     logger.debug("Track #%d expired.", trk.track_id)
             self._tracks = surviving
@@ -916,6 +1435,7 @@ class Camera:
 
             dynamic_interval = self._effective_detection_interval(motion)
             if self._frame_count % dynamic_interval == 0:
+                detection_start = time.perf_counter()
                 run_detection = motion or (
                     self._frame_count % config.NO_MOTION_DETECTION_INTERVAL == 0
                 )
@@ -923,10 +1443,14 @@ class Camera:
                     run_detection = True
 
                 if run_detection:
+                    # Cap new detections to respect PERF_MAX_FACES
+                    remaining_slots = max(0, config.PERF_MAX_FACES - len(self._tracks))
                     new_boxes, matched_track_indices = detect_and_associate_detailed(
                         frame,
                         self._tracks,
+                        max_new_faces=remaining_slots,
                     )
+                    self._record_stage_time("detection", detection_start)
                     created_track_ids: set[int] = set()
 
                     stale_tracks: list[FaceTrack] = []
@@ -939,6 +1463,7 @@ class Camera:
                             stale_tracks.append(trk)
                         else:
                             trk.state = "expired"
+                            self._track_identity_cache.pop(trk.track_id, None)
                             tracker.record_liveness_event("detector_pruned")
                             if not config.DEBUG_MODE:
                                 continue
@@ -973,19 +1498,44 @@ class Camera:
                             continue
                         if trk.track_id in created_track_ids:
                             continue
-                        raw_box = self._to_raw_bbox(trk.bbox, sx, sy)
-                        state, liveness_conf = self._evaluate_track_liveness(
-                            trk,
-                            raw,
-                            raw_box,
+
+                        # -- Performance gating: skip expensive ops on most cycles --
+                        trk.antispoof_cycle_count += 1
+                        trk.recognition_cycle_count += 1
+
+                        run_antispoof = (
+                            trk.antispoof_cycle_count
+                            % max(1, config.PERF_ANTISPOOF_INTERVAL) == 0
                         )
-                        self._set_track_liveness_state(trk, state, liveness_conf)
-                        if state == "real":
+                        run_recognition = (
+                            trk.recognition_cycle_count
+                            % max(1, config.PERF_RECOGNITION_INTERVAL) == 0
+                        )
+
+                        raw_box = self._to_raw_bbox(trk.bbox, sx, sy)
+
+                        if run_antispoof:
+                            liveness_start = time.perf_counter()
+                            state, liveness_conf = self._evaluate_track_liveness(
+                                trk,
+                                raw,
+                                raw_box,
+                            )
+                            self._record_stage_time("liveness", liveness_start)
+                            self._set_track_liveness_state(trk, state, liveness_conf)
+                        else:
+                            # Reuse cached liveness state
+                            state = trk.liveness_state
+                            liveness_conf = trk.liveness[1] if trk.liveness else 0.0
+
+                        if state == "real" and run_recognition:
+                            ppe_start = time.perf_counter()
                             ppe_state, ppe_confidence = self._evaluate_track_ppe(
                                 trk,
                                 raw,
                                 raw_box,
                             )
+                            self._record_stage_time("ppe", ppe_start)
                             self._try_recognize_track(
                                 trk,
                                 frame,
@@ -1025,6 +1575,9 @@ class Camera:
                     debug_lines.append("QUALITY GATE: OFF")
                 if config.BYPASS_MOTION_DETECTION:
                     debug_lines.append("MOTION GATE: OFF")
+                if config.PERF_FRAME_SCALE < 1.0:
+                    debug_lines.append(f"SCALE: {config.PERF_FRAME_SCALE:.0%}")
+                debug_lines.append(f"MAX_FACES: {config.PERF_MAX_FACES}")
                 for i, line in enumerate(debug_lines):
                     cv2.putText(
                         frame,
@@ -1038,11 +1591,13 @@ class Camera:
 
             elapsed = time.perf_counter() - start_time
             tracker.record_frame_time(elapsed)
+            self._process_frame_times.append(elapsed)
 
             if self._frame_count % 30 == 0:
                 _emit_event("metrics_update", tracker.metrics())
 
-            _, jpeg = cv2.imencode(".jpg", frame)
+            encode_params = [cv2.IMWRITE_JPEG_QUALITY, config.PERF_JPEG_QUALITY]
+            _, jpeg = cv2.imencode(".jpg", frame, encode_params)
             result = jpeg.tobytes()
             with self._jpeg_lock:
                 self._last_jpeg = result
@@ -1086,27 +1641,97 @@ class Camera:
 # ---------------------------------------------------------------------------
 # Multi-camera management
 # ---------------------------------------------------------------------------
-_cameras: dict[int, Camera] = {}
-_camera_viewers: dict[int, int] = {}
-_cameras_lock = threading.Lock()
+
+
+class CameraManager:
+    """Manage camera lifecycle and diagnostics across sources."""
+
+    def __init__(self):
+        self._cameras: dict[int, Camera] = {}
+        self._camera_viewers: dict[int, int] = {}
+        self._lock = threading.Lock()
+
+    def get(self, source: int = 0) -> Camera:
+        with self._lock:
+            if source not in self._cameras:
+                cam = Camera(source)
+                cam.start()
+                self._cameras[source] = cam
+            return self._cameras[source]
+
+    def get_if_running(self, source: int = 0) -> Camera | None:
+        with self._lock:
+            return self._cameras.get(source)
+
+    def acquire_stream(self, source: int = 0) -> Camera:
+        with self._lock:
+            cam = self._cameras.get(source)
+            if cam is None:
+                cam = Camera(source)
+                cam.start()
+                self._cameras[source] = cam
+            self._camera_viewers[source] = self._camera_viewers.get(source, 0) + 1
+            return cam
+
+    def release_stream(self, source: int = 0):
+        with self._lock:
+            if source not in self._camera_viewers:
+                return
+            remaining = self._camera_viewers[source] - 1
+            if remaining > 0:
+                self._camera_viewers[source] = remaining
+                return
+            self._camera_viewers.pop(source, None)
+            cam = self._cameras.pop(source, None)
+            if cam is not None:
+                cam.stop()
+
+    def get_all(self) -> dict[int, Camera]:
+        with self._lock:
+            return dict(self._cameras)
+
+    def release(self, source: int | None = None):
+        with self._lock:
+            if source is not None:
+                self._camera_viewers.pop(source, None)
+                cam = self._cameras.pop(source, None)
+                if cam is not None:
+                    cam.stop()
+            else:
+                self._camera_viewers.clear()
+                for cam in self._cameras.values():
+                    cam.stop()
+                self._cameras.clear()
+
+    def diagnostics(self) -> dict:
+        with self._lock:
+            cameras_snapshot = dict(self._cameras)
+            viewers_snapshot = dict(self._camera_viewers)
+
+        return {
+            "active_cameras": len(cameras_snapshot),
+            "viewers": viewers_snapshot,
+            "cameras": {
+                source: cam.diagnostics()
+                for source, cam in cameras_snapshot.items()
+            },
+        }
+
+
+_camera_manager = CameraManager()
+_cameras = _camera_manager._cameras
+_camera_viewers = _camera_manager._camera_viewers
 
 
 def get_camera(source: int = 0) -> Camera:
     """Return a Camera instance for the given device index, creating it
     if necessary."""
-    global _cameras
-    with _cameras_lock:
-        if source not in _cameras:
-            cam = Camera(source)
-            cam.start()
-            _cameras[source] = cam
-        return _cameras[source]
+    return _camera_manager.get(source)
 
 
 def get_camera_if_running(source: int = 0) -> Camera | None:
     """Return a running Camera instance if available, else None."""
-    with _cameras_lock:
-        return _cameras.get(source)
+    return _camera_manager.get_if_running(source)
 
 
 def acquire_camera_stream(source: int = 0) -> Camera:
@@ -1115,69 +1740,24 @@ def acquire_camera_stream(source: int = 0) -> Camera:
     The caller must pair this with ``release_camera_stream`` when the
     stream disconnects.
     """
-    global _camera_viewers
-    with _cameras_lock:
-        cam = _cameras.get(source)
-        if cam is None:
-            cam = Camera(source)
-            cam.start()
-            _cameras[source] = cam
-
-        _camera_viewers[source] = _camera_viewers.get(source, 0) + 1
-        return cam
+    return _camera_manager.acquire_stream(source)
 
 
 def release_camera_stream(source: int = 0):
     """Release one active stream viewer; stop camera when last viewer leaves."""
-    global _camera_viewers
-    with _cameras_lock:
-        if source not in _camera_viewers:
-            return
-
-        remaining = _camera_viewers[source] - 1
-        if remaining > 0:
-            _camera_viewers[source] = remaining
-            return
-
-        _camera_viewers.pop(source, None)
-        cam = _cameras.pop(source, None)
-        if cam is not None:
-            cam.stop()
+    _camera_manager.release_stream(source)
 
 
 def get_all_cameras() -> dict[int, Camera]:
     """Return the dict of all active camera instances."""
-    with _cameras_lock:
-        return dict(_cameras)
+    return _camera_manager.get_all()
 
 
 def release_camera(source: int | None = None):
     """Release one camera (by index) or all cameras (if source is None)."""
-    global _cameras
-    with _cameras_lock:
-        if source is not None:
-            _camera_viewers.pop(source, None)
-            cam = _cameras.pop(source, None)
-            if cam is not None:
-                cam.stop()
-        else:
-            _camera_viewers.clear()
-            for cam in _cameras.values():
-                cam.stop()
-            _cameras.clear()
+    _camera_manager.release(source)
 
 
 def get_camera_diagnostics() -> dict:
     """Return diagnostics for all managed cameras and stream viewers."""
-    with _cameras_lock:
-        cameras_snapshot = dict(_cameras)
-        viewers_snapshot = dict(_camera_viewers)
-
-    return {
-        "active_cameras": len(cameras_snapshot),
-        "viewers": viewers_snapshot,
-        "cameras": {
-            source: cam.diagnostics()
-            for source, cam in cameras_snapshot.items()
-        },
-    }
+    return _camera_manager.diagnostics()

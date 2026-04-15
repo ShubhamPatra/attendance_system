@@ -1,3 +1,3 @@
-"""Backward-compatible shim for app_core.database."""
+"""Backward-compatible shim for core.database."""
 
-from app_core.database import *  # noqa: F401,F403
+from core.database import *  # noqa: F401,F403

@@ -10,6 +10,7 @@ import base64
 import json
 import tempfile
 import types
+from datetime import datetime, timezone
 from unittest.mock import patch, MagicMock
 
 import numpy as np
@@ -24,6 +25,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 def _mock_config(monkeypatch):
     monkeypatch.setenv("MONGO_URI", "mongodb+srv://test:test@cluster.mongodb.net/test")
     monkeypatch.setenv("SECRET_KEY", "test-secret")
+    monkeypatch.setenv("ENABLE_RBAC", "0")
+    monkeypatch.setenv("ENABLE_RESTX_API", "0")
     fake_torch = types.SimpleNamespace(
         cuda=types.SimpleNamespace(is_available=lambda: False)
     )
@@ -55,6 +58,23 @@ def client():
         mock_cache.get_all.return_value = ([], [], [])
 
         from app import create_app
+        app = create_app()
+        app.config["TESTING"] = True
+        with app.test_client() as c:
+            yield c
+
+
+@pytest.fixture
+def student_client():
+    """Create a student portal test client with mocked startup hooks."""
+    with patch("app_core.database.get_client") as mock_client, \
+         patch("app_core.database.ensure_indexes"), \
+         patch("app_vision.anti_spoofing.init_models"), \
+         patch("app_vision.pipeline.init_yunet"):
+
+        mock_client.return_value = MagicMock()
+
+        from student_app.app import create_app
         app = create_app()
         app.config["TESTING"] = True
         with app.test_client() as c:
@@ -326,6 +346,18 @@ def test_api_attendance_activity(client):
     assert len(data["hours"]) == 1
 
 
+def test_api_attendance_activity_rejects_invalid_date(client):
+    resp = client.get("/api/attendance_activity?date=not-a-date")
+    assert resp.status_code == 400
+    assert "YYYY-MM-DD" in resp.get_json()["error"]
+
+
+def test_api_attendance_activity_rejects_future_date(client):
+    resp = client.get("/api/attendance_activity?date=2999-01-01")
+    assert resp.status_code == 400
+    assert "future date" in resp.get_json()["error"]
+
+
 def test_api_registration_numbers(client):
     with patch("app_web.routes.database") as mock_db:
         mock_db.get_all_registration_numbers.return_value = [
@@ -507,25 +539,42 @@ def test_api_at_risk(client):
     assert resp.status_code == 200
     data = resp.get_json()
     assert len(data) == 1
+    assert data[0]["attendance_pct"] == 40.0
 
 
-def test_student_portal_login(client):
+def test_api_analytics_trends(client):
     with patch("app_web.routes.database") as mock_db:
-        mock_db.get_student_by_reg_no.return_value = {
-            "_id": "test", "name": "Alice", "registration_number": "FA21-BCS-001"
-        }
-        mock_db.get_student_attendance_summary.return_value = {
-            "name": "Alice", "registration_number": "FA21-BCS-001",
-            "semester": 3, "section": "A",
-            "percentage": 80.0, "days_present": 24, "days_total": 30,
-            "records": []
-        }
-        resp = client.post(
-            "/student",
-            data={"registration_number": "FA21-BCS-001"},
-            follow_redirects=True,
-        )
+        mock_db.get_attendance_trends.return_value = [
+            {"date": "2026-04-01", "present": 18, "total_students": 20, "attendance_pct": 90.0}
+        ]
+        resp = client.get("/api/analytics/trends?days=7")
     assert resp.status_code == 200
+    data = resp.get_json()
+    assert data[0]["attendance_pct"] == 90.0
+
+
+def test_api_analytics_at_risk(client):
+    with patch("app_web.routes.database") as mock_db:
+        mock_db.get_at_risk_students.return_value = [
+            {"name": "Bob", "reg_no": "FA21-BCS-002", "percentage": 55.0, "days_present": 11, "days_total": 20}
+        ]
+        resp = client.get("/api/analytics/at_risk?days=30")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data[0]["attendance_pct"] == 55.0
+
+
+def test_student_portal_route_removed_from_admin_app(client):
+    resp = client.get("/student")
+    assert resp.status_code == 302
+
+
+def test_student_app_login_and_register_pages(student_client):
+    resp_login = student_client.get("/student/login")
+    assert resp_login.status_code == 200
+
+    resp_register = student_client.get("/student/register")
+    assert resp_register.status_code == 200
 
 
 def test_api_students_list(client):
@@ -561,6 +610,107 @@ def test_api_students_delete(client):
     assert resp.status_code == 200
 
 
+def test_batch_register_route(client):
+    csv_content = "registration_number,name,semester,section,email\nFA21-BCS-100,Batch User,3,A,batch@example.com\n"
+    img = io.BytesIO()
+    Image.new("RGB", (32, 32), "white").save(img, "JPEG")
+    img.seek(0)
+    zip_buf = io.BytesIO()
+    import zipfile
+    with zipfile.ZipFile(zip_buf, "w") as zf:
+        zf.writestr("FA21-BCS-100_1.jpg", img.getvalue())
+    zip_buf.seek(0)
+
+    with patch("app_web.routes.generate_encoding", return_value=np.random.rand(128).astype(np.float64)), \
+         patch("app_web.registration_routes.cv2.imread", return_value=np.zeros((32, 32, 3), dtype=np.uint8)), \
+         patch("app_web.routes.check_image_quality", return_value=(True, "")), \
+         patch("app_web.routes.database") as mock_db, \
+         patch("app_web.routes.encoding_cache") as mock_cache:
+        mock_db.insert_student.return_value = "new-id"
+        mock_cache.refresh = MagicMock()
+        resp = client.post(
+            "/register/batch",
+            data={
+                "csv_file": (io.BytesIO(csv_content.encode("utf-8")), "students.csv"),
+                "images_zip": (zip_buf, "images.zip"),
+            },
+            content_type="multipart/form-data",
+        )
+    assert resp.status_code in (200, 201)
+
+
+def test_admin_students_page_and_update(client):
+    with patch("app_web.routes.database") as mock_db:
+        mock_db.get_all_students.return_value = [{
+            "_id": "id1", "name": "Alice", "registration_number": "FA21-BCS-001",
+            "semester": 3, "section": "A", "email": "a@example.com"
+        }]
+        resp = client.get("/admin/students")
+    assert resp.status_code == 200
+    assert b"Student Administration" in resp.data
+
+    with patch("app_web.routes.database") as mock_db:
+        mock_db.update_student.return_value = True
+        resp = client.patch("/api/admin/students/FA21-BCS-001", json={"name": "Alicia", "semester": 4})
+    assert resp.status_code == 200
+
+
+def test_admin_students_recompute(client):
+    img = io.BytesIO()
+    Image.new("RGB", (32, 32), "white").save(img, "JPEG")
+    img.seek(0)
+    with patch("app_web.routes.generate_encoding", return_value=np.random.rand(128).astype(np.float64)), \
+         patch("app_web.student_routes.cv2.imread", return_value=np.zeros((32, 32, 3), dtype=np.uint8)), \
+         patch("app_web.routes.check_image_quality", return_value=(True, "")), \
+         patch("app_web.routes.database") as mock_db, \
+         patch("app_web.routes.encoding_cache") as mock_cache:
+        mock_db.replace_student_encodings.return_value = True
+        mock_cache.refresh = MagicMock()
+        resp = client.post(
+            "/api/admin/students/FA21-BCS-001/recompute",
+            data={"images": (img, "face.jpg")},
+            content_type="multipart/form-data",
+        )
+    assert resp.status_code == 200
+
+
+def test_api_notifications_dry_run(client):
+    with patch("app_web.routes.database") as mock_db:
+        mock_db.get_at_risk_students.return_value = [
+            {"name": "Bob", "reg_no": "FA21-BCS-002", "percentage": 55.0, "days_present": 11, "days_total": 20}
+        ]
+        mock_db.get_attendance.return_value = []
+        mock_db.get_all_students.return_value = [
+            {"name": "Bob", "registration_number": "FA21-BCS-002", "email": "bob@example.com"}
+        ]
+        mock_db.insert_notification_event.return_value = "id"
+        resp = client.get("/api/notifications/dry-run")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["mode"] == "dry_run"
+
+
+def test_api_cameras(client):
+    with patch("app_camera.camera.get_camera_diagnostics", return_value={"active_cameras": 2, "viewers": {0: 1, 1: 1}, "cameras": {0: {}, 1: {}}}):
+        resp = client.get("/api/cameras")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["active_cameras"] == 2
+
+
+def test_api_metrics_reports_embedding_backend(client):
+    with patch("app_web.routes.tracker") as mock_tracker, \
+         patch("app_vision.face_engine.get_embedding_backend_name", return_value="dlib"), \
+         patch("app_camera.camera.get_camera_diagnostics", return_value={"active_cameras": 1, "viewers": {0: 1}, "cameras": {0: {"fps": 15.0}}}):
+        mock_tracker.metrics.return_value = {"fps": 24.0, "stage_latency_ms": {"recognition": 12.5}}
+        resp = client.get("/api/metrics")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["embedding_backend"] == "dlib"
+    assert data["camera_diagnostics"]["active_cameras"] == 1
+    assert data["stage_latency_ms"]["recognition"] == 12.5
+
+
 def test_api_attendance_bulk(client):
     with patch("app_web.routes.database") as mock_db:
         import bson
@@ -575,6 +725,85 @@ def test_api_attendance_bulk(client):
     assert resp.status_code == 200
     data = resp.get_json()
     assert "updated" in data
+
+
+def test_api_attendance_session_start(client):
+    import bson
+
+    session_id = bson.ObjectId()
+    now = datetime.now(timezone.utc)
+    with patch("app_web.routes._check_rate_limit", return_value=True), \
+         patch("app_web.routes.database") as mock_db:
+        mock_db.create_attendance_session.return_value = session_id
+        mock_db.get_attendance_session_by_id.return_value = {
+            "_id": session_id,
+            "course_id": "CS101",
+            "camera_id": "0",
+            "start_time": now,
+            "end_time": None,
+            "status": "active",
+            "last_activity_at": now,
+        }
+        resp = client.post(
+            "/api/attendance/sessions",
+            data=json.dumps({"course_id": "CS101", "camera_id": "0"}),
+            content_type="application/json",
+        )
+
+    assert resp.status_code == 201
+    payload = resp.get_json()
+    assert payload["created"] is True
+    assert payload["session"]["course_id"] == "CS101"
+    assert payload["session"]["camera_id"] == "0"
+
+
+def test_api_attendance_session_end(client):
+    import bson
+
+    session_id = bson.ObjectId()
+    now = datetime.now(timezone.utc)
+    with patch("app_web.routes._check_rate_limit", return_value=True), \
+         patch("app_web.routes.database") as mock_db:
+        mock_db.end_attendance_session.return_value = True
+        mock_db.get_attendance_session_by_id.return_value = {
+            "_id": session_id,
+            "course_id": "CS101",
+            "camera_id": "0",
+            "start_time": now,
+            "end_time": now,
+            "status": "ended",
+            "last_activity_at": now,
+        }
+        resp = client.post(f"/api/attendance/sessions/{session_id}/end")
+
+    assert resp.status_code == 200
+    payload = resp.get_json()
+    assert payload["ended"] is True
+    assert payload["session"]["status"] == "ended"
+
+
+def test_api_attendance_session_active(client):
+    import bson
+
+    session_id = bson.ObjectId()
+    now = datetime.now(timezone.utc)
+    with patch("app_web.routes._check_rate_limit", return_value=True), \
+         patch("app_web.routes.database") as mock_db:
+        mock_db.get_active_attendance_session.return_value = {
+            "_id": session_id,
+            "course_id": "CS101",
+            "camera_id": "0",
+            "start_time": now,
+            "end_time": None,
+            "status": "active",
+            "last_activity_at": now,
+        }
+        resp = client.get("/api/attendance/sessions/active?camera_id=0")
+
+    assert resp.status_code == 200
+    payload = resp.get_json()
+    assert payload["active"] is True
+    assert payload["session"]["camera_id"] == "0"
 
 
 def test_report_xlsx(client):
@@ -613,3 +842,9 @@ def test_api_report_csv_async_student_mode(client):
         )
     assert resp.status_code == 202
     mock_task.delay.assert_called_once_with("student", reg_no="FA21-BCS-001")
+
+
+def test_api_task_status_rejects_invalid_id_format(client):
+    resp = client.get("/api/task/not-valid")
+    assert resp.status_code == 400
+    assert "Invalid task id format" in resp.get_json()["error"]

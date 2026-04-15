@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Student Detail{% endblock %}
+{% block page_title %}Student Profile{% endblock %}
+
+{% block content %}
+  <section class="dashboard-grid dashboard-grid--split">
+    <article class="card stack">
+      <h2 class="card-title">{{ student.name }}</h2>
+      <p class="muted">{{ student.student_id }} | {{ student.email }}</p>
+      <p>{{ student.department }} | Year {{ student.year }}</p>
+      <p><strong>Embeddings:</strong> {{ embedding_count }}</p>
+
+      <form method="post" action="{{ url_for('admin_students.delete_student', student_id=student.student_id) }}" data-confirm-form>
+        <button class="btn btn-danger" type="submit" data-confirm-message="Delete this student?">Delete Student</button>
+      </form>
+    </article>
+
+    <article class="card stack">
+      <h3 class="card-title">Attendance Summary</h3>
+      <div class="course-row"><span>Present</span><strong>{{ attendance_summary.present }}</strong></div>
+      <div class="course-row"><span>Late</span><strong>{{ attendance_summary.late }}</strong></div>
+      <div class="course-row"><span>Absent</span><strong>{{ attendance_summary.absent }}</strong></div>
+    </article>
+  </section>
+
+  <section class="card stack">
+    <h3 class="card-title">Recent Records</h3>
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr><th scope="col">Date</th><th scope="col">Status</th><th scope="col">Confidence</th></tr>
+        </thead>
+        <tbody>
+          {% for record in attendance_records %}
+          <tr>
+            <td data-label="Date">{{ record.date }}</td>
+            <td data-label="Status">{{ record.status }}</td>
+            <td data-label="Confidence">{{ record.confidence_score or '-' }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="3">No records yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

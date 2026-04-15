@@ -12,31 +12,36 @@ from flask import (
     url_for,
 )
 
-import app_core.config as config
-import app_core.database as database
+import core.config as config
+import core.database as database
+from core.auth import authenticate_user
 from app_web.health_routes import (
   _check_celery_ready,
   _check_model_artifacts,
   _check_mongo_ready,
   register_health_routes,
 )
+from app_web.auth_routes import register_auth_routes
 from app_web.attendance_routes import register_attendance_routes
 from app_web.camera_routes import register_camera_routes
 from app_web.overview_routes import register_overview_routes
 from app_web.public_routes import register_public_routes
 from app_web.ops_routes import register_ops_routes
+from app_web.notification_routes import register_notification_routes
 from app_web.registration_routes import register_registration_routes
 from app_web.report_routes import register_report_routes
 from app_web.student_routes import register_student_routes
-from app_vision.face_engine import encoding_cache, generate_encoding
-from app_core.performance import tracker
-from app_core.utils import (
+from recognition.embedder import encoding_cache, generate_encoding
+from core.profiling import tracker
+from core.utils import (
     allowed_file,
     check_image_quality,
     sanitize_string,
     setup_logging,
     today_str,
     validate_required_fields,
+    validate_semester,
+    validate_section,
 )
 from app_web.routes_helpers import (
     _api_error,
@@ -55,6 +60,7 @@ from app_web.routes_helpers import (
 logger = setup_logging()
 
 bp = Blueprint("main", __name__)
+register_auth_routes(bp)
 register_health_routes(bp)
 register_public_routes(bp)
 register_student_routes(bp)
@@ -62,6 +68,7 @@ register_report_routes(bp)
 register_attendance_routes(bp)
 register_camera_routes(bp)
 register_ops_routes(bp)
+register_notification_routes(bp)
 register_registration_routes(bp)
 register_overview_routes(bp)
 

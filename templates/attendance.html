@@ -3,159 +3,117 @@
 {% from "partials/ui.html" import stat_card, panel_section %}
 
 {% block content %}
-<div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+<div class="main-grid-12">
     <!-- Left Column: Video Feed & Logs -->
-    <section class="lg:col-span-8 flex flex-col gap-6">
+    <section class="flex flex-col gap-6">
         <!-- Header -->
-        <div class="rounded-xl border border-border-light bg-white/90 p-5 shadow-panel sm:p-6">
-            <div>
-                <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-text-muted">Realtime Monitoring</p>
-                <h1 class="font-serif text-3xl font-semibold text-text-primary">Live Attendance</h1>
-                <p class="text-text-muted text-sm mt-1">Look at the camera to verify identity and mark attendance automatically.</p>
+        <div class="flex items-start justify-between" style="flex-wrap:wrap;gap:var(--space-3)">
+            <div class="page-header" style="margin-bottom:0">
+                <p class="page-header-eyebrow">Realtime Monitoring</p>
+                <h1>Live Attendance</h1>
+                <p class="page-header-desc">Look at the camera to verify identity and mark attendance automatically.</p>
             </div>
-            <div class="mt-3 flex gap-3 sm:mt-0">
-                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-50 text-red-600 text-xs font-semibold border border-red-100">
-                    <span class="relative flex h-2 w-2">
-                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                        <span class="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
-                    </span>
-                    LIVE
-                </span>
-            </div>
+            <span class="badge-live">
+                <span class="badge-live-dot"></span>
+                LIVE
+            </span>
         </div>
 
         <!-- Video Feed Container -->
-        <div class="relative w-full aspect-video bg-slate-900 rounded-xl overflow-hidden shadow-panel ring-1 ring-border-light">
+        <div class="video-container">
             <img src="{{ url_for('main.video_feed') }}" alt="Live Video Feed" class="video-feed-img">
-            <!-- Overlay gradient -->
-            <div class="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-black/10 pointer-events-none"></div>
-            <!-- Scanning overlay -->
-            <div class="absolute inset-0 pointer-events-none flex items-center justify-center">
-                <div class="relative w-48 h-48 md:w-64 md:h-64 border-2 border-secondary/50 rounded-lg">
-                    <div class="absolute top-0 left-0 w-4 h-4 border-t-4 border-l-4 border-secondary -mt-1 -ml-1"></div>
-                    <div class="absolute top-0 right-0 w-4 h-4 border-t-4 border-r-4 border-secondary -mt-1 -mr-1"></div>
-                    <div class="absolute bottom-0 left-0 w-4 h-4 border-b-4 border-l-4 border-secondary -mb-1 -ml-1"></div>
-                    <div class="absolute bottom-0 right-0 w-4 h-4 border-b-4 border-r-4 border-secondary -mb-1 -mr-1"></div>
-                    <div class="absolute top-0 left-0 w-full h-1 bg-secondary/80 shadow-[0_0_12px_rgba(74,111,165,0.6)]" style="animation: scan 2s ease-in-out infinite;"></div>
-                    <div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-primary/90 text-white text-xs font-medium px-2 py-1 rounded backdrop-blur-md">
-                        Scanning Faces...
-                    </div>
+            <div class="video-overlay"></div>
+            <div class="scan-frame">
+                <div class="scan-box">
+                    <div class="scan-corner scan-corner--tl"></div>
+                    <div class="scan-corner scan-corner--tr"></div>
+                    <div class="scan-corner scan-corner--bl"></div>
+                    <div class="scan-corner scan-corner--br"></div>
+                    <div class="scan-line"></div>
+                    <div class="scan-label">Scanning Faces...</div>
                 </div>
             </div>
         </div>
 
         <!-- Recent Event Logs -->
-        {% call panel_section('Recent Logs', 'history', body_class='p-0', panel_class='flex h-[320px]') %}
-            <div class="overflow-y-auto flex-1 custom-scrollbar" id="eventLog">
-                <table class="w-full min-w-[520px] md:min-w-0 text-sm text-left">
-                    <thead class="text-xs text-text-muted uppercase tracking-wider bg-background-light sticky top-0">
+        {% call panel_section('Recent Logs', 'history', body_class='panel-body--flush') %}
+            <div class="event-log-container custom-scrollbar" id="eventLog">
+                <table class="data-table">
+                    <thead>
                         <tr>
-                            <th class="px-6 py-3 font-medium">Student Name</th>
-                            <th class="px-6 py-3 font-medium">Status</th>
-                            <th class="px-6 py-3 font-medium text-right">Confidence</th>
+                            <th>Student Name</th>
+                            <th>Status</th>
+                            <th class="col-right">Confidence</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-border-light" id="eventBody" aria-live="polite"></tbody>
+                    <tbody id="eventBody" aria-live="polite"></tbody>
                 </table>
             </div>
         {% endcall %}
     </section>
 
     <!-- Right Column: Info & Stats -->
-    <aside class="lg:col-span-4 flex flex-col gap-6">
-        <!-- Student Details Card (hidden by default, shown on recognition) -->
-        {% call panel_section('Student Verified', 'verified', body_class='p-6', outer_id='studentDetailsPanel', outer_style='display:none') %}
-            <div class="flex flex-col items-center text-center">
-                <div class="mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-                    <span class="material-symbols-outlined text-2xl">verified</span>
+    <aside class="flex flex-col gap-6">
+        <!-- Student Details Card (hidden by default) -->
+        {% call panel_section('Student Verified', 'verified', body_class='panel-body', outer_id='studentDetailsPanel', outer_style='display:none') %}
+            <div class="info-card-center">
+                <div class="info-icon-circle info-icon-circle--success">
+                    <span class="material-symbols-outlined" style="font-size:24px">verified</span>
                 </div>
-                <p id="sdAttendanceBadge" class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 mb-4">
-                    Marked Present
-                </p>
+                <span id="sdAttendanceBadge" class="badge badge-success mb-4">Marked Present</span>
             </div>
-            <div class="w-full h-px bg-border-light my-2"></div>
-            <div class="grid grid-cols-1 gap-3 w-full mt-4">
-                <div class="bg-background-light p-3 rounded-md border border-border-light flex items-center gap-3">
-                    <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                        <span class="material-symbols-outlined text-sm">person</span>
-                    </div>
-                    <div class="text-left">
-                        <p class="text-[10px] text-text-muted uppercase tracking-wider font-medium">Name</p>
-                        <p class="text-sm text-text-primary font-semibold" id="sdName">—</p>
-                    </div>
+            <hr class="hr">
+            <div class="flex flex-col gap-3 mt-4">
+                <div class="info-detail-row">
+                    <div class="info-detail-icon info-detail-icon--primary"><span class="material-symbols-outlined" style="font-size:16px">person</span></div>
+                    <div><p class="info-detail-label">Name</p><p class="info-detail-value" id="sdName">—</p></div>
                 </div>
-                <div class="bg-background-light p-3 rounded-md border border-border-light flex items-center gap-3">
-                    <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary/10 text-secondary">
-                        <span class="material-symbols-outlined text-sm">badge</span>
-                    </div>
-                    <div class="text-left">
-                        <p class="text-[10px] text-text-muted uppercase tracking-wider font-medium">Registration Number</p>
-                        <p class="text-sm text-text-primary font-semibold" id="sdRegNo">—</p>
-                    </div>
+                <div class="info-detail-row">
+                    <div class="info-detail-icon info-detail-icon--blue"><span class="material-symbols-outlined" style="font-size:16px">badge</span></div>
+                    <div><p class="info-detail-label">Registration Number</p><p class="info-detail-value" id="sdRegNo">—</p></div>
                 </div>
-                <div class="bg-background-light p-3 rounded-md border border-border-light flex items-center gap-3">
-                    <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                        <span class="material-symbols-outlined text-sm">school</span>
-                    </div>
-                    <div class="text-left">
-                        <p class="text-[10px] text-text-muted uppercase tracking-wider font-medium">Semester</p>
-                        <p class="text-sm text-text-primary font-semibold" id="sdSemester">—</p>
-                    </div>
+                <div class="info-detail-row">
+                    <div class="info-detail-icon info-detail-icon--primary"><span class="material-symbols-outlined" style="font-size:16px">school</span></div>
+                    <div><p class="info-detail-label">Semester</p><p class="info-detail-value" id="sdSemester">—</p></div>
                 </div>
-                <div class="bg-background-light p-3 rounded-md border border-border-light flex items-center gap-3">
-                    <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary/10 text-secondary">
-                        <span class="material-symbols-outlined text-sm">groups</span>
-                    </div>
-                    <div class="text-left">
-                        <p class="text-[10px] text-text-muted uppercase tracking-wider font-medium">Section</p>
-                        <p class="text-sm text-text-primary font-semibold" id="sdSection">—</p>
-                    </div>
+                <div class="info-detail-row">
+                    <div class="info-detail-icon info-detail-icon--blue"><span class="material-symbols-outlined" style="font-size:16px">groups</span></div>
+                    <div><p class="info-detail-label">Section</p><p class="info-detail-value" id="sdSection">—</p></div>
                 </div>
-                <div class="bg-background-light p-3 rounded-md border border-border-light flex items-center gap-3">
-                    <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
-                        <span class="material-symbols-outlined text-sm">percent</span>
-                    </div>
-                    <div class="text-left">
-                        <p class="text-[10px] text-text-muted uppercase tracking-wider font-medium">Confidence</p>
-                        <p class="text-sm text-text-primary font-semibold" id="sdConfidence">—</p>
-                    </div>
+                <div class="info-detail-row">
+                    <div class="info-detail-icon info-detail-icon--success"><span class="material-symbols-outlined" style="font-size:16px">percent</span></div>
+                    <div><p class="info-detail-label">Confidence</p><p class="info-detail-value" id="sdConfidence">—</p></div>
                 </div>
             </div>
         {% endcall %}
 
         <!-- Stats Cards -->
-        <div class="grid grid-cols-2 gap-4">
+        <div class="grid grid-2 gap-4">
             {{ stat_card('Detected', '--', 'groups', value_id='presentCount') }}
-            {{ stat_card('Marked Present', '--', 'check_circle', 'text-emerald-600', value_id='markedCount') }}
+            {{ stat_card('Marked Present', '--', 'check_circle', 'stat-card-icon--success', value_id='markedCount') }}
         </div>
 
-        <!-- How It Works Card (below stats) -->
-        {% call panel_section('How It Works', 'visibility', body_class='p-6', outer_id='howItWorksPanel') %}
-            <div class="flex flex-col items-center text-center">
-                <div class="mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                    <span class="material-symbols-outlined text-2xl">visibility</span>
+        <!-- How It Works Card -->
+        {% call panel_section('How It Works', 'visibility', body_class='panel-body', outer_id='howItWorksPanel') %}
+            <div class="info-card-center">
+                <div class="info-icon-circle info-icon-circle--primary">
+                    <span class="material-symbols-outlined" style="font-size:24px">visibility</span>
                 </div>
-                <p class="text-sm text-text-muted mb-4">Stand in front of the camera. The system will automatically verify that you are a real person and identify you.</p>
-                <div class="w-full h-px bg-border-light my-2"></div>
-                <div class="grid grid-cols-1 gap-3 w-full mt-4">
-                    <div class="bg-background-light p-3 rounded-md border border-border-light flex items-center gap-3">
-                        <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                            <span class="material-symbols-outlined text-sm">face</span>
-                        </div>
-                        <p class="text-xs text-text-primary font-medium">Look directly at the camera</p>
-                    </div>
-                    <div class="bg-background-light p-3 rounded-md border border-border-light flex items-center gap-3">
-                        <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary/10 text-secondary">
-                            <span class="material-symbols-outlined text-sm">shield</span>
-                        </div>
-                        <p class="text-xs text-text-primary font-medium">Liveness verified automatically</p>
-                    </div>
-                    <div class="bg-background-light p-3 rounded-md border border-border-light flex items-center gap-3">
-                        <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
-                            <span class="material-symbols-outlined text-sm">check_circle</span>
-                        </div>
-                        <p class="text-xs text-text-primary font-medium">Attendance recorded automatically</p>
-                    </div>
+                <p class="text-sm text-muted mb-4">Stand in front of the camera. The system will automatically verify that you are a real person and identify you.</p>
+            </div>
+            <hr class="hr">
+            <div class="flex flex-col gap-3 mt-4">
+                <div class="info-detail-row">
+                    <div class="info-detail-icon info-detail-icon--primary"><span class="material-symbols-outlined" style="font-size:16px">face</span></div>
+                    <p class="info-step-label">Look directly at the camera</p>
+                </div>
+                <div class="info-detail-row">
+                    <div class="info-detail-icon info-detail-icon--blue"><span class="material-symbols-outlined" style="font-size:16px">shield</span></div>
+                    <p class="info-step-label">Liveness verified automatically</p>
+                </div>
+                <div class="info-detail-row">
+                    <div class="info-detail-icon info-detail-icon--success"><span class="material-symbols-outlined" style="font-size:16px">check_circle</span></div>
+                    <p class="info-step-label">Attendance recorded automatically</p>
                 </div>
             </div>
         {% endcall %}
@@ -181,10 +139,10 @@ function showStudentDetails(ev) {
     var badge = document.getElementById('sdAttendanceBadge');
     if (ev.attendance_marked) {
         badge.textContent = 'Marked Present';
-        badge.className = 'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 mb-4';
+        badge.className = 'badge badge-success mb-4';
     } else {
         badge.textContent = 'Already Marked';
-        badge.className = 'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 mb-4';
+        badge.className = 'badge badge-warning mb-4';
     }
 
     howItWorksPanel.style.display = 'none';
@@ -202,7 +160,6 @@ function showHowItWorks() {
     howItWorksPanel.classList.add('panel-fade-in');
 }
 
-// WebSocket for live attendance events
 var socket = io();
 socket.on('attendance_event', function(ev) {
     var tbody = document.getElementById('eventBody');
@@ -210,24 +167,23 @@ socket.on('attendance_event', function(ev) {
     if (ev.status === 'marked' && ev.attendance_marked) markedCount++;
 
     var tr = document.createElement('tr');
-    tr.className = 'bg-white hover:bg-background-light transition-colors';
-    var statusClass, statusText, confValue;
+    var badgeClass, statusText, confValue;
     if (ev.status === 'marked') {
-        statusClass = 'bg-green-100 text-green-800';
+        badgeClass = 'badge-success';
         statusText = ev.attendance_marked ? 'Real Face Verified' : 'Already Marked';
         confValue = (ev.confidence * 100).toFixed(1) + '%';
     } else if (ev.status === 'spoof_detected') {
-        statusClass = 'bg-red-100 text-red-800';
+        badgeClass = 'badge-error';
         statusText = 'Spoof Detected';
         confValue = ((ev.liveness_confidence || 0) * 100).toFixed(1) + '%';
     } else {
-        statusClass = 'bg-amber-100 text-amber-800';
+        badgeClass = 'badge-warning';
         statusText = ev.status;
         confValue = (ev.confidence * 100).toFixed(1) + '%';
     }
-    tr.innerHTML = '<td class="px-6 py-3.5 font-medium text-text-primary">' + ev.name + '</td>'
-        + '<td class="px-6 py-3.5"><span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ' + statusClass + '">' + statusText + '</span></td>'
-        + '<td class="px-6 py-3.5 text-right text-text-muted font-mono text-xs">' + confValue + '</td>';
+    tr.innerHTML = '<td class="font-medium">' + ev.name + '</td>'
+        + '<td><span class="badge ' + badgeClass + '">' + statusText + '</span></td>'
+        + '<td class="col-right text-muted text-mono text-xs">' + confValue + '</td>';
     tbody.prepend(tr);
 
     if (ev.status === 'marked') {

@@ -1,0 +1,26 @@
+FROM python:3.11.9-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+	PYTHONUNBUFFERED=1 \
+	PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends \
+		libgl1-mesa-glx \
+		libglib2.0-0 \
+		libsm6 \
+		libxrender1 \
+		libxext6 \
+	&& rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt ./requirements.txt
+
+RUN grep -vE "^(torch|torchvision)==" requirements.txt > requirements.docker.txt \
+	&& pip install -r requirements.docker.txt \
+	&& pip install --index-url https://download.pytorch.org/whl/cpu torch==2.11.0 torchvision==0.26.0
+
+COPY . .
+
+CMD ["celery", "-A", "tasks.celery_app.celery_app", "worker", "--loglevel=info", "--concurrency=2"]

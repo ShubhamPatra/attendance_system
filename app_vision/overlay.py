@@ -120,8 +120,10 @@ def draw_track_overlay(
             (status, (0, 255, 0) if not in_cooldown else (0, 200, 255)),
         ]
         if config.DEBUG_MODE:
-            dist = 1.0 - confidence
-            lines.append((f"Dist: {dist:.4f} | Thr: {config.RECOGNITION_THRESHOLD:.2f}", (0, 200, 200)))
+            backend = config.EMBEDDING_BACKEND
+            blinks = getattr(trk, "blink_count", 0)
+            lines.append((f"Sim: {confidence:.4f} | Thr: {config.RECOGNITION_THRESHOLD:.2f} | {backend}", (0, 200, 200)))
+            lines.append((f"Blinks: {blinks} | Frames: {len(getattr(trk, 'embedding_history', []))}", (0, 200, 200)))
         draw_label_bg(frame, lines, left, bottom + 6)
         return
 
@@ -138,8 +140,11 @@ def draw_track_overlay(
             lines.append((trimmed, (0, 180, 255)))
         if config.DEBUG_MODE:
             state = getattr(trk, "state", "unknown")
+            blinks = getattr(trk, "blink_count", 0)
+            frames = len(getattr(trk, "embedding_history", []))
             lines.append((f"State: {state}", (0, 200, 200)))
-            lines.append((f"L: {liveness_label}/{liveness_conf:.2f}", (0, 200, 200)))
+            lines.append((f"L: {liveness_label}/{liveness_conf:.2f} | Blinks: {blinks}", (0, 200, 200)))
+            lines.append((f"Frames: {frames}/{config.SMOOTHING_MIN_FRAMES}", (0, 200, 200)))
         draw_label_bg(frame, lines, left, bottom + 6)
         return
 

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="AutoAttendance Student Portal — View attendance, manage face verification, and track academic records.">
+    <title>{% block title %}Student Portal{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
+</head>
+<body>
+    <div class="app-layout app-layout--student">
+        <!-- Navbar -->
+        <header class="navbar">
+            <a href="{{ url_for('student.status') }}" class="navbar-brand">
+                <span class="navbar-brand-icon">
+                    <span class="material-symbols-outlined" aria-hidden="true">school</span>
+                </span>
+                <span class="navbar-brand-text">
+                    <span class="navbar-brand-title">AutoAttendance</span>
+                    <span class="navbar-brand-sub">Student Portal</span>
+                </span>
+            </a>
+            {% if current_user.is_authenticated %}
+            <nav class="navbar-nav" aria-label="Student navigation">
+                <a class="navbar-link" href="{{ url_for('student.status') }}">
+                    <span class="material-symbols-outlined" style="font-size:18px;margin-right:4px">verified</span> Status
+                </a>
+                <a class="navbar-link" href="{{ url_for('student.capture') }}">
+                    <span class="material-symbols-outlined" style="font-size:18px;margin-right:4px">camera</span> Capture
+                </a>
+                <a class="navbar-link" href="{{ url_for('student.attendance') }}">
+                    <span class="material-symbols-outlined" style="font-size:18px;margin-right:4px">calendar_today</span> Attendance
+                </a>
+                <a class="navbar-link navbar-link--logout" href="{{ url_for('student.logout') }}">Logout</a>
+            </nav>
+            {% endif %}
+        </header>
+
+        <!-- Main Content -->
+        <main class="content-area">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="mb-6 space-y-4">
+                    {% for category, message in messages %}
+                    <div class="alert {% if category == 'success' %}alert-success{% elif category == 'danger' %}alert-error{% else %}alert-warning{% endif %}" role="alert">
+                        <span class="alert-icon">
+                            <span class="material-symbols-outlined" style="font-size:16px" aria-hidden="true">{% if category == 'success' %}check_circle{% elif category == 'danger' %}error{% else %}warning{% endif %}</span>
+                        </span>
+                        <span class="alert-content">{{ message }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+            {% endwith %}
+
+            {% block content %}{% endblock %}
+        </main>
+
+        <!-- Footer -->
+        <footer class="site-footer">
+            <a href="#">Contact</a>
+            <span class="sep">&middot;</span>
+            <a href="#">Terms</a>
+            <span class="sep">&middot;</span>
+            <a href="#">Privacy</a>
+        </footer>
+    </div>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

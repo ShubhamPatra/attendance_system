@@ -1,17 +1,85 @@
 """Student registration and webcam capture route registrations."""
 
+import csv
 import base64
 import os
 import tempfile
+import zipfile
 import uuid
+from io import StringIO
 
 import cv2
 import numpy as np
 from flask import flash, jsonify, redirect, render_template, request, url_for
 
+from app_web.decorators import require_roles
+
+
+BATCH_COLUMNS = ["registration_number", "name", "semester", "section", "email"]
+
+
+def _parse_batch_rows(csv_storage):
+    raw = csv_storage.read().decode("utf-8-sig")
+    reader = csv.DictReader(StringIO(raw))
+    if not reader.fieldnames:
+        return None, ["CSV file is empty."]
+    headers = [header.strip() for header in reader.fieldnames]
+    missing = [column for column in BATCH_COLUMNS if column not in headers]
+    if missing:
+        return None, [f"CSV missing required column(s): {', '.join(missing)}."]
+
+    rows = []
+    errors = []
+    for index, row in enumerate(reader, 2):
+        reg_no = row.get("registration_number", "").strip()
+        name = row.get("name", "").strip()
+        section = row.get("section", "").strip()
+        email = row.get("email", "").strip() or None
+        try:
+            semester = int(row.get("semester", ""))
+        except (TypeError, ValueError):
+            errors.append(f"Row {index}: semester must be an integer.")
+            continue
+        if semester < 1 or semester > 12:
+            errors.append(f"Row {index}: semester must be between 1 and 12.")
+            continue
+        if not reg_no or not name or not section:
+            errors.append(f"Row {index}: registration_number, name, and section are required.")
+            continue
+        rows.append({
+            "registration_number": reg_no,
+            "name": name,
+            "semester": semester,
+            "section": section,
+            "email": email,
+        })
+    return rows, errors
+
+
+def _zip_matches_for_reg_no(zip_file: zipfile.ZipFile, reg_no: str) -> list[str]:
+    matches: list[str] = []
+    for info in zip_file.infolist():
+        if info.is_dir():
+            continue
+        normalized = info.filename.replace("\\", "/")
+        base = os.path.basename(normalized)
+        stem, _ = os.path.splitext(base)
+        parts = normalized.split("/")
+        if (
+            parts[0] == reg_no
+            or base == reg_no
+            or stem == reg_no
+            or stem.startswith(f"{reg_no}_")
+            or stem.startswith(f"{reg_no}-")
+            or normalized.startswith(f"{reg_no}/")
+        ):
+            matches.append(info.filename)
+    return matches
+
 
 def register_registration_routes(bp):
     @bp.route("/register", methods=["GET", "POST"])
+    @require_roles("admin", "teacher")
     def register():
         from app_web import routes as routes_module
 
@@ -137,19 +205,110 @@ def register_registration_routes(bp):
             return render_template("register.html"), 400
 
         try:
-            routes_module.database.insert_student(name, semester, reg_no, section, encodings)
+            student_id = routes_module.database.insert_student(name, semester, reg_no, section, encodings)
         except ValueError as exc:
             flash(str(exc), "danger")
             return render_template("register.html"), 409
 
-        routes_module.encoding_cache.refresh()
+        try:
+            routes_module.encoding_cache.upsert_student(student_id, name, encodings)
+        except Exception as exc:
+            # Fallback to full refresh if upsert fails; catch broad exceptions since cache operations can fail in many ways
+            logger.debug("Cache upsert failed, falling back to refresh: %s", exc)
+            routes_module.encoding_cache.refresh()
         flash(
             f"Student '{name}' registered successfully with {len(encodings)} face encoding(s)!",
             "success",
         )
         return redirect(url_for("main.register"))
 
+    @bp.route("/register/batch", methods=["GET", "POST"])
+    @require_roles("admin", "teacher")
+    def register_batch():
+        from app_web import routes as routes_module
+
+        if request.method == "GET":
+            return render_template("batch_register.html")
+
+        csv_file = request.files.get("csv_file")
+        images_zip = request.files.get("images_zip")
+        if csv_file is None or images_zip is None:
+            flash("CSV file and ZIP archive are required.", "danger")
+            return render_template("batch_register.html"), 400
+
+        rows, errors = _parse_batch_rows(csv_file)
+        if errors:
+            for error in errors:
+                flash(error, "danger")
+            return render_template("batch_register.html"), 400
+
+        results = []
+        success_count = 0
+        failure_count = 0
+        with zipfile.ZipFile(images_zip.stream) as archive, tempfile.TemporaryDirectory() as tmpdir:
+            for row in rows or []:
+                reg_no = row["registration_number"]
+                matches = _zip_matches_for_reg_no(archive, reg_no)
+                if not matches:
+                    failure_count += 1
+                    results.append({"registration_number": reg_no, "status": "failed", "error": "No images found in ZIP."})
+                    continue
+
+                encodings: list[np.ndarray] = []
+                row_errors: list[str] = []
+                for index, member in enumerate(matches[:routes_module.config.MAX_REGISTRATION_IMAGES], 1):
+                    suffix = os.path.splitext(member)[1] or ".jpg"
+                    tmp_path = os.path.join(tmpdir, f"{reg_no}_{index}{suffix}")
+                    with open(tmp_path, "wb") as fh:
+                        fh.write(archive.read(member))
+
+                    img_bgr = cv2.imread(tmp_path)
+                    if img_bgr is None:
+                        row_errors.append(f"{member}: could not read image file.")
+                        continue
+                    ok, reason = routes_module.check_image_quality(img_bgr)
+                    if not ok:
+                        row_errors.append(f"{member}: {reason}")
+                        continue
+                    try:
+                        encodings.append(routes_module.generate_encoding(tmp_path))
+                    except ValueError as exc:
+                        row_errors.append(f"{member}: {exc}")
+
+                if not encodings:
+                    failure_count += 1
+                    results.append({"registration_number": reg_no, "status": "failed", "error": "; ".join(row_errors) or "No valid encodings generated."})
+                    continue
+
+                try:
+                    student_id = routes_module.database.insert_student(
+                        row["name"],
+                        row["semester"],
+                        reg_no,
+                        row["section"],
+                        encodings,
+                        email=row["email"],
+                    )
+                    try:
+                        routes_module.encoding_cache.upsert_student(student_id, row["name"], encodings)
+                    except Exception as exc:
+                        # Fallback to full refresh if upsert fails; catch broad exceptions since cache operations can fail in many ways
+                        logger.debug("Cache upsert failed for batch, falling back to refresh: %s", exc)
+                        routes_module.encoding_cache.refresh()
+                    success_count += 1
+                    results.append({"registration_number": reg_no, "status": "created", "encodings_count": len(encodings)})
+                except ValueError as exc:
+                    failure_count += 1
+                    results.append({"registration_number": reg_no, "status": "failed", "error": str(exc)})
+
+        if request.path.startswith("/api/"):
+            return jsonify({"created": success_count, "failed": failure_count, "results": results}), 201 if success_count else 400
+
+        flash(f"Batch processed: {success_count} created, {failure_count} failed.", "success" if success_count else "danger")
+        return render_template("batch_register.html", results=results)
+
     @bp.route("/api/register/capture", methods=["POST"])
+    @require_roles("admin", "teacher")
     def api_register_capture():
         from app_web import routes as routes_module
 
@@ -167,7 +326,8 @@ def register_registration_routes(bp):
 
         try:
             raw_bytes = base64.b64decode(frame_b64)
-        except Exception:
+        except (ValueError, TypeError) as exc:
+            logger.debug("Base64 decode error: %s", exc)
             return routes_module._api_error("Invalid base64 data.")
 
         if not raw_bytes.startswith(b"\xff\xd8\xff"):
@@ -185,3 +345,8 @@ def register_registration_routes(bp):
             fh.write(raw_bytes)
 
         return jsonify({"path": filename})
+
+    @bp.route("/api/register/batch", methods=["POST"])
+    @require_roles("admin", "teacher")
+    def api_register_batch():
+        return register_batch()

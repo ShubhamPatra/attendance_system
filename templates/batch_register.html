@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Batch Register{% endblock %}
+{% from "partials/ui.html" import page_header %}
+
+{% block content %}
+<div class="flex flex-col gap-6">
+    {{ page_header('Batch Enrollment', 'CSV + ZIP Import', 'Upload a CSV file and a matching ZIP archive of face images to create multiple students at once.') }}
+
+    <div class="panel">
+        <div class="panel-body">
+            <form method="post" enctype="multipart/form-data" class="flex flex-col gap-5">
+                <div class="form-group">
+                    <label class="form-label" for="csv_file">CSV File</label>
+                    <input id="csv_file" name="csv_file" type="file" accept=".csv" required class="form-input" style="padding-top:8px">
+                    <p class="form-hint">Required columns: registration_number, name, semester, section, email</p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="images_zip">Images ZIP</label>
+                    <input id="images_zip" name="images_zip" type="file" accept=".zip" required class="form-input" style="padding-top:8px">
+                    <p class="form-hint">Image names should begin with the registration number, or be placed in a folder named after it.</p>
+                </div>
+                <button type="submit" class="btn btn-primary" style="align-self:flex-start">Import Batch</button>
+            </form>
+        </div>
+    </div>
+
+    {% if results %}
+    <div class="panel">
+        <div class="panel-header">
+            <div class="panel-header-left"><h3>Import Results</h3></div>
+        </div>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Registration Number</th>
+                        <th>Status</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in results %}
+                    <tr>
+                        <td class="font-medium">{{ row.registration_number }}</td>
+                        <td class="text-muted">{{ row.status }}</td>
+                        <td class="text-muted">{{ row.error or row.encodings_count or '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

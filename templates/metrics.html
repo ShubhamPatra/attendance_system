@@ -7,62 +7,46 @@
     {{ page_header('Performance Console', 'System Metrics', 'Live performance and recognition statistics. Automatically refreshed from runtime telemetry.') }}
 
     <!-- KPI Cards Row 1 -->
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {{ stat_card('Total Students', metrics.total_students, 'school', 'text-primary/70') }}
-        {{ stat_card('Present Today', metrics.today_count, 'check_circle', 'text-emerald-500/70') }}
-        {{ stat_card('Recognition Accuracy', metrics.accuracy_pct ~ '%', 'percent', 'text-secondary/70') }}
-        {{ stat_card('Total Recognitions', metrics.total_recognitions, 'visibility', 'text-primary/70') }}
+    <div class="grid grid-4 gap-4">
+        {{ stat_card('Total Students', metrics.total_students, 'school', 'stat-card-icon--primary') }}
+        {{ stat_card('Present Today', metrics.today_count, 'check_circle', 'stat-card-icon--success') }}
+        {{ stat_card('Recognition Accuracy', metrics.accuracy_pct ~ '%', 'percent', 'stat-card-icon--blue', value_id='mAccuracy') }}
+        {{ stat_card('Total Recognitions', metrics.total_recognitions, 'visibility', 'stat-card-icon--primary', value_id='mTotalRecs') }}
     </div>
 
     <!-- KPI Cards Row 2 -->
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {{ stat_card('False Accept Rate', metrics.false_acceptance_rate_pct ~ '%', 'warning', 'text-red-400/70') }}
-        {{ stat_card('False Reject Rate', metrics.false_rejection_rate_pct ~ '%', 'block', 'text-amber-500/70') }}
-        {{ stat_card('Avg Frame Time', metrics.avg_frame_time_ms ~ ' ms', 'timer', 'text-secondary/70') }}
-        {{ stat_card('Current FPS', metrics.fps, 'speed', 'text-emerald-500/70') }}
+    <div class="grid grid-4 gap-4">
+        {{ stat_card('False Accept Rate', metrics.false_acceptance_rate_pct ~ '%', 'warning', 'stat-card-icon--error', value_id='mFAR') }}
+        {{ stat_card('False Reject Rate', metrics.false_rejection_rate_pct ~ '%', 'block', 'stat-card-icon--warning', value_id='mFRR') }}
+        {{ stat_card('Avg Frame Time', metrics.avg_frame_time_ms ~ ' ms', 'timer', 'stat-card-icon--blue', value_id='mFrameTime') }}
+        {{ stat_card('Current FPS', metrics.fps, 'speed', 'stat-card-icon--success', value_id='mFPS') }}
     </div>
 
     <!-- Detailed Breakdown -->
-    <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div class="rounded-xl border border-border-light bg-white p-6 shadow-panel">
-            <h3 class="text-sm font-semibold text-text-primary mb-4">Recognition Breakdown</h3>
-            <div class="flex flex-col gap-3 text-sm">
-                <div class="flex justify-between items-center py-2 border-b border-border-light">
-                    <span class="text-text-muted">True Positives</span>
-                    <span class="font-semibold text-emerald-600" id="mTP">{{ metrics.true_positives }}</span>
-                </div>
-                <div class="flex justify-between items-center py-2 border-b border-border-light">
-                    <span class="text-text-muted">True Negatives</span>
-                    <span class="font-semibold text-emerald-600" id="mTN">{{ metrics.true_negatives }}</span>
-                </div>
-                <div class="flex justify-between items-center py-2 border-b border-border-light">
-                    <span class="text-text-muted">False Positives</span>
-                    <span class="font-semibold text-red-600" id="mFP">{{ metrics.false_positives }}</span>
-                </div>
-                <div class="flex justify-between items-center py-2">
-                    <span class="text-text-muted">False Negatives</span>
-                    <span class="font-semibold text-red-600" id="mFN">{{ metrics.false_negatives }}</span>
+    <div class="two-col two-col--even">
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-header-left"><h3>Recognition Breakdown</h3></div>
+            </div>
+            <div class="panel-body">
+                <div class="kv-list">
+                    <div class="kv-row"><span class="kv-key">True Positives</span><span class="kv-value kv-value--success" id="mTP">{{ metrics.true_positives }}</span></div>
+                    <div class="kv-row"><span class="kv-key">True Negatives</span><span class="kv-value kv-value--success" id="mTN">{{ metrics.true_negatives }}</span></div>
+                    <div class="kv-row"><span class="kv-key">False Positives</span><span class="kv-value kv-value--error" id="mFP">{{ metrics.false_positives }}</span></div>
+                    <div class="kv-row"><span class="kv-key">False Negatives</span><span class="kv-value kv-value--error" id="mFN">{{ metrics.false_negatives }}</span></div>
                 </div>
             </div>
         </div>
-        <div class="rounded-xl border border-border-light bg-white p-6 shadow-panel">
-            <h3 class="text-sm font-semibold text-text-primary mb-4">System Configuration</h3>
-            <div class="flex flex-col gap-3 text-sm">
-                <div class="flex justify-between items-center py-2 border-b border-border-light">
-                    <span class="text-text-muted">Recognition Threshold</span>
-                    <span class="font-semibold text-text-primary" id="mThreshold">{{ metrics.recognition_threshold }}</span>
-                </div>
-                <div class="flex justify-between items-center py-2 border-b border-border-light">
-                    <span class="text-text-muted">Liveness Threshold</span>
-                    <span class="font-semibold text-text-primary">{{ config.LIVENESS_CONFIDENCE_THRESHOLD if config is defined else '0.8' }}</span>
-                </div>
-                <div class="flex justify-between items-center py-2 border-b border-border-light">
-                    <span class="text-text-muted">Frame Resize Factor</span>
-                    <span class="font-semibold text-text-primary">{{ config.FRAME_RESIZE_FACTOR if config is defined else '0.25' }}</span>
-                </div>
-                <div class="flex justify-between items-center py-2">
-                    <span class="text-text-muted">Cooldown (seconds)</span>
-                    <span class="font-semibold text-text-primary">{{ config.RECOGNITION_COOLDOWN if config is defined else '30' }}</span>
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-header-left"><h3>System Configuration</h3></div>
+            </div>
+            <div class="panel-body">
+                <div class="kv-list">
+                    <div class="kv-row"><span class="kv-key">Recognition Threshold</span><span class="kv-value" id="mThreshold">{{ metrics.recognition_threshold }}</span></div>
+                    <div class="kv-row"><span class="kv-key">Liveness Threshold</span><span class="kv-value">{{ config.LIVENESS_CONFIDENCE_THRESHOLD if config is defined else '0.8' }}</span></div>
+                    <div class="kv-row"><span class="kv-key">Frame Resize Factor</span><span class="kv-value">{{ config.FRAME_RESIZE_FACTOR if config is defined else '0.25' }}</span></div>
+                    <div class="kv-row"><span class="kv-key">Cooldown (seconds)</span><span class="kv-value">{{ config.RECOGNITION_COOLDOWN if config is defined else '30' }}</span></div>
                 </div>
             </div>
         </div>
@@ -88,17 +72,11 @@ function updateMetrics(m) {
     document.getElementById('mThreshold').textContent = m.recognition_threshold;
 }
 
-// Live updates via WebSocket
-socket.on('metrics_update', function(m) {
-    updateMetrics(m);
-});
+socket.on('metrics_update', function(m) { updateMetrics(m); });
 
-// Initial fetch
 fetch('{{ url_for("main.api_metrics") }}')
     .then(function(r) { return r.json(); })
-    .then(function(m) {
-        updateMetrics(m);
-    })
+    .then(function(m) { updateMetrics(m); })
     .catch(function() {});
 </script>
 {% endblock %}

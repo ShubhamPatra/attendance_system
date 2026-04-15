@@ -7,9 +7,12 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
+from app_web.decorators import require_roles
+
 
 def register_report_routes(bp):
     @bp.route("/report")
+    @require_roles("admin", "teacher")
     def report():
         from app_web import routes as routes_module
 
@@ -22,6 +25,7 @@ def register_report_routes(bp):
         )
 
     @bp.route("/report/csv")
+    @require_roles("admin", "teacher")
     def report_csv():
         from app_web import routes as routes_module
 
@@ -62,6 +66,7 @@ def register_report_routes(bp):
         )
 
     @bp.route("/report/xlsx")
+    @require_roles("admin", "teacher")
     def report_xlsx():
         from app_web import routes as routes_module
 
@@ -135,8 +140,12 @@ def register_report_routes(bp):
         )
 
     @bp.route("/api/report/csv/async", methods=["POST"])
+    @require_roles("admin", "teacher")
     def api_report_csv_async():
         from app_web import routes as routes_module
+
+        if not routes_module._check_rate_limit("report_csv_async"):
+            return routes_module._api_error("Rate limit exceeded.", 429)
 
         try:
             from celery_app import generate_csv_task

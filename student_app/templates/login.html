@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Student Login{% endblock %}
+
+{% block content %}
+<div class="auth-wrapper">
+    <div class="auth-card">
+        <div class="auth-header">
+            <div style="display:flex;justify-content:center;margin-bottom:var(--space-4)">
+                <span class="navbar-brand-icon" style="width:48px;height:48px;border-radius:var(--radius-xl)">
+                    <span class="material-symbols-outlined" style="font-size:24px">school</span>
+                </span>
+            </div>
+            <h1>Student Login</h1>
+            <p>Sign in using your registration number or email.</p>
+        </div>
+
+        <form method="post" class="space-y-4">
+            <div class="form-group">
+                <label for="credential" class="form-label">Registration Number or Email</label>
+                <input id="credential" name="credential" type="text" required class="form-input" placeholder="Enter registration number or email">
+            </div>
+            <div class="form-group">
+                <label for="password" class="form-label">Password</label>
+                <input id="password" name="password" type="password" required class="form-input" placeholder="Enter your password">
+            </div>
+            <button type="submit" class="btn btn-primary btn-block btn-lg">Sign In</button>
+        </form>
+
+        <p class="auth-footer">
+            New student?
+            <a href="{{ url_for('student.register') }}">Create an account</a>
+        </p>
+    </div>
+</div>
+{% endblock %}

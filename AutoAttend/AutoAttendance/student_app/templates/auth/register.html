@@ -1,0 +1,19 @@
+<!doctype html>
+<html>
+  <body>
+    <h2>Student Registration</h2>
+    <form method="post" action="{{ url_for('student_auth.register') }}">
+      {{ form.csrf_token }}
+      <div>{{ form.name.label }} {{ form.name() }}</div>
+      <div>{{ form.student_id.label }} {{ form.student_id() }}</div>
+      <div>{{ form.email.label }} {{ form.email() }}</div>
+      <div>{{ form.password.label }} {{ form.password() }}</div>
+      <div>{{ form.confirm_password.label }} {{ form.confirm_password() }}</div>
+      <div>{{ form.department.label }} {{ form.department() }}</div>
+      <div>{{ form.year.label }} {{ form.year() }}</div>
+      <div>{{ form.face_photo_path.label }} {{ form.face_photo_path() }}</div>
+      <div>{{ form.submit() }}</div>
+    </form>
+    <p><a href="{{ url_for('student_auth.login') }}">Back to login</a></p>
+  </body>
+</html>

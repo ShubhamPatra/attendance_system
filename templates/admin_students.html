@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Admin Students{% endblock %}
+{% from "partials/ui.html" import page_header %}
+
+{% block content %}
+<div class="flex flex-col gap-6">
+    {{ page_header('Student Administration', 'Manage Students', 'Review onboarding, approve samples, and recompute encodings.') }}
+
+    <div class="panel">
+        <div class="table-wrap custom-scrollbar">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Reg. No.</th>
+                        <th>Status</th>
+                        <th>Score</th>
+                        <th>Samples</th>
+                        <th>Semester</th>
+                        <th>Section</th>
+                        <th>Email</th>
+                        <th class="col-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for student in students %}
+                    <tr>
+                        <td class="font-medium">{{ student.name }}</td>
+                        <td class="text-muted">{{ student.registration_number }}</td>
+                        <td>
+                            {% set vs = student.verification_status or 'approved' %}
+                            <span class="badge {% if vs == 'approved' %}badge-success{% elif vs == 'rejected' %}badge-error{% else %}badge-warning{% endif %}">{{ vs }}</span>
+                        </td>
+                        <td class="text-muted">{{ student.verification_score if student.verification_score is not none else '-' }}</td>
+                        <td class="text-muted">
+                            {% if student.face_samples %}
+                            <details>
+                                <summary class="cursor-pointer" style="color:var(--color-primary)">{{ student.face_samples|length }} sample(s)</summary>
+                                <ul style="margin-top:var(--space-2);list-style:disc;padding-left:var(--space-5);font-size:var(--font-size-xs)">
+                                    {% for sample in student.face_samples %}
+                                    <li>{{ sample }}</li>
+                                    {% endfor %}
+                                </ul>
+                            </details>
+                            {% else %}-{% endif %}
+                        </td>
+                        <td class="text-muted">{{ student.semester }}</td>
+                        <td class="text-muted">{{ student.section }}</td>
+                        <td class="text-muted">{{ student.email or '-' }}</td>
+                        <td class="col-right">
+                            <div class="flex flex-col items-end gap-2">
+                                <form class="inline-flex items-center gap-2" method="post" action="/api/admin/students/{{ student.registration_number }}/recompute" enctype="multipart/form-data">
+                                    <input type="file" name="images" multiple style="font-size:var(--font-size-xs);max-width:170px">
+                                    <button type="submit" class="btn-action-outline">Recompute</button>
+                                </form>
+                                <div class="flex items-center gap-2">
+                                    <form method="post" action="/api/admin/students/{{ student.registration_number }}/approve">
+                                        <button type="submit" class="btn-action-success">Approve</button>
+                                    </form>
+                                    <form method="post" action="/api/admin/students/{{ student.registration_number }}/reject">
+                                        <input type="hidden" name="reason" value="Rejected by admin review">
+                                        <button type="submit" class="btn-action-danger">Reject</button>
+                                    </form>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -27,7 +27,7 @@ from celery import Celery
 from celery.schedules import crontab
 from dotenv import load_dotenv
 
-from app_core.utils import setup_logging
+from core.utils import setup_logging
 
 load_dotenv()
 
@@ -159,7 +159,10 @@ def generate_csv_task(self, query_type, **kwargs):
 
 @celery_app.task(name="celery_app.compute_encodings_task", bind=True)
 def compute_encodings_task(self, image_paths):
-    """Compute 128-D face encodings for a batch of images.
+    """Compute face encodings for a batch of images.
+
+    The embedding dimensionality depends on the active backend
+    (512-D for ArcFace, 128-D for dlib).
 
     Parameters
     ----------

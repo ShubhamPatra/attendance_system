@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}Students{% endblock %}
+{% block page_title %}Students{% endblock %}
+
+{% block content %}
+  <section class="card stack">
+    <form method="get" class="form-row cols-2">
+      <input class="input" name="q" placeholder="Search by name or ID" value="{{ request.args.get('q', '') }}" aria-label="Search students" />
+      <input class="input" name="department" placeholder="Department" value="{{ request.args.get('department', '') }}" aria-label="Filter by department" />
+      <input class="input" name="year" placeholder="Year" value="{{ request.args.get('year', '') }}" aria-label="Filter by year" />
+      <button class="btn btn-primary" type="submit">Apply Filters</button>
+    </form>
+
+    <div class="table-wrap" aria-live="polite">
+      <table class="table">
+        <thead>
+          <tr>
+            <th scope="col">Student ID</th>
+            <th scope="col">Name</th>
+            <th scope="col">Email</th>
+            <th scope="col">Department</th>
+            <th scope="col">Year</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for student in students['items'] %}
+          <tr>
+            <td data-label="Student ID"><a href="{{ url_for('admin_students.student_detail', student_id=student.student_id) }}">{{ student.student_id }}</a></td>
+            <td data-label="Name">{{ student.name }}</td>
+            <td data-label="Email">{{ student.email }}</td>
+            <td data-label="Department">{{ student.department }}</td>
+            <td data-label="Year">{{ student.year }}</td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="5">No students found.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

@@ -3,57 +3,49 @@
 
 {% block content %}
 <div class="flex flex-col gap-6">
-    <!-- Page Header -->
-    <div class="flex flex-col gap-1">
-        <h1 class="text-2xl font-semibold tracking-tight text-text-primary">Attendance Heatmap</h1>
-        <p class="text-text-muted text-sm">Calendar-style overview of daily attendance over the last 90 days.</p>
+    <div class="page-header">
+        <h1>Attendance Heatmap</h1>
+        <p class="page-header-desc">Calendar-style overview of daily attendance over the last 90 days.</p>
     </div>
 
     <!-- Heatmap Card -->
-    <div class="bg-white rounded-lg shadow-sm border border-border-light p-6">
+    <div class="card card-body">
         <div class="flex items-center justify-between mb-6">
-            <h3 class="text-sm font-semibold text-text-primary flex items-center gap-2">
-                <span class="material-symbols-outlined text-secondary text-lg">calendar_month</span>
+            <h3 class="flex items-center gap-2">
+                <span class="material-symbols-outlined" style="color:var(--color-primary)">calendar_month</span>
                 Daily Attendance
             </h3>
-            <span class="text-xs text-text-muted" id="heatmapRange">Last 90 days</span>
+            <span class="text-xs text-muted" id="heatmapRange">Last 90 days</span>
         </div>
-
-        <!-- Day-of-week labels -->
-        <div class="flex gap-4">
-            <div class="flex flex-col gap-[3px] text-[10px] text-text-muted font-medium pt-0 shrink-0 w-8">
-                <div class="h-4 flex items-center">Mon</div>
-                <div class="h-4 flex items-center">Tue</div>
-                <div class="h-4 flex items-center">Wed</div>
-                <div class="h-4 flex items-center">Thu</div>
-                <div class="h-4 flex items-center">Fri</div>
-                <div class="h-4 flex items-center">Sat</div>
-                <div class="h-4 flex items-center">Sun</div>
+        <div class="heatmap-wrap">
+            <div class="heatmap-labels">
+                <div>Mon</div>
+                <div>Tue</div>
+                <div>Wed</div>
+                <div>Thu</div>
+                <div>Fri</div>
+                <div>Sat</div>
+                <div>Sun</div>
             </div>
-            <!-- Heatmap Grid: 7 rows (Mon-Sun), columns filled dynamically -->
-            <div id="heatmapGrid" class="grid grid-flow-col gap-[3px]" style="grid-template-rows: repeat(7, 1rem);"></div>
+            <div id="heatmapGrid" class="heatmap-grid"></div>
         </div>
     </div>
 
     <!-- Color Legend -->
-    <div class="bg-white rounded-lg shadow-sm border border-border-light p-5">
-        <div class="flex flex-wrap items-center gap-6 justify-center text-xs text-text-muted">
-            <span class="font-medium text-text-primary">Legend:</span>
-            <div class="flex items-center gap-1.5">
-                <span class="inline-block w-4 h-4 rounded-sm" style="background-color: #22c55e;"></span>
-                High (&gt;80%)
+    <div class="card card-body">
+        <div class="legend-row">
+            <span class="font-medium" style="color:var(--color-text)">Legend:</span>
+            <div class="legend-item">
+                <span class="legend-swatch" style="background-color:#22c55e;"></span> High (&gt;80%)
             </div>
-            <div class="flex items-center gap-1.5">
-                <span class="inline-block w-4 h-4 rounded-sm" style="background-color: #eab308;"></span>
-                Medium (50&ndash;80%)
+            <div class="legend-item">
+                <span class="legend-swatch" style="background-color:#eab308;"></span> Medium (50&ndash;80%)
             </div>
-            <div class="flex items-center gap-1.5">
-                <span class="inline-block w-4 h-4 rounded-sm" style="background-color: #ef4444;"></span>
-                Low (&lt;50%)
+            <div class="legend-item">
+                <span class="legend-swatch" style="background-color:#ef4444;"></span> Low (&lt;50%)
             </div>
-            <div class="flex items-center gap-1.5">
-                <span class="inline-block w-4 h-4 rounded-sm" style="background-color: #e5e7eb;"></span>
-                No data
+            <div class="legend-item">
+                <span class="legend-swatch" style="background-color:#e5e7eb;"></span> No data
             </div>
         </div>
     </div>
@@ -65,7 +57,6 @@
 fetch('/api/heatmap')
   .then(r => r.json())
   .then(data => {
-    // Build a map of date -> {count, total_students}
     var dateMap = {};
     data.forEach(d => { dateMap[d.date] = d; });
 
@@ -74,14 +65,13 @@ fetch('/api/heatmap')
     var start = new Date(today);
     start.setDate(start.getDate() - 89);
 
-    // Align to Monday
     while (start.getDay() !== 1) start.setDate(start.getDate() - 1);
 
     var current = new Date(start);
     while (current <= today) {
       var dateStr = current.toISOString().split('T')[0];
       var cell = document.createElement('div');
-      cell.className = 'w-4 h-4 rounded-sm cursor-pointer relative group';
+      cell.className = 'heatmap-cell';
       cell.title = dateStr;
 
       var info = dateMap[dateStr];
@@ -91,9 +81,8 @@ fetch('/api/heatmap')
         else if (pct > 50) cell.style.backgroundColor = '#eab308';
         else cell.style.backgroundColor = '#ef4444';
 
-        // Tooltip
         var tooltip = document.createElement('div');
-        tooltip.className = 'hidden group-hover:block absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap z-10';
+        tooltip.className = 'heatmap-tooltip';
         tooltip.textContent = dateStr + ': ' + info.count + '/' + info.total_students + ' (' + pct.toFixed(0) + '%)';
         cell.appendChild(tooltip);
       } else {

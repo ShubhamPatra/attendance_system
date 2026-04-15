@@ -1,0 +1,13 @@
+<!doctype html>
+<html>
+  <body>
+    <h2>Admin Login</h2>
+    <form method="post">
+      {{ form.csrf_token }}
+      <div>{{ form.email.label }} {{ form.email() }}</div>
+      <div>{{ form.password.label }} {{ form.password() }}</div>
+      <div>{{ form.remember_me() }} {{ form.remember_me.label }}</div>
+      <div>{{ form.submit() }}</div>
+    </form>
+  </body>
+</html>

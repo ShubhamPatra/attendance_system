@@ -1,305 +1,333 @@
 # AutoAttendance
 
-Real-time face recognition attendance system with deep learning anti-spoofing, MongoDB Atlas cloud storage, and a Flask web dashboard.
+AutoAttendance is a Flask + OpenCV + MongoDB Atlas attendance platform with anti-spoofing, an open-access staff/admin interface (no auth enforcement), a standalone student self-service portal, analytics, Celery background tasks, and deployment-ready Docker/Kubernetes artifacts.
 
-## Features
+## Overview
 
-- **Real-time face detection and recognition** using a Detect-Track-Recognize pipeline (YuNet detection, CSRT tracking, dlib 128-D encodings)
-- **Deep learning anti-spoofing** via Silent-Face-Anti-Spoofing (MiniFASNet) to prevent photo and video replay attacks
-- **Eye-based face alignment** for improved recognition accuracy across varying camera angles
-- **Vectorised face matching** against a thread-safe encoding cache for low-latency recognition
-- **Duplicate attendance prevention** with a unique compound index (one record per student per day)
-- **Motion-gated detection** to reduce unnecessary computation on idle frames
-- **Performance metrics and auto-tuning** of recognition thresholds based on accuracy feedback
-- **MongoDB Atlas** cloud database with indexed collections
-- **Flask web dashboard** with registration, live attendance, dashboard, reports, logs, and metrics pages
-- **CSV export** for attendance reports with date range and per-student filtering
-- **Unknown face snapshots** saved automatically for review
+The system keeps the original Detect-Track-Recognize pipeline and adds production controls around it:
+
+- Flask-Login auth with Admin and Teacher roles
+- Authentication/RBAC enforcement disabled by default
+- Optional RESTX docs for `/api/v2/*` (feature-flag controlled)
+- Docker, compose, and Nginx deployment support
+- Admin student management and batch import workflows
+- Analytics dashboards and notification dry-run events
+- Standalone student portal app for registration and attendance status
+- Multi-camera diagnostics without changing single-camera defaults
+
+## Architecture
+
+```text
+Browser UI
+    -> Flask app
+         -> open-access admin routes (no auth gate)
+         -> REST APIs and RESTX docs
+         -> Dashboard / reports / batch import
+         -> Camera routes
+                -> per-camera threaded capture
+                -> YuNet detection
+                -> CSRT tracking
+                -> Anti-spoofing
+                -> ArcFace embedding and identity matching
+                -> MongoDB attendance writes
+                -> metrics / logs / snapshots
+Student Browser UI
+    -> Flask student app
+         -> /student/login, /student/register, /student/capture
+         -> student attendance status and verification flow
+MongoDB Atlas
+    -> students, attendance, users, notification_events
+```
 
 ## Tech Stack
 
 | Component | Technology |
 | --- | --- |
 | Language | Python 3.11 |
-| Web Framework | Flask 3.0.2 |
-| Face Detection | YuNet (ONNX) |
-| Face Recognition | face-recognition 1.3.0 / dlib |
-| Object Tracking | CSRT (OpenCV Contrib), MIL fallback |
-| Anti-Spoofing | Silent-Face-Anti-Spoofing (MiniFASNetV1SE, MiniFASNetV2) |
-| Deep Learning | PyTorch |
-| Database | MongoDB Atlas (pymongo 4.6.3) |
-| Computer Vision | OpenCV 4.9.0.80 |
-| Data Processing | NumPy 1.26.4, pandas 2.2.1 |
+| Web | Flask 3.0.2 |
+| Auth | Flask-Login |
+| Docs | Flasgger + Flask-RESTX |
+| Face Detection | YuNet ONNX |
+| Face Recognition | ArcFace (InsightFace + ONNX Runtime) |
+| Anti-Spoofing | Silent-Face-Anti-Spoofing |
+| Database | MongoDB Atlas / pymongo |
+| Queue / async | Celery |
+| Realtime transport | Flask-SocketIO |
+| Broker/cache | Redis |
+| Container | Docker / Docker Compose |
+| Proxy | Nginx |
 
-## Prerequisites
+## Features
 
-1. **Python 3.11** (not 3.12 -- dlib compatibility)
-2. **CMake** (required by dlib) -- install via `pip install cmake` or from [https://cmake.org](https://cmake.org)
-3. **MongoDB Atlas** free-tier cluster (see setup instructions below)
-4. A webcam
+- Real-time camera attendance with anti-spoofing and face recognition
+- Open-access staff/admin routes and APIs (no login required)
+- Dashboard charts and attendance analytics
+- Batch registration from CSV + ZIP image archives
+- Admin controls for edit, delete, and encoding recompute
+- Dry-run notification events for absences and low attendance
+- Student portal with verification workflow and attendance self-check
+- Multi-camera diagnostics
+- Centralized logging and health endpoints
+- RESTX docs for `/api/v2/*` when enabled
 
-## MongoDB Atlas Setup
+## Quick Start
 
-1. Go to [https://cloud.mongodb.com](https://cloud.mongodb.com) and create a free account
-2. Create a free shared cluster (M0)
-3. Under **Database Access**, create a database user with read/write permissions
-4. Under **Network Access**, add your IP address (or `0.0.0.0/0` for development)
-5. Click **Connect > Drivers > Python 3.11+** and copy the SRV connection string
-6. Replace `<password>` in the URI with your database user's password
-7. The database `attendance_system` and its collections are created automatically on first run
-
-## Installation
+### Local dev
 
 ```bash
 cd attendance_system
-
-# Create and activate a virtual environment
 python -m venv venv
-venv\Scripts\activate        # Windows
-# source venv/bin/activate   # macOS / Linux
-
-# Install dependencies
+venv\Scripts\activate
 pip install -r requirements.txt
-```
-
-## Configuration
-
-Create a `.env` file in the project root:
-
-```env
-MONGO_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net/attendance_system?retryWrites=true&w=majority
-SECRET_KEY=your-random-secret-key
-```
-
-Alternatively, set environment variables directly (PowerShell example):
-
-```powershell
-$env:MONGO_URI = "mongodb+srv://user:pass@cluster.mongodb.net/attendance_system?retryWrites=true&w=majority"
-$env:SECRET_KEY = "change-me"
-```
-
-Tip: start from `.env.example` and adjust values per environment.
-
-### Cross-Device Runtime Model
-
-To run reliably on different devices and operating systems, treat this project as:
-
-- **Client device**: browser UI (desktop/mobile)
-- **Server device**: camera + recognition pipeline (OpenCV/dlib/torch)
-
-Important behavior:
-
-- `/attendance` streams the **server camera** (`/video_feed`) to clients.
-- `/register` supports browser camera capture via `getUserMedia` and uploads frames to the server.
-
-This separation avoids device-specific ML/runtime differences on end-user clients.
-
-### Configurable Parameters
-
-Key thresholds can be adjusted in `config.py`:
-
-| Parameter | Default | Description |
-| --- | --- | --- |
-| `RECOGNITION_THRESHOLD` | 0.50 | Euclidean distance cutoff for face matching (lower = stricter) |
-| `LIVENESS_CONFIDENCE_THRESHOLD` | 0.55 | Minimum anti-spoof confidence to accept as real |
-| `DETECTION_INTERVAL` | 10 | Run face detection every N frames |
-| `RECOGNITION_COOLDOWN` | 30 | Seconds before re-processing a recognized student |
-| `BLUR_THRESHOLD` | 100.0 | Laplacian variance minimum for image quality |
-| `MAX_REGISTRATION_IMAGES` | 5 | Maximum face images accepted per student registration |
-
-## Running the Application
-
-```bash
-cd attendance_system
+copy .env.example .env
 python app.py
 ```
 
-Open [http://localhost:5000](http://localhost:5000) in your browser.
+In a second terminal, run the student portal:
 
-### Usage
+```bash
+python student_app/app.py
+```
 
-1. **Register students** at `/register` -- provide student details and upload up to 5 clear, front-facing face images
-2. **Start attendance** at `/attendance` -- students face the webcam; the system verifies liveness and marks attendance automatically
-3. **View dashboard** at `/dashboard` -- see today's attendance count, percentage, and recent records
-4. **Generate reports** at `/report` -- filter by date or student and download CSV exports
-5. **Monitor logs** at `/logs` -- view real-time recognition events
-6. **Review metrics** at `/metrics` -- inspect system accuracy, FAR, FRR, and FPS
+Set at minimum:
 
-## Web Routes
+```env
+MONGO_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net/attendance_system?retryWrites=true&w=majority
+SECRET_KEY=change-me
+```
+
+`ENABLE_RBAC` defaults to `0` (auth disabled). Set `ENABLE_RBAC=1` only if you intentionally re-enable auth checks.
+
+Recommended local toggles:
+
+```env
+APP_DEBUG=0
+ENABLE_RESTX_API=0
+STRICT_STARTUP_CHECKS=1
+STARTUP_CAMERA_PROBE=0
+```
+
+### First admin
+
+```bash
+python scripts/bootstrap_admin.py --username admin --role admin
+```
+
+### Demo data
+
+```bash
+python scripts/seed_demo_data.py
+```
+
+This seeds demo students and a default admin account (`admin / admin1234`).
+
+## Docker
+
+```bash
+docker compose up -d --build
+```
+
+Services:
+
+- `web` Flask/Gunicorn app
+- `student-web` standalone student portal
+- `celery-worker` background jobs
+- `celery-beat` scheduled jobs
+- `redis` queue backend
+- `nginx` reverse proxy
+
+Useful URLs:
+
+- Main app (via Nginx): `http://localhost`
+- Student portal (direct container): `http://localhost:5001/student/login`
+- Legacy docs (when RESTX disabled): `http://localhost/api/docs`
+- RESTX docs (when `ENABLE_RESTX_API=1`): `http://localhost/api/v2/docs`
+
+## Deployment
+
+Production notes and Kubernetes baseline are documented in [DEPLOYMENT.md](DEPLOYMENT.md).
+
+### VM deployment
+
+Use the provided Gunicorn config and Nginx sample:
+
+- [gunicorn.conf.py](gunicorn.conf.py)
+- [deploy/nginx/default.conf](deploy/nginx/default.conf)
+
+### Kubernetes baseline
+
+- [deploy/k8s/README.md](deploy/k8s/README.md)
+- [deploy/k8s/autoattendance.yaml](deploy/k8s/autoattendance.yaml)
+
+## Key Routes
 
 ### Pages
 
-| Route | Description |
+| Route | Purpose |
 | --- | --- |
 | `/` | Landing page |
-| `/register` | Student registration form |
-| `/attendance` | Live video feed with real-time recognition |
-| `/dashboard` | Overview of today's attendance statistics |
-| `/report` | Attendance records with date filtering and CSV export |
-| `/logs` | Real-time recognition log viewer |
-| `/metrics` | System performance metrics dashboard |
-| `/attendance_activity` | Attendance by hour of day visualization |
+| `/login` | Staff login |
+| `/dashboard` | Attendance overview |
+| `/attendance` | Live camera attendance |
+| `/register` | Student registration |
+| `/register/batch` | Batch CSV + ZIP import |
+| `/admin/students` | Admin student management |
+| `/report` | Attendance report viewer |
+| `/logs` | Recognition logs |
+| `/metrics` | Runtime metrics |
+| `/heatmap` | Attendance heatmap |
+| `/attendance_activity` | Hourly attendance chart |
+| `/student` | Redirect to standalone student portal login |
+| `/student/*` | Student portal routes (served by student app) |
 
-### API Endpoints
+### APIs
 
-| Route | Description |
+| Route | Purpose |
 | --- | --- |
-| `GET /video_feed` | MJPEG stream of annotated camera frames |
-| `GET /api/metrics` | JSON performance metrics (accuracy, FAR, FRR, FPS, threshold) |
-| `GET /api/events` | JSON recent attendance events |
-| `GET /api/logs` | JSON recognition log buffer |
-| `GET /api/attendance_activity` | JSON hourly attendance counts |
-| `GET /api/registration_numbers` | JSON list of all registration numbers |
-| `GET /health` | Liveness health check |
-| `GET /healthz` / `GET /ready` | Readiness health check |
-| `GET /report/csv` | CSV export with optional date, reg_no, and date range parameters |
+| `GET /api/metrics` | Performance metrics |
+| `GET /api/events` | Recent attendance events |
+| `GET /api/logs` | Persistent log buffer |
+| `GET /api/attendance_activity` | Hourly attendance counts |
+| `GET /api/heatmap` | Attendance heatmap data |
+| `GET /api/registration_numbers` | Registration number list |
+| `GET /api/analytics/trends` | Daily attendance trend data |
+| `GET /api/analytics/at_risk` | Low-attendance students |
+| `GET /api/cameras` | Multi-camera diagnostics |
+| `GET /health` | Liveness |
+| `GET /ready` | Readiness |
+| `GET /api/v2/docs` | RESTX docs |
 
-## Pipeline Architecture
+## Pipeline
 
-The core processing pipeline operates in four phases per frame:
+Per frame:
 
-1. **Track Update** -- All active CSRT trackers are advanced. Tracks that have not been updated for more than 15 consecutive frames are expired.
+1. Capture and track update
+2. Motion-gated YuNet detection
+3. Anti-spoofing on new tracks only
+4. Face embedding extraction and identity matching
+5. Attendance write with cooldown
+6. Overlay + metrics + logs
 
-2. **Detection (gated)** -- Every 10 frames, motion detection (Gaussian blur + frame differencing) gates YuNet face detection. If no motion is detected, a fallback detection still runs every 50 frames. New detections are associated to existing tracks via IoU and centroid distance thresholds.
+Unknown face snapshots now use a bounded background executor, so repeated unknown detections do not create unbounded threads.
 
-3. **Recognition** -- For each newly created track:
-    - Anti-spoof inference runs on the full-resolution frame using two MiniFASNet models with aggregated predictions.
-    - If classified as real (confidence >= configured liveness threshold; default 0.55), eye-based affine alignment is applied and a 128-D encoding is generated.
-    - The encoding is matched against the in-memory cache using vectorised Euclidean distance.
-    - On match, attendance is recorded in MongoDB (with a 30-second cooldown).
-    - Spoofed faces are flagged and logged. Unknown faces are saved to `unknown_faces/`.
+## Project Layout
 
-4. **Overlay** -- Bounding boxes and labels are drawn per track: green for recognized students, red for spoofed or unknown faces, with name, confidence, and liveness score annotations.
-
-## Project Structure
-
-```text
-attendance_system/
-├── app.py                # Flask application entry point
-├── config.py             # Environment variables and constants
-├── camera.py             # Threaded webcam capture and pipeline orchestration
-├── pipeline.py           # YuNet detection, CSRT tracking, IoU/centroid association
-├── face_engine.py        # Encoding generation, thread-safe cache, vectorised matching
-├── recognition.py        # Eye-based affine alignment for camera-path encoding
-├── anti_spoofing.py      # Deep learning liveness via Silent-Face-Anti-Spoofing
-├── overlay.py            # Bounding box and label rendering on frames
-├── database.py           # MongoDB Atlas connection, CRUD, aggregation, CSV export
-├── routes.py             # Flask blueprint with all web and API routes
-├── utils.py              # Input sanitisation, file validation, image quality, logging
-├── performance.py        # Metrics tracking (accuracy, FAR, FRR, FPS) and auto-tuning
-├── requirements.txt      # Pinned dependencies
-├── models/               # YuNet ONNX model for face detection
-├── logs/                 # Application logs (auto-created, daily rotation, 30-day retention)
-├── unknown_faces/        # Snapshots of unrecognised faces (auto-created)
-├── uploads/              # Temporary upload directory for registration images
-├── Silent-Face-Anti-Spoofing/  # Anti-spoofing library and pre-trained models
-│   └── resources/
-│       └── anti_spoof_models/  # MiniFASNetV2 and MiniFASNetV1SE weights
-├── templates/            # Jinja2 HTML templates
-│   ├── base.html
-│   ├── index.html
-│   ├── register.html
-│   ├── attendance.html
-│   ├── attendance_activity.html
-│   ├── dashboard.html
-│   ├── report.html
-│   ├── logs.html
-│   └── metrics.html
-├── static/
-│   └── css/style.css
-└── tests/                # Unit tests (mocked, no live DB or webcam required)
-    ├── test_anti_spoofing.py
-    ├── test_database.py
-    ├── test_liveness.py
-    ├── test_performance.py
-    ├── test_recognition.py
-    ├── test_routes.py
-    └── test_utils.py
-```
-
-## Performance Metrics
-
-The system tracks and exposes the following metrics at `/api/metrics`:
-
-| Metric | Description |
-| --- | --- |
-| Accuracy | (TP + TN) / Total |
-| FAR | False Acceptance Rate -- proportion of impostors incorrectly accepted |
-| FRR | False Rejection Rate -- proportion of genuine users incorrectly rejected |
-| Avg Frame Time | Average processing time per frame (ms) |
-| FPS | Frames per second (rolling window of last 500 frames) |
-
-### Auto-Tuning
-
-The recognition threshold is automatically adjusted every 200 recognitions:
-
-- Accuracy below 95%: threshold decreases by 0.02 (stricter matching)
-- Accuracy above 98%: threshold increases by 0.01 (more lenient matching)
-- Threshold is clamped to the range [0.45, 0.60]
+- `app.py`: main staff/admin Flask app factory and startup checks
+- `student_app/`: standalone student portal Flask app
+- `app_web/`: route registration and web/API endpoint modules
+- `app_vision/`: detection, anti-spoofing, recognition, overlays, and pipeline logic
+- `app_core/`: shared config, auth, database, notifications, and utilities
+- `app_camera/`: camera stream management and SocketIO integration
+- `scripts/`: bootstrap, calibration, migration, seed, and smoke-test helpers
+- `deploy/`: Nginx and Kubernetes deployment assets
 
 ## Database Schema
 
 ### students
 
-| Field | Type | Description |
-| --- | --- | --- |
-| `name` | String | Student name |
-| `semester` | String | Current semester |
-| `registration_number` | String | Unique identifier (indexed) |
-| `section` | String | Class section |
-| `encodings` | Array of Binary | 128-D float64 face encoding vectors |
-| `created_at` | DateTime | Registration timestamp (UTC) |
+| Field | Type |
+| --- | --- |
+| `name` | String |
+| `semester` | Integer |
+| `registration_number` | String |
+| `section` | String |
+| `email` | String |
+| `encodings` | Array of Binary |
+| `password_hash` | String (nullable) |
+| `verification_status` | String (`pending`, `approved`, `rejected`) |
+| `verification_score` | Float (nullable) |
+| `verification_reason` | String (nullable) |
+| `face_samples` | Array of String |
+| `verification_updated_at` | DateTime |
+| `created_at` | DateTime |
+| `approved_at` | DateTime (nullable) |
+| `rejected_at` | DateTime (nullable) |
+
+### users
+
+| Field | Type |
+| --- | --- |
+| `username` | String |
+| `password_hash` | String |
+| `role` | `admin` or `teacher` |
+| `email` | String |
+| `is_active` | Boolean |
+| `created_at` | DateTime |
+| `last_login` | DateTime (nullable) |
 
 ### attendance
 
-| Field | Type | Description |
-| --- | --- | --- |
-| `student_id` | ObjectId | Reference to students collection |
-| `date` | String | Date in YYYY-MM-DD format |
-| `time` | String | Time in HH:MM:SS format |
-| `status` | String | Attendance status |
-| `confidence_score` | Float | Recognition confidence |
+| Field | Type |
+| --- | --- |
+| `student_id` | ObjectId |
+| `date` | String YYYY-MM-DD |
+| `time` | String HH:MM:SS |
+| `status` | Present / Absent |
+| `confidence_score` | Float |
 
-A unique compound index on `(student_id, date)` enforces one attendance record per student per day.
+### notification_events
 
-## Security
+| Field | Type |
+| --- | --- |
+| `event_type` | String |
+| `recipient` | String |
+| `subject` | String |
+| `payload` | Object |
+| `mode` | String |
+| `created_at` | DateTime |
 
-- MongoDB URI loaded from environment variables, never hardcoded
-- Deep learning anti-spoofing to prevent photo and video replay attacks
-- Image upload validation with extension whitelist, MIME type verification (magic bytes), and 5 MB size limit
-- Image quality gates: blur detection (Laplacian variance) and brightness check
-- Input sanitisation with HTML tag stripping, whitespace normalisation, and length truncation
-- Unique database constraints preventing duplicate registrations and attendance records
-- Recognition cooldown preventing repeated marking within 30 seconds
-- Bounded in-memory buffers (events: 50, logs: 200) to prevent memory growth
-- MongoDB connection timeouts (default 5 seconds) with retry/backoff on startup
-- Date parameter validation with strict format parsing
-- Daily rotating log files with 30-day retention
-
-## Running Tests
+## Tests
 
 ```bash
-cd attendance_system
-pytest tests/ -v
+pytest -q
 ```
 
-All tests use mocks and do not require a live MongoDB connection or webcam. The test suite covers anti-spoofing, database operations, recognition, performance metrics, route handling, and utility functions.
+Current targeted checks pass in this repo, including route, database, camera multi-camera, notifications, batch import, and admin workflow coverage.
 
-## Production Hardening Checklist
+Run a focused suite quickly:
 
-1. Keep Python at 3.11 everywhere.
-2. Use a managed process supervisor (for example systemd, Supervisor, or PM2) for production uptime.
-3. Set `SOCKETIO_CORS_ORIGINS` to your actual domain(s), not wildcard origins.
-4. Enable HTTPS at the network edge or your platform load balancer.
-5. Keep `STRICT_STARTUP_CHECKS=1` in production.
-6. Run `python scripts/smoke_test.py` in CI/CD after deploy.
+```bash
+pytest -q tests/test_routes.py tests/test_database.py tests/test_camera_pipeline.py
+```
 
-## Improvement Roadmap
+## Smoke Test
 
-1. **Authentication** -- Add Flask-Login for admin and teacher access control
-2. **Multi-camera support** -- Queue-based architecture for multiple attendance stations
-3. **Face thumbnails** -- Store cropped face images for audit trail
-4. **Notification system** -- Email or SMS alerts for absences
-5. **REST API** -- Full CRUD API for mobile application integration
-6. **Batch registration** -- Upload CSV and image archive for bulk student enrolment
-7. **Attendance analytics** -- Weekly and monthly trends, prediction models
+```bash
+python scripts/smoke_test.py --base-url http://localhost --check-video
+```
+
+## Environment Flags
+
+Important flags in [`.env.example`](.env.example):
+
+- `EMBEDDING_BACKEND`
+- `APP_DEBUG`
+- `ENABLE_RBAC` (defaults to `0`; set `1` only if you want to re-enable auth checks)
+- `ENABLE_RESTX_API`
+- `APP_HOST`, `APP_PORT` (and optional `STUDENT_APP_HOST`, `STUDENT_APP_PORT`)
+- `STRICT_STARTUP_CHECKS`, `STARTUP_CAMERA_PROBE`
+- `SESSION_COOKIE_SECURE`
+- `SESSION_COOKIE_SAMESITE`
+- `SOCKETIO_CORS_ORIGINS`
+- `DEBUG_MODE`
+- `BYPASS_ANTISPOOF`
+
+## Notes
+
+- Keep Python at 3.11 for dependency compatibility and stable model runtimes.
+- Auth enforcement is currently disabled by default. Re-enable with `ENABLE_RBAC=1` only if you also restore role/login checks.
+- Use MongoDB Atlas backups for the main database.
+- Keep `STRICT_STARTUP_CHECKS=1` in production.
+- Batch import expects CSV columns: `registration_number,name,semester,section,email`.
+
+## Troubleshooting
+
+### `python app.py` fails with MongoDB connection refused (`localhost:27017`)
+
+If startup logs show connection attempts to `localhost:27017` but your `.env` has an Atlas URI:
+
+1. Clear conflicting shell/system `MONGO_URI` variables.
+2. Confirm `.env` has the expected `MONGO_URI` value.
+3. Re-run the app from the repository root.
+
+This project now loads `.env` with override enabled by default, so local `.env` values take precedence. Set `DOTENV_OVERRIDE=0` if you intentionally want shell/system environment variables to win.

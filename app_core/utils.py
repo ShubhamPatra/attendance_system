@@ -138,3 +138,29 @@ def check_image_quality(image: np.ndarray) -> tuple[bool, str]:
         )
 
     return True, ""
+
+
+def validate_semester(semester_raw: int | str | None, field_name: str = "semester") -> tuple[int | None, str | None]:
+    """Validate and parse semester value (1-12).
+    
+    Returns (int_value, None) on success or (None, error_message) on failure.
+    """
+    try:
+        semester = int(semester_raw) if semester_raw is not None else None
+        if semester is None:
+            return None, f"'{field_name}' is required."
+        if semester < 1 or semester > 12:
+            return None, f"'{field_name}' must be between 1 and 12."
+        return semester, None
+    except (ValueError, TypeError):
+        return None, f"'{field_name}' must be a valid integer."
+
+
+def validate_section(section_raw: str | None, field_name: str = "section") -> tuple[str | None, str | None]:
+    """Validate and parse section value (non-empty string).
+    
+    Returns (str_value, None) on success or (None, error_message) on failure.
+    """
+    if not section_raw or not str(section_raw).strip():
+        return None, f"'{field_name}' is required and cannot be empty."
+    return str(section_raw).strip(), None

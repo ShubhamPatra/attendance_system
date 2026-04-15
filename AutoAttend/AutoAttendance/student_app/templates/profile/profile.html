@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}Profile{% endblock %}
+
+{% block content %}
+  <section class="card stack">
+    <header>
+      <h1 class="page-title">Student Profile</h1>
+    </header>
+    {% if student %}
+    <div class="grid cols-2">
+      <div class="field"><span class="field-label">Name</span><span>{{ student.name }}</span></div>
+      <div class="field"><span class="field-label">Student ID</span><span>{{ student.student_id }}</span></div>
+      <div class="field"><span class="field-label">Email</span><span>{{ student.email }}</span></div>
+      <div class="field"><span class="field-label">Department</span><span>{{ student.department }}</span></div>
+      <div class="field"><span class="field-label">Year</span><span>{{ student.year }}</span></div>
+      <div class="field"><span class="field-label">Face Photo Path</span><span>{{ student.face_photo_path or 'Not set' }}</span></div>
+    </div>
+
+    <form method="post" action="{{ url_for('student_profile.update_face_profile') }}" class="form-row cols-2">
+      <label for="face_photo_path" class="field-label">Update Face Photo Path</label>
+      <input id="face_photo_path" name="face_photo_path" type="text" class="input" aria-label="Face photo path" />
+      <button type="submit" class="btn btn-primary">Update Face</button>
+    </form>
+    {% else %}
+    <p>Student not found.</p>
+    {% endif %}
+    <p><a class="btn btn-ghost" href="{{ url_for('student_profile.profile_courses') }}">View Enrolled Courses</a></p>
+  </section>
+{% endblock %}

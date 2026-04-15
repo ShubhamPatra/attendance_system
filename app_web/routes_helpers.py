@@ -76,11 +76,30 @@ def _validate_image_mime(file_storage) -> str | None:
 
 
 def _validate_date_param(value: str, name: str) -> tuple[datetime | None, str | None]:
-    """Parse a YYYY-MM-DD string. Returns (date, None) on success or (None, error_message) on failure."""
+    """Parse a YYYY-MM-DD string with range validation.
+    
+    Returns (date, None) on success or (None, error_message) on failure.
+    Rejects dates more than 10 years in the past or any future dates.
+    """
     try:
-        return datetime.strptime(value, "%Y-%m-%d"), None
+        parsed = datetime.strptime(value, "%Y-%m-%d")
     except ValueError:
         return None, f"'{name}' must be a valid date in YYYY-MM-DD format."
+    
+    # Convert to date only (no time components) for comparison
+    today = datetime.now().date()
+    parsed_date = parsed.date() if isinstance(parsed, datetime) else parsed
+    
+    # Reject future dates
+    if parsed_date > today:
+        return None, f"'{name}' cannot be a future date."
+    
+    # Reject dates older than 10 years
+    cutoff = today.replace(year=today.year - 10)
+    if parsed_date < cutoff:
+        return None, f"'{name}' cannot be more than 10 years old."
+    
+    return parsed, None
 
 
 def _rate_limit_key(endpoint: str) -> str:

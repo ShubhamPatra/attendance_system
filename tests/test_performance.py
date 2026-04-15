@@ -75,6 +75,16 @@ def test_frame_time_and_fps(fresh_tracker):
     assert m["fps"] == 20.0
 
 
+def test_stage_latency_metrics(fresh_tracker):
+    fresh_tracker.record_stage_time("detection", 0.02)
+    fresh_tracker.record_stage_time("detection", 0.04)
+    fresh_tracker.record_stage_time("recognition", 0.01)
+
+    m = fresh_tracker.metrics()
+    assert m["stage_latency_ms"]["detection"] == 30.0
+    assert m["stage_latency_ms"]["recognition"] == 10.0
+
+
 def test_auto_tune_disabled_keeps_threshold(fresh_tracker):
     """Runtime auto-tuning is disabled; threshold must remain unchanged."""
     original = fresh_tracker.threshold

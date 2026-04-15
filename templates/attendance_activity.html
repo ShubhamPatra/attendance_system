@@ -7,26 +7,25 @@
     {{ page_header('Hourly Trends', 'Attendance Activity', 'Visualize attendance distribution by hour for a selected date.') }}
 
     <!-- Date Picker -->
-    <div class="bg-white rounded-xl shadow-panel border border-border-light p-6">
-        <div class="flex flex-col sm:flex-row gap-4 items-end">
-            <label class="flex flex-col gap-1.5 flex-1 max-w-xs">
-                <span class="text-text-primary text-sm font-medium">Date</span>
-                <input type="date" id="activityDate" class="w-full rounded-md border-border-light bg-background-light h-11 px-3 text-sm focus:ring-2 focus:ring-secondary/20 focus:border-secondary transition-all text-text-primary">
-            </label>
-            <button type="button" id="loadBtn" class="flex items-center justify-center gap-2 px-5 h-11 rounded-md bg-primary hover:bg-primary-dark text-white transition-colors text-sm font-semibold">
-                <span class="material-symbols-outlined text-[20px]">bar_chart</span>
-                <span>Load</span>
+    <div class="card card-body">
+        <div class="flex items-end gap-4" style="flex-wrap:wrap">
+            <div class="form-group" style="flex:1;max-width:240px">
+                <label class="form-label">Date</label>
+                <input type="date" id="activityDate" class="form-input">
+            </div>
+            <button type="button" id="loadBtn" class="btn btn-primary">
+                <span class="material-symbols-outlined">bar_chart</span> Load
             </button>
         </div>
     </div>
 
     <!-- Chart Area -->
-    <div class="bg-white rounded-xl shadow-panel border border-border-light p-6">
+    <div class="card card-body">
         <div class="flex items-center justify-between mb-4">
-            <h3 class="text-sm font-semibold text-text-primary">Attendance per Hour</h3>
-            <span class="text-xs text-text-muted" id="chartDateLabel">—</span>
+            <h3>Attendance per Hour</h3>
+            <span class="text-xs text-muted" id="chartDateLabel">—</span>
         </div>
-        <div class="relative" style="height: 320px;">
+        <div style="position:relative;height:320px;">
             <canvas id="activityChart"></canvas>
         </div>
     </div>
@@ -44,8 +43,8 @@ var chart = new Chart(ctx, {
         datasets: [{
             label: 'Students Present',
             data: [],
-            backgroundColor: 'rgba(46, 111, 143, 0.72)',
-            borderColor: '#2E6F8F',
+            backgroundColor: 'rgba(37, 99, 235, 0.65)',
+            borderColor: '#2563eb',
             borderWidth: 1,
             borderRadius: 4,
         }]
@@ -53,26 +52,23 @@ var chart = new Chart(ctx, {
     options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: {
-            legend: { display: false },
-        },
+        plugins: { legend: { display: false } },
         scales: {
             y: {
                 beginAtZero: true,
-                ticks: { stepSize: 1, color: '#5F6C7B', font: { size: 11 } },
-                grid: { color: '#DCE3EA' },
-                title: { display: true, text: 'Count', color: '#5F6C7B', font: { size: 12 } },
+                ticks: { stepSize: 1, color: '#64748b', font: { size: 11, family: 'Inter' } },
+                grid: { color: '#e2e8f0' },
+                title: { display: true, text: 'Count', color: '#64748b', font: { size: 12, family: 'Inter' } },
             },
             x: {
-                ticks: { color: '#5F6C7B', font: { size: 11 } },
+                ticks: { color: '#64748b', font: { size: 11, family: 'Inter' } },
                 grid: { display: false },
-                title: { display: true, text: 'Hour of Day', color: '#5F6C7B', font: { size: 12 } },
+                title: { display: true, text: 'Hour of Day', color: '#64748b', font: { size: 12, family: 'Inter' } },
             }
         }
     }
 });
 
-// Default to today
 var dateInput = document.getElementById('activityDate');
 var today = new Date();
 dateInput.value = today.getFullYear() + '-'
@@ -87,13 +83,11 @@ function loadActivity() {
     fetch('{{ url_for("main.api_attendance_activity") }}?date=' + encodeURIComponent(date))
         .then(function(r) { return r.json(); })
         .then(function(data) {
-            // Build full 24-hour labels
             var labels = [];
             var counts = new Array(24).fill(0);
             for (var h = 0; h < 24; h++) {
                 labels.push(String(h).padStart(2, '0') + ':00');
             }
-            // Fill in actual data
             (data.hours || []).forEach(function(item) {
                 counts[item.hour] = item.count;
             });

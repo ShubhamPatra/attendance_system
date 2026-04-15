@@ -1,0 +1,13 @@
+<!doctype html>
+<html>
+  <body>
+    <h2>Student Login</h2>
+    <form method="post" action="{{ url_for('student_auth.login') }}">
+      {{ form.csrf_token }}
+      <div>{{ form.student_id.label }} {{ form.student_id() }}</div>
+      <div>{{ form.password.label }} {{ form.password() }}</div>
+      <div>{{ form.submit() }}</div>
+    </form>
+    <p><a href="{{ url_for('student_auth.register') }}">Create account</a></p>
+  </body>
+</html>

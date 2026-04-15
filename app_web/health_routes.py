@@ -6,6 +6,10 @@ from flask import jsonify
 
 import app_core.config as config
 import app_core.database as database
+from app_core.utils import setup_logging
+
+
+logger = setup_logging()
 
 
 def _check_model_artifacts() -> dict[str, bool]:
@@ -31,7 +35,8 @@ def _check_mongo_ready() -> bool:
     try:
         database.get_client().admin.command("ping")
         return True
-    except Exception:
+    except Exception as exc:
+        logger.debug("MongoDB health check failed: %s", exc)
         return False
 
 
@@ -48,7 +53,8 @@ def _check_celery_ready() -> bool:
 
         # Non-filesystem brokers are considered configured when set.
         return bool(broker)
-    except Exception:
+    except (OSError, IOError) as exc:
+        logger.debug("Celery health check failed: %s", exc)
         return False
 
 

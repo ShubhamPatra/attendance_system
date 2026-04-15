@@ -7,11 +7,10 @@ Run this to test each stage of the recognition pipeline independently:
   3. Camera → frame capture
   4. YuNet → face detection
   5. Anti-spoofing → liveness check
-  6. Face encoding → 128-D vector
-  7. Distance computation → match check
+  6. Face encoding → embedding vector
+  7. Cosine similarity → match check
 
 Usage:
-    cd d:\Projects\FinalYearProject\attendance_system
     python debug_pipeline.py
 """
 
@@ -75,17 +74,15 @@ def main():
     all_ok = True
 
     if encoding_cache.size > 0:
+        expected_dim = encoding_cache.embedding_dim
         _, _, enc_lists_full = encoding_cache.get_all()
         for i, (name, encs) in enumerate(zip(all_names, enc_lists_full)):
             for j, enc in enumerate(encs):
-                if enc.shape != (128,):
-                    print(f"  ✗ CORRUPT: {name} encoding[{j}] shape={enc.shape}")
-                    all_ok = False
-                elif enc.dtype != np.float64:
-                    print(f"  ✗ WRONG DTYPE: {name} encoding[{j}] dtype={enc.dtype}")
+                if enc.shape[0] != expected_dim:
+                    print(f"  ✗ CORRUPT: {name} encoding[{j}] shape={enc.shape} (expected ({expected_dim},))")
                     all_ok = False
         if all_ok:
-            print(f"  ✓ All encodings valid (128-D float64)")
+            print(f"  ✓ All encodings valid ({expected_dim}-D, backend={config.EMBEDDING_BACKEND})")
     else:
         print("  ⊘ Skipped (no students)")
 
@@ -179,43 +176,48 @@ def main():
         cap.release()
         return
 
-    # ── Step 7: Distance computation & matching ──────────────────
-    step(7, "Match against encoding cache")
+    # ── Step 7: Cosine similarity & matching ──────────────────────
+    step(7, "Match against encoding cache (cosine similarity)")
     if n_students == 0:
         print("  ⊘ Skipped (no students in cache)")
     else:
         from app_vision.face_engine import recognize_face
 
-        # Compute distances to all students
+        # Compute cosine similarities to all students
         flat_enc_arr, flat_idx_arr, c_ids, c_names = encoding_cache.get_flat()
         if flat_enc_arr is not None:
-            distances = np.linalg.norm(flat_enc_arr - encoding, axis=1)
+            # L2-normalise query
+            query = encoding.astype(np.float32).flatten()
+            q_norm = np.linalg.norm(query)
+            if q_norm > 0:
+                query = query / q_norm
 
-            # Per-student min distance
+            similarities = flat_enc_arr @ query  # cosine similarity
+
+            # Per-student max similarity
             n_s = len(c_ids)
-            min_dists = np.full(n_s, np.inf)
-            np.minimum.at(min_dists, flat_idx_arr, distances)
+            max_sims = np.full(n_s, -1.0)
+            np.maximum.at(max_sims, flat_idx_arr, similarities)
 
-            print(f"\n  Distance table (threshold={config.RECOGNITION_THRESHOLD:.4f}):")
-            print(f"  {'Student':<25} {'Min Dist':<12} {'Match?'}")
+            print(f"\n  Similarity table (threshold={config.RECOGNITION_THRESHOLD:.4f}, backend={config.EMBEDDING_BACKEND}):")
+            print(f"  {'Student':<25} {'Max Sim':<12} {'Match?'}")
             print(f"  {'-'*25} {'-'*12} {'-'*6}")
-            for i, (name, dist) in enumerate(zip(c_names, min_dists)):
-                match = "✓ YES" if dist <= config.RECOGNITION_THRESHOLD else "✗ NO"
-                print(f"  {name:<25} {dist:<12.4f} {match}")
+            for i, (name, sim) in enumerate(zip(c_names, max_sims)):
+                match = "✓ YES" if sim >= config.RECOGNITION_THRESHOLD else "✗ NO"
+                print(f"  {name:<25} {sim:<12.4f} {match}")
 
-            best_idx = int(np.argmin(min_dists))
-            best_dist = float(min_dists[best_idx])
-            print(f"\n  Best match: {c_names[best_idx]} (distance={best_dist:.4f})")
+            best_idx = int(np.argmax(max_sims))
+            best_sim = float(max_sims[best_idx])
+            print(f"\n  Best match: {c_names[best_idx]} (similarity={best_sim:.4f})")
 
-            if best_dist <= config.RECOGNITION_THRESHOLD:
-                conf = 1.0 - best_dist
-                print(f"  ✓ RECOGNIZED with confidence={conf:.4f}")
+            if best_sim >= config.RECOGNITION_THRESHOLD:
+                print(f"  ✓ RECOGNIZED with similarity={best_sim:.4f}")
             else:
-                print(f"  ✗ NOT RECOGNIZED (distance {best_dist:.4f} > threshold {config.RECOGNITION_THRESHOLD:.4f})")
-                if best_dist <= 0.6:
-                    print(f"  💡 Would match with threshold=0.6")
-                elif best_dist <= 0.7:
-                    print(f"  💡 Would match with threshold=0.7")
+                print(f"  ✗ NOT RECOGNIZED (similarity {best_sim:.4f} < threshold {config.RECOGNITION_THRESHOLD:.4f})")
+                if best_sim >= 0.35:
+                    print(f"  💡 Would match with threshold=0.35")
+                elif best_sim >= 0.30:
+                    print(f"  💡 Would match with threshold=0.30")
 
         # Also run through the actual API
         result = recognize_face(encoding)

@@ -49,8 +49,21 @@ def init_yunet(model_path: str, input_width: int = 640) -> None:
 def create_tracker():
     """Return a new object tracker from the best available OpenCV backend.
 
-    Priority: CSRT (contrib) > MIL (built-in).
+    Priority (default): CSRT (contrib) > MIL (built-in).
+    When ``config.PERF_USE_KCF_TRACKER`` is True, prefer KCF which is
+    ~3× faster than CSRT at the cost of accuracy on fast-moving faces.
     """
+    if config.PERF_USE_KCF_TRACKER:
+        for factory in (
+            lambda: cv2.TrackerKCF.create(),
+            lambda: cv2.legacy.TrackerKCF.create(),
+        ):
+            try:
+                return factory()
+            except (AttributeError, cv2.error):
+                pass
+        logger.debug("KCF tracker unavailable, falling back to CSRT/MIL.")
+
     for factory in (
         lambda: cv2.TrackerCSRT.create(),
         lambda: cv2.legacy.TrackerCSRT.create(),
@@ -79,6 +92,21 @@ class FaceTrack:
         "state", "quality_reason", "created_at",
         "candidate_student_id", "candidate_name",
         "candidate_hits", "candidate_best_confidence",
+        "identity_prediction_buffer",  # rolling [{student_id,name,confidence}]
+        "student_metadata",  # Cached metadata to avoid repeated DB lookups
+        # Multi-frame embedding smoothing
+        "embedding_history",     # list[np.ndarray] — recent embeddings
+        "smoothed_embedding",    # np.ndarray | None — averaged L2-normalised embedding
+        # Blink detection (anti-spoofing supplement)
+        "ear_history",           # list[float] — recent EAR values
+        "blink_count",           # int — total detected blinks
+        "blink_frames_below",    # int — consecutive low-EAR frames
+        # 5-point face landmarks (from InsightFace)
+        "landmarks_5",           # np.ndarray | None — (5, 2) keypoints
+        "landmarks_5_updated_at",# float — last landmark refresh time
+        # Performance gating counters
+        "recognition_cycle_count",  # int — detection cycles since last recognition attempt
+        "antispoof_cycle_count",    # int — detection cycles since last antispoof attempt
     )
 
     def __init__(self, track_id: int, frame: np.ndarray,
@@ -107,6 +135,21 @@ class FaceTrack:
         self.candidate_name: str = ""
         self.candidate_hits: int = 0
         self.candidate_best_confidence: float = 0.0
+        self.identity_prediction_buffer: list[dict] = []
+        self.student_metadata: dict | None = None  # Cache: {reg_no, semester, section}
+        # Multi-frame smoothing
+        self.embedding_history: list[np.ndarray] = []
+        self.smoothed_embedding: np.ndarray | None = None
+        # Blink detection
+        self.ear_history: list[float] = []
+        self.blink_count: int = 0
+        self.blink_frames_below: int = 0
+        # 5-point landmarks
+        self.landmarks_5: np.ndarray | None = None
+        self.landmarks_5_updated_at: float = 0.0
+        # Performance gating
+        self.recognition_cycle_count: int = 0
+        self.antispoof_cycle_count: int = 0
 
     def update(self, frame: np.ndarray) -> bool:
         """Advance the tracker by one frame.  Returns *True* on success."""
@@ -268,11 +311,15 @@ def detect_and_associate_detailed(
     process_width: int = config.FRAME_PROCESS_WIDTH,
     iou_threshold: float = config.IOU_THRESHOLD,
     centroid_dist_threshold: float = config.CENTROID_DISTANCE_THRESHOLD,
+    max_new_faces: int = 0,
 ) -> tuple[list[tuple[int, int, int, int]], set[int]]:
     """Run face detection and return ``(new_boxes, matched_track_indices)``.
 
     ``matched_track_indices`` contains indexes from *tracks* that were
     supported by at least one detector box in this cycle.
+
+    *max_new_faces* caps how many new detections are returned.  Pass 0
+    (the default) for unlimited.
     """
     det_boxes = detect_faces_yunet(frame, process_width)
     new_boxes: list[tuple[int, int, int, int]] = []
@@ -296,6 +343,9 @@ def detect_and_associate_detailed(
                     matched = True
                     break
         if not matched:
+            # Respect max_new_faces cap
+            if max_new_faces > 0 and len(new_boxes) >= max_new_faces:
+                continue
             new_boxes.append(det_box)
 
     return new_boxes, matched_track_indices

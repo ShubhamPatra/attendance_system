@@ -64,6 +64,29 @@ def test_quality_gate_rejects_bright():
     assert "bright" in reason.lower()
 
 
+def test_quality_gate_rejects_too_small_face():
+    from app_vision.recognition import check_face_quality_gate
+    import app_core.config as config
+
+    img = np.random.randint(90, 180, (200, 200, 3), dtype=np.uint8)
+    small = max(1, int(config.MIN_FACE_SIZE_PIXELS) - 8)
+    ok, reason = check_face_quality_gate(img, (20, 20, small, small))
+    assert ok is False
+    assert "small" in reason.lower()
+
+
+def test_quality_gate_rejects_tiny_face_area_ratio():
+    from app_vision.recognition import check_face_quality_gate
+    import app_core.config as config
+
+    img = np.random.randint(90, 180, (400, 400, 3), dtype=np.uint8)
+    tiny = int((config.MIN_FACE_AREA_RATIO * img.shape[0] * img.shape[1]) ** 0.5)
+    tiny = max(1, tiny - 1)
+    ok, reason = check_face_quality_gate(img, (20, 20, tiny, tiny))
+    assert ok is False
+    assert "small" in reason.lower()
+
+
 def test_quality_gate_empty_roi():
     from app_vision.recognition import check_face_quality_gate
     img = np.zeros((200, 200, 3), dtype=np.uint8)
@@ -79,3 +102,20 @@ def test_encode_face_rejects_poor_quality():
     img = np.full((200, 200, 3), 128, dtype=np.uint8)
     result = encode_face(img, (20, 20, 100, 100))
     assert result is None
+
+
+def test_dynamic_threshold_penalty_is_bounded(monkeypatch):
+    import importlib
+    import app_core.config as config
+    import app_vision.preprocessing as preprocessing
+
+    monkeypatch.setenv("DYNAMIC_THRESHOLD_ENABLED", "1")
+    monkeypatch.setenv("DYNAMIC_THRESHOLD_MAX_PENALTY", "0.04")
+    importlib.reload(config)
+    importlib.reload(preprocessing)
+
+    adjusted = preprocessing.compute_dynamic_threshold(
+        0.60,
+        {"is_blurry": True, "is_dark": True, "is_low_contrast": True},
+    )
+    assert adjusted == pytest.approx(0.56, abs=0.001)

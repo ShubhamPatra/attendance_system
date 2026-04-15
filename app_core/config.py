@@ -8,7 +8,8 @@ import secrets
 from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv()
+# Prefer repository .env values for local runs unless explicitly disabled.
+load_dotenv(override=os.environ.get("DOTENV_OVERRIDE", "1") == "1")
 
 # ---------------------------------------------------------------------------
 # MongoDB
@@ -34,6 +35,25 @@ MONGO_CONNECT_RETRY_DELAY_SECONDS = float(
     os.environ.get("MONGO_CONNECT_RETRY_DELAY_SECONDS", "1.0")
 )
 
+# MongoDB connection pooling
+MONGO_MAX_POOL_SIZE = int(
+    os.environ.get("MONGO_MAX_POOL_SIZE", "50")
+)
+MONGO_MIN_POOL_SIZE = int(
+    os.environ.get("MONGO_MIN_POOL_SIZE", "5")
+)
+MONGO_MAX_IDLE_TIME_MS = int(
+    os.environ.get("MONGO_MAX_IDLE_TIME_MS", "45000")
+)
+
+# MongoDB circuit breaker (prevent cascading failures)
+MONGO_CIRCUIT_BREAKER_THRESHOLD = int(
+    os.environ.get("MONGO_CIRCUIT_BREAKER_THRESHOLD", "5")
+)
+MONGO_CIRCUIT_BREAKER_TIMEOUT_SECONDS = float(
+    os.environ.get("MONGO_CIRCUIT_BREAKER_TIMEOUT_SECONDS", "60.0")
+)
+
 # ---------------------------------------------------------------------------
 # Flask
 # ---------------------------------------------------------------------------
@@ -46,23 +66,92 @@ APP_PORT = int(os.environ.get("APP_PORT", "5000"))
 APP_DEBUG = os.environ.get("APP_DEBUG", "0") == "1"
 
 # ---------------------------------------------------------------------------
-# Face Recognition
+# ML backend
+# ---------------------------------------------------------------------------
+EMBEDDING_BACKEND = os.environ.get("EMBEDDING_BACKEND", "arcface").strip().lower()
+EMBEDDING_DIM = int(os.environ.get("EMBEDDING_DIM", "512"))
+ENABLE_GPU_PROVIDERS = os.environ.get("ENABLE_GPU_PROVIDERS", "1") == "1"
+ONNXRT_PROVIDER_PRIORITY = os.environ.get(
+    "ONNXRT_PROVIDER_PRIORITY",
+    "CUDAExecutionProvider,CPUExecutionProvider",
+)
+
+# ---------------------------------------------------------------------------
+# ArcFace (InsightFace) configuration
+# ---------------------------------------------------------------------------
+ARCFACE_MODEL_NAME = os.environ.get("ARCFACE_MODEL_NAME", "buffalo_l")
+ARCFACE_DET_SIZE = int(os.environ.get("ARCFACE_DET_SIZE", "320"))
+
+# ---------------------------------------------------------------------------
+# Auth / Session / RBAC
+# ---------------------------------------------------------------------------
+ENABLE_RBAC = os.environ.get("ENABLE_RBAC", "0") == "1"
+ENABLE_RESTX_API = os.environ.get("ENABLE_RESTX_API", "0") == "1"
+AUTH_SESSION_DURATION_HOURS = int(
+    os.environ.get("AUTH_SESSION_DURATION_HOURS", "12")
+)
+SESSION_COOKIE_SECURE = os.environ.get("SESSION_COOKIE_SECURE", "0") == "1"
+SESSION_COOKIE_HTTPONLY = os.environ.get("SESSION_COOKIE_HTTPONLY", "1") == "1"
+SESSION_COOKIE_SAMESITE = os.environ.get("SESSION_COOKIE_SAMESITE", "Lax")
+REMEMBER_COOKIE_SECURE = os.environ.get("REMEMBER_COOKIE_SECURE", "0") == "1"
+REMEMBER_COOKIE_HTTPONLY = os.environ.get("REMEMBER_COOKIE_HTTPONLY", "1") == "1"
+REMEMBER_COOKIE_SAMESITE = os.environ.get("REMEMBER_COOKIE_SAMESITE", "Lax")
+
+# ---------------------------------------------------------------------------
+# Attendance Session Lifecycle
+# ---------------------------------------------------------------------------
+ATTENDANCE_SESSION_IDLE_TIMEOUT_SECONDS = int(
+    os.environ.get("ATTENDANCE_SESSION_IDLE_TIMEOUT_SECONDS", "900")
+)
+ATTENDANCE_SESSION_CACHE_SECONDS = float(
+    os.environ.get("ATTENDANCE_SESSION_CACHE_SECONDS", "2.0")
+)
+
+# ---------------------------------------------------------------------------
+# Face Recognition (tuned for cosine similarity with ArcFace)
 # ---------------------------------------------------------------------------
 RECOGNITION_THRESHOLD = float(
-    os.environ.get("RECOGNITION_THRESHOLD", "0.42")
-)  # Euclidean distance; lower = stricter (0.42 = 58% confidence floor)
+    os.environ.get("RECOGNITION_THRESHOLD", "0.45")
+)  # Cosine similarity; higher = stricter match requirement
 RECOGNITION_MIN_CONFIDENCE = float(
-    os.environ.get("RECOGNITION_MIN_CONFIDENCE", "0.60")
-)  # Minimum raw confidence (1 - distance)
+    os.environ.get("RECOGNITION_MIN_CONFIDENCE", "0.50")
+)  # Minimum cosine similarity score to accept
 RECOGNITION_MIN_DISTANCE_GAP = float(
-    os.environ.get("RECOGNITION_MIN_DISTANCE_GAP", "0.08")
+    os.environ.get("RECOGNITION_MIN_DISTANCE_GAP", "0.10")
 )  # Gap between best and 2nd-best must be substantial
 RECOGNITION_CONFIDENCE_ALPHA = float(
-    os.environ.get("RECOGNITION_CONFIDENCE_ALPHA", "2.3")
+    os.environ.get("RECOGNITION_CONFIDENCE_ALPHA", "3.0")
 )
 RECOGNITION_CONFIRM_FRAMES = int(
     os.environ.get("RECOGNITION_CONFIRM_FRAMES", "4")
 )  # Require 4 consecutive confident frames before marking attendance
+RECOGNITION_STABILITY_WINDOW = int(
+    os.environ.get("RECOGNITION_STABILITY_WINDOW", "5")
+)
+RECOGNITION_STABILITY_MIN_HITS = int(
+    os.environ.get("RECOGNITION_STABILITY_MIN_HITS", "3")
+)
+RECOGNITION_TWO_STAGE_ENABLED = os.environ.get(
+    "RECOGNITION_TWO_STAGE_ENABLED", "1"
+) == "1"
+RECOGNITION_STAGE1_TOP_K = int(
+    os.environ.get("RECOGNITION_STAGE1_TOP_K", "8")
+)
+RECOGNITION_STAGE1_MIN_SIMILARITY = float(
+    os.environ.get("RECOGNITION_STAGE1_MIN_SIMILARITY", "0.30")
+)
+RECOGNITION_STAGE1_MARGIN = float(
+    os.environ.get("RECOGNITION_STAGE1_MARGIN", "0.08")
+)
+RECOGNITION_STAGE2_MIN_CANDIDATES = int(
+    os.environ.get("RECOGNITION_STAGE2_MIN_CANDIDATES", "2")
+)
+RECOGNITION_TRACK_CACHE_TTL_SECONDS = float(
+    os.environ.get("RECOGNITION_TRACK_CACHE_TTL_SECONDS", "2.0")
+)
+RECOGNITION_TRACK_CACHE_MAX_ENTRIES = int(
+    os.environ.get("RECOGNITION_TRACK_CACHE_MAX_ENTRIES", "1024")
+)
 FRAME_RESIZE_FACTOR = 0.25    # Resize frames to 1/4 for speed
 RECOGNITION_COOLDOWN = 30     # Seconds to skip re-processing a recognized student
 
@@ -130,6 +219,8 @@ ANTI_SPOOF_PAD_MIN_PIXELS = int(
 # ---------------------------------------------------------------------------
 BLUR_THRESHOLD = 10.0              # Laplacian variance; below = too blurry
 BRIGHTNESS_THRESHOLD = 40.0        # Mean pixel brightness; below = too dark
+MIN_FACE_SIZE_PIXELS = int(os.environ.get("MIN_FACE_SIZE_PIXELS", "48"))
+MIN_FACE_AREA_RATIO = float(os.environ.get("MIN_FACE_AREA_RATIO", "0.01"))
 MAX_REGISTRATION_IMAGES = 5        # Max images accepted per registration
 
 # ---------------------------------------------------------------------------
@@ -157,7 +248,7 @@ CENTROID_DISTANCE_THRESHOLD = 100  # Max centroid distance (px) for match
 # ---------------------------------------------------------------------------
 # MJPEG Streaming
 # ---------------------------------------------------------------------------
-MJPEG_TARGET_FPS = 12              # Cap MJPEG stream frame rate
+MJPEG_TARGET_FPS = int(os.environ.get("MJPEG_TARGET_FPS", "24"))  # Cap MJPEG stream frame rate
 
 # ---------------------------------------------------------------------------
 # Bounded Buffers
@@ -264,6 +355,17 @@ CAMERA_HEALTHCHECK_INDEX = int(
     os.environ.get("CAMERA_HEALTHCHECK_INDEX", str(CAMERA_INDICES[0] if CAMERA_INDICES else 0))
 )
 
+# Camera reconnection with exponential backoff
+CAMERA_RECONNECT_INITIAL_DELAY_SECONDS = float(
+    os.environ.get("CAMERA_RECONNECT_INITIAL_DELAY_SECONDS", "1.0")
+)
+CAMERA_RECONNECT_MAX_DELAY_SECONDS = float(
+    os.environ.get("CAMERA_RECONNECT_MAX_DELAY_SECONDS", "30.0")
+)
+CAMERA_RECONNECT_MAX_ATTEMPTS = int(
+    os.environ.get("CAMERA_RECONNECT_MAX_ATTEMPTS", "12")
+)
+
 # ---------------------------------------------------------------------------
 # Backup
 # ---------------------------------------------------------------------------
@@ -277,6 +379,21 @@ UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
 UPLOAD_RETENTION_SECONDS = int(
     os.environ.get("UPLOAD_RETENTION_SECONDS", "3600")
 )
+STUDENT_SAMPLE_DIR = os.path.join(UPLOAD_DIR, "student_app")
+
+# ---------------------------------------------------------------------------
+# Student Portal App
+# ---------------------------------------------------------------------------
+STUDENT_APP_HOST = os.environ.get("STUDENT_APP_HOST", "0.0.0.0")
+STUDENT_APP_PORT = int(os.environ.get("STUDENT_APP_PORT", "5001"))
+STUDENT_MIN_CAPTURE_IMAGES = int(os.environ.get("STUDENT_MIN_CAPTURE_IMAGES", "3"))
+STUDENT_MAX_CAPTURE_IMAGES = int(os.environ.get("STUDENT_MAX_CAPTURE_IMAGES", "5"))
+STUDENT_AUTO_APPROVE_SCORE = float(os.environ.get("STUDENT_AUTO_APPROVE_SCORE", "85"))
+STUDENT_PENDING_SCORE = float(os.environ.get("STUDENT_PENDING_SCORE", "60"))
+STUDENT_PORTAL_BASE_URL = os.environ.get(
+    "STUDENT_PORTAL_BASE_URL",
+    f"http://localhost:{STUDENT_APP_PORT}/student",
+).rstrip("/")
 
 # ---------------------------------------------------------------------------
 # API Rate Limiting
@@ -286,6 +403,21 @@ API_RATE_LIMIT_WINDOW_SEC = int(
 )
 API_RATE_LIMIT_MAX_REQUESTS = int(
     os.environ.get("API_RATE_LIMIT_MAX_REQUESTS", "30")
+)
+
+# ---------------------------------------------------------------------------
+# Email Notifications (SMTP)
+# ---------------------------------------------------------------------------
+NOTIFICATIONS_ENABLED = os.environ.get("NOTIFICATIONS_ENABLED", "0").strip().lower() in ("1", "true")
+SMTP_SERVER = os.environ.get("SMTP_SERVER", "localhost").strip()
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
+SMTP_USERNAME = os.environ.get("SMTP_USERNAME", "").strip()
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "").strip()
+SMTP_USE_TLS = os.environ.get("SMTP_USE_TLS", "1").strip().lower() in ("1", "true")
+NOTIFICATION_FROM_EMAIL = os.environ.get("NOTIFICATION_FROM_EMAIL", "noreply@autoattendance.local").strip()
+NOTIFICATION_FROM_NAME = os.environ.get("NOTIFICATION_FROM_NAME", "AutoAttendance System").strip()
+NOTIFICATION_RATE_LIMIT_SECONDS = int(
+    os.environ.get("NOTIFICATION_RATE_LIMIT_SECONDS", "3600")
 )
 
 # ---------------------------------------------------------------------------
@@ -313,3 +445,85 @@ BYPASS_QUALITY_GATE = os.environ.get("BYPASS_QUALITY_GATE", "0") == "1"
 # ---------------------------------------------------------------------------
 STRICT_STARTUP_CHECKS = os.environ.get("STRICT_STARTUP_CHECKS", "1") == "1"
 STARTUP_CAMERA_PROBE = os.environ.get("STARTUP_CAMERA_PROBE", "0") == "1"
+
+# ---------------------------------------------------------------------------
+# Dynamic Recognition Threshold (image-quality adaptive)
+# ---------------------------------------------------------------------------
+DYNAMIC_THRESHOLD_ENABLED = os.environ.get("DYNAMIC_THRESHOLD_ENABLED", "1") == "1"
+DYNAMIC_THRESHOLD_BLUR_PENALTY = float(
+    os.environ.get("DYNAMIC_THRESHOLD_BLUR_PENALTY", "0.05")
+)  # Reduce threshold when face region is blurry
+DYNAMIC_THRESHOLD_DARK_PENALTY = float(
+    os.environ.get("DYNAMIC_THRESHOLD_DARK_PENALTY", "0.03")
+)  # Reduce threshold when face region is dark
+DYNAMIC_THRESHOLD_LOW_CONTRAST_PENALTY = float(
+    os.environ.get("DYNAMIC_THRESHOLD_LOW_CONTRAST_PENALTY", "0.03")
+)  # Reduce threshold when face region has low contrast
+DYNAMIC_THRESHOLD_MAX_PENALTY = float(
+    os.environ.get("DYNAMIC_THRESHOLD_MAX_PENALTY", "0.10")
+)
+
+# ---------------------------------------------------------------------------
+# Multi-Frame Embedding Smoothing
+# ---------------------------------------------------------------------------
+SMOOTHING_WINDOW = int(os.environ.get("SMOOTHING_WINDOW", "5"))
+SMOOTHING_MIN_FRAMES = int(os.environ.get("SMOOTHING_MIN_FRAMES", "2"))
+
+# ---------------------------------------------------------------------------
+# Blink Detection (Anti-Spoofing supplement)
+# ---------------------------------------------------------------------------
+BLINK_DETECTION_ENABLED = os.environ.get("BLINK_DETECTION_ENABLED", "1") == "1"
+BLINK_LANDMARK_REFRESH_SECONDS = float(
+    os.environ.get("BLINK_LANDMARK_REFRESH_SECONDS", "5.0")
+)
+BLINK_EAR_THRESHOLD = float(
+    os.environ.get("BLINK_EAR_THRESHOLD", "0.21")
+)  # Eye Aspect Ratio below this = eye closed
+BLINK_CONSEC_FRAMES = int(
+    os.environ.get("BLINK_CONSEC_FRAMES", "2")
+)  # Consecutive low-EAR frames to register a blink
+BLINK_REQUIRED_COUNT = int(
+    os.environ.get("BLINK_REQUIRED_COUNT", "1")
+)  # Minimum blinks expected within a track lifetime for liveness bonus
+
+# ---------------------------------------------------------------------------
+# Image Preprocessing (CLAHE)
+# ---------------------------------------------------------------------------
+PREPROCESSING_CLAHE_ENABLED = os.environ.get("PREPROCESSING_CLAHE_ENABLED", "1") == "1"
+PREPROCESSING_CLAHE_CLIP = float(
+    os.environ.get("PREPROCESSING_CLAHE_CLIP", "2.0")
+)
+PREPROCESSING_CLAHE_GRID = int(
+    os.environ.get("PREPROCESSING_CLAHE_GRID", "8")
+)
+
+# ---------------------------------------------------------------------------
+# Performance Tuning (real-time pipeline optimisation)
+# ---------------------------------------------------------------------------
+PERF_FRAME_SCALE = float(
+    os.environ.get("PERF_FRAME_SCALE", "1.0")
+)  # Extra scale factor on the processing frame (e.g. 0.75 = 75% of FRAME_PROCESS_WIDTH)
+
+PERF_MAX_FACES = int(
+    os.environ.get("PERF_MAX_FACES", "5")
+)  # Cap on simultaneous tracked faces; new detections ignored when at limit
+
+PERF_RECOGNITION_INTERVAL = int(
+    os.environ.get("PERF_RECOGNITION_INTERVAL", "3")
+)  # Re-attempt recognition on existing unidentified tracks every N detection cycles
+
+PERF_ANTISPOOF_INTERVAL = int(
+    os.environ.get("PERF_ANTISPOOF_INTERVAL", "3")
+)  # Re-evaluate liveness on uncertain tracks every N detection cycles
+
+PERF_RECOGNITION_COOLDOWN_FRAMES = int(
+    os.environ.get("PERF_RECOGNITION_COOLDOWN_FRAMES", "30")
+)  # After a track is recognised, skip re-recognition for this many frames
+
+PERF_USE_KCF_TRACKER = (
+    os.environ.get("PERF_USE_KCF_TRACKER", "0") == "1"
+)  # Opt-in to faster KCF tracker (less accurate than default CSRT)
+
+PERF_JPEG_QUALITY = int(
+    os.environ.get("PERF_JPEG_QUALITY", "80")
+)  # JPEG encode quality (0-100); lower = faster encode + smaller payload

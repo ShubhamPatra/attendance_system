@@ -47,7 +47,15 @@ models/*.onnx
 htmlcov/
 .coverage
 coverage.xml
+**/.coverage
+**/.pytest_cache/
 
 # Distribution
 *.whl
 *.tar.gz
+
+# Generated reports/artifacts
+reports/*.csv
+AutoAttend/AutoAttendance/reports/*.csv
+AutoAttend/AutoAttendance/venv/
+AutoAttend/AutoAttendance/uploads/students/

@@ -3,96 +3,90 @@
 {% from "partials/ui.html" import page_header %}
 
 {% block content %}
-<div class="flex justify-center">
-    <div class="w-full max-w-3xl">
+<div style="display:flex;justify-content:center">
+    <div style="width:100%;max-width:720px">
         <!-- Page Header -->
         <div class="mb-6">
             {{ page_header('Enrollment Desk', 'Register New Student', 'Add a student profile and enrollment images for face recognition attendance.') }}
         </div>
 
         <!-- Form Card -->
-        <div class="overflow-hidden rounded-xl border border-border-light bg-white shadow-panel">
-            <div class="p-6 md:p-8">
+        <div class="panel">
+            <div class="panel-body">
+                <div class="info-banner mb-5">
+                    <span>Need to import multiple students?</span>
+                    <a href="{{ url_for('main.register_batch') }}">Use batch import</a>
+                </div>
+
                 <form method="POST" enctype="multipart/form-data" id="regForm" class="flex flex-col gap-6">
-                    <div id="formFeedback" class="hidden rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" role="alert" aria-live="polite"></div>
+                    <div id="formFeedback" class="alert alert-error hidden" role="alert" aria-live="polite"></div>
 
                     <!-- Full Name -->
-                    <div class="flex flex-col gap-1.5">
-                        <label class="text-sm font-medium text-text-primary" for="name">Full Name <span class="text-red-600">*</span></label>
+                    <div class="form-group">
+                        <label class="form-label" for="name">Full Name <span class="required">*</span></label>
                         <div class="relative">
-                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-text-muted">
-                                <span class="material-symbols-outlined text-[20px]">person</span>
-                            </div>
-                            <input type="text" class="w-full pl-10 pr-4 py-2.5 bg-background-light border border-border-light rounded-md focus:ring-2 focus:ring-secondary/20 focus:border-secondary outline-none transition-all text-text-primary placeholder-text-muted text-sm" id="name" name="name" required maxlength="200" placeholder="e.g. Ahmed Khan" aria-describedby="nameHelp">
+                            <span class="form-icon"><span class="material-symbols-outlined">person</span></span>
+                            <input type="text" class="form-input form-input--icon" id="name" name="name" required maxlength="200" placeholder="e.g. Ahmed Khan" aria-describedby="nameHelp">
                         </div>
-                        <p id="nameHelp" class="text-xs text-text-muted">Use the official full name as stored in student records.</p>
+                        <p id="nameHelp" class="form-hint">Use the official full name as stored in student records.</p>
                     </div>
 
                     <!-- Semester / Reg Number / Section Row -->
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div class="flex flex-col gap-1.5">
-                            <label class="text-sm font-medium text-text-primary" for="semester">Semester <span class="text-red-600">*</span></label>
+                    <div class="form-row form-row--3">
+                        <div class="form-group">
+                            <label class="form-label" for="semester">Semester <span class="required">*</span></label>
                             <div class="relative">
-                                <select class="w-full appearance-none rounded-md border border-border-light bg-background-light h-11 px-3 pr-10 text-sm text-text-primary focus:ring-2 focus:ring-secondary/20 focus:border-secondary outline-none transition-all cursor-pointer" id="semester" name="semester" required>
+                                <select class="form-select" id="semester" name="semester" required>
                                     {% for s in range(1, 13) %}
                                     <option value="{{ s }}">Semester {{ s }}</option>
                                     {% endfor %}
                                 </select>
-                                <span class="material-symbols-outlined absolute right-3 top-3 text-text-muted pointer-events-none text-[20px]">expand_more</span>
                             </div>
                         </div>
-                        <div class="flex flex-col gap-1.5">
-                            <label class="text-sm font-medium text-text-primary" for="registration_number">Reg. Number <span class="text-red-600">*</span></label>
+                        <div class="form-group">
+                            <label class="form-label" for="registration_number">Reg. Number <span class="required">*</span></label>
                             <div class="relative">
-                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-text-muted">
-                                    <span class="material-symbols-outlined text-[20px]">badge</span>
-                                </div>
-                                <input type="text" class="w-full pl-10 pr-4 py-2.5 bg-background-light border border-border-light rounded-md focus:ring-2 focus:ring-secondary/20 focus:border-secondary outline-none transition-all text-text-primary placeholder-text-muted text-sm" id="registration_number" name="registration_number" required maxlength="50" placeholder="e.g. FA21-BCS-001" aria-describedby="regHelp">
+                                <span class="form-icon"><span class="material-symbols-outlined">badge</span></span>
+                                <input type="text" class="form-input form-input--icon" id="registration_number" name="registration_number" required maxlength="50" placeholder="e.g. FA21-BCS-001" aria-describedby="regHelp">
                             </div>
-                            <p id="regHelp" class="text-xs text-text-muted">Format should match institution registration policy.</p>
+                            <p id="regHelp" class="form-hint">Format should match institution registration policy.</p>
                         </div>
-                        <div class="flex flex-col gap-1.5">
-                            <label class="text-sm font-medium text-text-primary" for="section">Section <span class="text-red-600">*</span></label>
+                        <div class="form-group">
+                            <label class="form-label" for="section">Section <span class="required">*</span></label>
                             <div class="relative">
-                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-text-muted">
-                                    <span class="material-symbols-outlined text-[20px]">groups</span>
-                                </div>
-                                <input type="text" class="w-full pl-10 pr-4 py-2.5 bg-background-light border border-border-light rounded-md focus:ring-2 focus:ring-secondary/20 focus:border-secondary outline-none transition-all text-text-primary placeholder-text-muted text-sm" id="section" name="section" required maxlength="10" placeholder="e.g. A">
+                                <span class="form-icon"><span class="material-symbols-outlined">groups</span></span>
+                                <input type="text" class="form-input form-input--icon" id="section" name="section" required maxlength="10" placeholder="e.g. A">
                             </div>
                         </div>
                     </div>
 
                     <!-- Enrollment Mode Toggle -->
-                    <fieldset class="flex flex-col gap-3 rounded-lg border border-border-light bg-background-light p-4">
-                        <legend class="px-1 text-xs font-semibold uppercase tracking-wider text-text-muted">Enrollment Mode</legend>
-                        <div class="flex items-center gap-4">
-                        <label class="flex items-center gap-2 cursor-pointer rounded-md border border-transparent px-2 py-1.5 hover:border-border-light hover:bg-white">
-                            <input type="radio" name="enroll_mode" value="upload" checked id="modeUpload" class="text-primary" aria-describedby="modeHelp">
-                            <span class="text-sm font-medium text-text-primary">Upload Images</span>
-                        </label>
-                        <label class="flex items-center gap-2 cursor-pointer rounded-md border border-transparent px-2 py-1.5 hover:border-border-light hover:bg-white">
-                            <input type="radio" name="enroll_mode" value="webcam" id="modeWebcam" class="text-primary" aria-describedby="modeHelp">
-                            <span class="text-sm font-medium text-text-primary">Webcam Capture</span>
-                        </label>
+                    <fieldset class="fieldset">
+                        <legend>Enrollment Mode</legend>
+                        <div class="flex items-center gap-4 mt-2">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="enroll_mode" value="upload" checked id="modeUpload">
+                                <span class="text-sm font-medium">Upload Images</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="enroll_mode" value="webcam" id="modeWebcam">
+                                <span class="text-sm font-medium">Webcam Capture</span>
+                            </label>
                         </div>
-                        <p id="modeHelp" class="text-xs text-text-muted">Upload 1 to 5 images or capture 5 guided webcam frames.</p>
+                        <p class="form-hint mt-2">Upload 1 to 5 images or capture 5 guided webcam frames.</p>
                     </fieldset>
 
                     <!-- Webcam Capture Section -->
                     <div id="webcamSection" style="display:none" class="flex flex-col gap-4">
-                        <div class="relative w-full aspect-video bg-slate-900 rounded-lg overflow-hidden border border-border-light shadow-panel">
-                            <video id="webcamVideo" autoplay playsinline class="w-full h-full object-cover"></video>
-                            <div id="webcamPrompt" class="absolute bottom-4 left-1/2 -translate-x-1/2 bg-primary/90 text-white text-sm font-medium px-4 py-2 rounded-full backdrop-blur-md" aria-live="polite">
-                                Press Start to begin capture
-                            </div>
+                        <div class="video-container" style="aspect-ratio:16/9">
+                            <video id="webcamVideo" autoplay playsinline class="video-feed-img"></video>
+                            <div id="webcamPrompt" class="webcam-prompt" aria-live="polite">Press Start to begin capture</div>
                         </div>
-                        <button type="button" id="startCaptureBtn" class="w-full bg-secondary hover:bg-secondary/80 text-white font-semibold py-3 px-4 rounded-md transition-colors flex items-center justify-center gap-2 text-sm">
-                            <span class="material-symbols-outlined text-[20px]">camera</span>
-                            <span>Start Multi-Angle Capture</span>
+                        <button type="button" id="startCaptureBtn" class="btn btn-primary btn-block">
+                            <span class="material-symbols-outlined">camera</span> Start Multi-Angle Capture
                         </button>
-                        <div id="capturedGrid" class="grid grid-cols-5 gap-3" style="display:none;"></div>
+                        <div id="capturedGrid" class="preview-grid preview-grid--5" style="display:none;"></div>
                         <input type="hidden" name="webcam_mode" id="webcamModeFlag" value="0">
-                        <!-- Hidden fields for captured frame paths -->
                         <input type="hidden" name="webcam_frame_0" id="wf0" value="">
                         <input type="hidden" name="webcam_frame_1" id="wf1" value="">
                         <input type="hidden" name="webcam_frame_2" id="wf2" value="">
@@ -100,27 +94,24 @@
                         <input type="hidden" name="webcam_frame_4" id="wf4" value="">
                     </div>
 
-                    <!-- Face Images Upload (Multiple) -->
-                    <div id="uploadSection" class="flex flex-col gap-2">
-                        <label class="text-sm font-medium text-text-primary" for="images">Face Images (3–5 recommended) <span class="text-red-600">*</span></label>
-                        <p id="imageHelp" class="text-xs text-text-muted">Upload clear, well-lit photos with exactly one face per image. PNG/JPG/JPEG up to 5 MB each.</p>
-                        <div class="group relative flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-border-light bg-background-light px-4 py-8 text-center transition-colors hover:border-secondary hover:bg-secondary/5">
-                            <div class="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    <!-- Face Images Upload -->
+                    <div id="uploadSection" class="form-group">
+                        <label class="form-label" for="images">Face Images (3–5 recommended) <span class="required">*</span></label>
+                        <p id="imageHelp" class="form-hint">Upload clear, well-lit photos with exactly one face per image. PNG/JPG/JPEG up to 5 MB each.</p>
+                        <div class="file-upload">
+                            <div class="file-upload-icon">
                                 <span class="material-symbols-outlined">add_a_photo</span>
                             </div>
-                            <p class="mb-1 text-sm font-medium text-text-primary" id="uploadLabel">Click to upload or drag and drop</p>
-                            <p class="text-xs text-text-muted">PNG, JPG or JPEG (max 5 MB each, up to 5 images)</p>
-                            <p class="mt-2 text-xs text-secondary font-medium">Used for facial recognition</p>
-                            <input type="file" class="absolute inset-0 cursor-pointer opacity-0" id="images" name="images" accept=".png,.jpg,.jpeg" multiple required aria-describedby="imageHelp">
+                            <p class="text-sm font-medium" id="uploadLabel">Click to upload or drag and drop</p>
+                            <p class="text-xs text-muted">PNG, JPG or JPEG (max 5 MB each, up to 5 images)</p>
+                            <input type="file" id="images" name="images" accept=".png,.jpg,.jpeg" multiple required aria-describedby="imageHelp">
                         </div>
-                        <!-- Image Preview Grid -->
-                        <div id="previewGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mt-2" style="display:none;"></div>
+                        <div id="previewGrid" class="preview-grid preview-grid--5 mt-3" style="display:none;"></div>
                     </div>
 
                     <!-- Submit Button -->
-                    <button type="submit" class="w-full bg-primary hover:bg-primary-dark text-white font-semibold py-3 px-4 rounded-md transition-colors flex items-center justify-center gap-2 text-sm">
-                        <span class="material-symbols-outlined text-[20px]">person_add</span>
-                        <span>Register Student</span>
+                    <button type="submit" class="btn btn-primary btn-block btn-lg">
+                        <span class="material-symbols-outlined">person_add</span> Register Student
                     </button>
                 </form>
             </div>
@@ -161,20 +152,15 @@ imagesInput.addEventListener('change', function() {
     for (var i = 0; i < files.length; i++) {
         (function(file, idx) {
             var card = document.createElement('div');
-            card.className = 'relative rounded-lg border border-border-light overflow-hidden bg-white shadow-sm';
-
+            card.className = 'preview-card';
             var img = document.createElement('img');
-            img.className = 'w-full h-28 object-cover';
             img.alt = 'Preview ' + (idx + 1);
-
             var label = document.createElement('div');
-            label.className = 'text-[10px] text-center py-1 text-text-muted font-medium';
+            label.className = 'preview-card-label';
             label.textContent = 'Image ' + (idx + 1);
-
             var reader = new FileReader();
             reader.onload = function(e) { img.src = e.target.result; };
             reader.readAsDataURL(file);
-
             card.appendChild(img);
             card.appendChild(label);
             previewGrid.appendChild(card);
@@ -255,7 +241,6 @@ document.getElementById('startCaptureBtn').addEventListener('click', function() 
         if (idx >= 5) {
             btn.disabled = false;
             document.getElementById('webcamPrompt').textContent = 'Capture complete!';
-            // Make file upload not required
             document.getElementById('images').removeAttribute('required');
             return;
         }
@@ -278,16 +263,14 @@ document.getElementById('startCaptureBtn').addEventListener('click', function() 
                 capturedPaths.push(data.path);
                 document.getElementById('wf' + idx).value = data.path;
 
-                // Show preview
                 var grid = document.getElementById('capturedGrid');
                 grid.style.display = 'grid';
                 var card = document.createElement('div');
-                card.className = 'relative rounded-lg border border-border-light overflow-hidden bg-white shadow-sm';
+                card.className = 'preview-card';
                 var img = document.createElement('img');
-                img.className = 'w-full h-20 object-cover';
                 img.src = dataUrl;
                 var label = document.createElement('div');
-                label.className = 'text-[10px] text-center py-1 text-text-muted font-medium';
+                label.className = 'preview-card-label';
                 label.textContent = PROMPTS[idx];
                 card.appendChild(img);
                 card.appendChild(label);

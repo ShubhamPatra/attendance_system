@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}Enrolled Courses{% endblock %}
+
+{% block content %}
+  <section class="card stack">
+    <h1 class="page-title">Enrolled Courses</h1>
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th scope="col">Code</th>
+            <th scope="col">Name</th>
+            <th scope="col">Instructor</th>
+            <th scope="col">Schedule</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for course in courses %}
+          <tr>
+            <td data-label="Code">{{ course.course_code }}</td>
+            <td data-label="Name">{{ course.course_name }}</td>
+            <td data-label="Instructor">{{ course.instructor }}</td>
+            <td data-label="Schedule">{{ course.schedule }}</td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="4">No courses found.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}
