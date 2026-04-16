@@ -76,7 +76,7 @@ mongosh
 # 2. Create free cluster
 # 3. Create database user
 # 4. Get connection string (looks like):
-#    mongodb+srv://user:password@cluster0.mongodb.net/
+#    mongodb+srv://user:REDACTED/
 # 5. Note this connection string for environment setup
 ```
 
@@ -96,11 +96,11 @@ ls -la
 # Should see: README.md, docker-compose.yml, requirements.txt, etc.
 
 # Verify critical directories
-test -d admin_app && echo "✓ admin_app exists"
-test -d student_app && echo "✓ student_app exists"
-test -d core && echo "✓ core exists"
-test -d vision && echo "✓ vision exists"
-test -d models && echo "✓ models directory exists"
+test -d admin_app && echo " admin_app exists"
+test -d student_app && echo " student_app exists"
+test -d core && echo " core exists"
+test -d vision && echo " vision exists"
+test -d models && echo " models directory exists"
 ```
 
 ### Create Python Virtual Environment
@@ -152,7 +152,7 @@ python -c "import onnxruntime; print(f'ONNX Runtime: {onnxruntime.__version__}')
 cat > .env << 'EOF'
 # MongoDB Configuration
 MONGODB_URI=mongodb://localhost:27017  # Local
-# MONGODB_URI=mongodb+srv://user:password@cluster.mongodb.net/  # Atlas
+# MONGODB_URI=mongodb+srv://user:REDACTED/  # Atlas
 
 MONGODB_DATABASE=attendance_system
 
@@ -216,7 +216,7 @@ python scripts/download_models.py
 # Downloading YuNet face detection model...
 # Downloading ArcFace embeddings model...
 # Downloading Silent-Face anti-spoofing models...
-# ✓ All models downloaded successfully
+#  All models downloaded successfully
 ```
 
 ### Manual Download (If Script Fails)
@@ -272,13 +272,13 @@ cd ../..
 python scripts/verify_versions.py
 
 # Output:
-# ✓ OpenCV: 4.8.1
-# ✓ PyTorch: 2.0.1
-# ✓ ONNX Runtime: 1.17.0
-# ✓ InsightFace: 0.7.3
-# ✓ YuNet model: found (6.1 MB)
-# ✓ ArcFace model: found (500.2 MB)
-# ✓ Silent-Face model: found (1.2 MB)
+#  OpenCV: 4.8.1
+#  PyTorch: 2.0.1
+#  ONNX Runtime: 1.17.0
+#  InsightFace: 0.7.3
+#  YuNet model: found (6.1 MB)
+#  ArcFace model: found (500.2 MB)
+#  Silent-Face model: found (1.2 MB)
 # All systems ready!
 ```
 
@@ -322,14 +322,14 @@ db.createUser({
 python scripts/bootstrap_admin.py
 
 # Prompts:
-# > Enter admin email: admin@university.edu
+# > Enter admin email: REDACTED
 # > Enter admin password: ••••••••
 # > Enter admin name: Admin User
 
 # Creates:
-# ✓ MongoDB collections (students, attendance, sessions, users, notification_events)
-# ✓ Indexes (unique on student_id+date, etc.)
-# ✓ Admin user in database
+#  MongoDB collections (students, attendance, sessions, users, notification_events)
+#  Indexes (unique on student_id+date, etc.)
+#  Admin user in database
 ```
 
 ### Verify Database Setup
@@ -402,7 +402,7 @@ python run_student.py
 http://localhost:5000
 
 # Login
-# Email: admin@university.edu
+# Email: REDACTED
 # Password: (from bootstrap step)
 
 # Student Portal
@@ -459,7 +459,7 @@ mongosh
 
 ## Verification Checklist
 
-### ✓ Development Environment
+###  Development Environment
 
 - [ ] Python 3.12 installed: `python --version`
 - [ ] Virtual environment activated: `which python` shows venv path
@@ -467,35 +467,35 @@ mongosh
 - [ ] Models downloaded: `ls -la models/face_detection_yunet_2023mar.onnx`
 - [ ] `.env` file created with correct `MONGODB_URI`
 
-### ✓ Database Setup
+###  Database Setup
 
 - [ ] MongoDB running: `mongosh --eval "db.version()"`
 - [ ] Collections created: `mongosh --eval "use attendance_system; show collections"`
 - [ ] Indexes created: `mongosh --eval "use attendance_system; db.attendance.getIndexes()"`
 - [ ] Admin user created: Login succeeds on admin dashboard
 
-### ✓ Application Startup
+###  Application Startup
 
 - [ ] Admin app starts: `python run_admin.py` (http://localhost:5000 loads)
 - [ ] Student app starts: `python run_student.py` (http://localhost:5001 loads)
 - [ ] No Python exceptions in console
 - [ ] Browser console (DevTools F12) has no JavaScript errors
 
-### ✓ ML Pipeline
+###  ML Pipeline
 
 - [ ] YuNet model loads: No "model not found" errors in logs
 - [ ] ArcFace model loads: First face detection triggers embedding generation
 - [ ] Silent-Face model loads: Liveness check runs (no "graceful degradation" warning)
 - [ ] Face detection works: Bounding box appears around faces in camera feed
 
-### ✓ Database Operations
+###  Database Operations
 
 - [ ] Student can enroll: Self-enrollment form submits successfully
 - [ ] Attendance mark recorded: After 2–3 frames, MongoDB shows attendance entry
 - [ ] No duplicate marks: Multiple frames of same face only mark once per day
 - [ ] Query works: `db.attendance.find()` returns records
 
-### ✓ First Session Completion
+###  First Session Completion
 
 Checklist:
 ```bash
@@ -551,7 +551,7 @@ sudo systemctl status mongod
 sudo systemctl start mongod
 
 # For Atlas (cloud), verify connection string in .env:
-# MONGODB_URI=mongodb+srv://user:password@cluster.mongodb.net/attendance_system
+# MONGODB_URI=mongodb+srv://user:REDACTED/attendance_system
 ```
 
 ### Issue: "Cannot open camera"
@@ -605,3 +605,4 @@ After successful setup:
 ---
 
 **Last Updated**: April 16, 2026 | **Version**: 2.0.0
+

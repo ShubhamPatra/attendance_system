@@ -238,11 +238,11 @@ After installation, verify everything works:
 python scripts/verify_versions.py
 
 # Expected output:
-# ✓ Python version: 3.11.x
-# ✓ All required packages installed
-# ✓ PyTorch and torchvision available
-# ✓ MongoDB connectivity check (if MONGO_URI set)
-# ✓ All checks passed!
+#  Python version: 3.11.x
+#  All required packages installed
+#  PyTorch and torchvision available
+#  MongoDB connectivity check (if MONGO_URI set)
+#  All checks passed!
 ```
 
 ### Manual Verification
@@ -252,11 +252,11 @@ python scripts/verify_versions.py
 python --version                    # Should be 3.9+
 
 # Core imports
-python -c "import flask; print('✓ Flask OK')"
-python -c "import torch; print('✓ PyTorch OK')"
-python -c "import pymongo; print('✓ PyMongo OK')"
-python -c "import cv2; print('✓ OpenCV OK')"
-python -c "import onnxruntime; print('✓ ONNX Runtime OK')"
+python -c "import flask; print(' Flask OK')"
+python -c "import torch; print(' PyTorch OK')"
+python -c "import pymongo; print(' PyMongo OK')"
+python -c "import cv2; print(' OpenCV OK')"
+python -c "import onnxruntime; print(' ONNX Runtime OK')"
 
 # Run tests
 pytest tests/ -v --tb=short
@@ -406,7 +406,7 @@ LIVENESS_CONFIDENCE_THRESHOLD=0.55
 
 ## Next Steps
 
-1. ✅ Verify installation: `python scripts/verify_versions.py`
+1.  Verify installation: `python scripts/verify_versions.py`
 2. 📖 Review [README.md](../README.md) for usage
 3. 🔧 Configure [.env](./.env.example) file
 4. 🚀 Run: `python run.py` (local) or `docker compose up` (Docker)
@@ -414,8 +414,4 @@ LIVENESS_CONFIDENCE_THRESHOLD=0.55
 
 ---
 
-## Support
 
-- 📝 [GitHub Issues](https://github.com/ShubhamPatra/attendance_system/issues)
-- 💬 [Discussions](https://github.com/ShubhamPatra/attendance_system/discussions)
-- 📧 Contact: contact@shubhampatra.com

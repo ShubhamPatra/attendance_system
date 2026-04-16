@@ -7,7 +7,6 @@
 3. [Database & Connection Issues](#database--connection-issues)
 4. [Performance Issues](#performance-issues)
 5. [Deployment Issues](#deployment-issues)
-6. [Getting Help](#getting-help)
 
 ---
 
@@ -238,10 +237,10 @@ if not student:
     print("⚠ Student not found in database")
     print("Action: Student needs to self-enroll")
 else:
-    print(f"✓ Student found: {student['name']}")
+    print(f" Student found: {student['name']}")
     embedding = student.get('face_embedding')
     if embedding:
-        print(f"✓ Embedding present (shape: {len(embedding)})")
+        print(f" Embedding present (shape: {len(embedding)})")
     else:
         print("⚠ No embedding found - student enrollment incomplete")
 ```
@@ -269,12 +268,12 @@ sudo systemctl status mongod
 sudo systemctl start mongod
 
 # 3. If using MongoDB Atlas, verify connection string
-# Should look like: mongodb+srv://user:password@cluster.mongodb.net/attendance_system?retryWrites=true&w=majority
+# Should look like: mongodb+srv://user:REDACTED/attendance_system?retryWrites=true&w=majority
 
 # 4. Test connection manually
 mongosh "mongodb://localhost:27017"
 # or
-mongosh "mongodb+srv://user:password@cluster.mongodb.net/"
+mongosh "mongodb+srv://user:REDACTED/"
 
 # 5. Verify environment variable
 echo $MONGODB_URI
@@ -499,73 +498,5 @@ sudo systemctl enable certbot.timer
 
 ---
 
-## Getting Help
-
-### Checklist Before Reporting Issues
-
-1. **Reproduce the issue**:
-   - Can you consistently reproduce the problem?
-   - What are the exact steps?
-
-2. **Check logs**:
-   ```bash
-   tail -f logs/attendance.log
-   cat logs/gunicorn.log
-   ```
-
-3. **Verify environment**:
-   ```bash
-   python scripts/verify_versions.py
-   ```
-
-4. **Isolate the problem**:
-   - Is it specific to certain students/cameras?
-   - Does it happen at specific times?
-
-### Resources
-
-- **Documentation**: [docs/](../) directory
-- **Issues**: GitHub Issues (if open-source)
-- **Email Support**: admin@autoattendance.local
-- **Community Forum**: (if available)
-
-### Reporting a Bug
-
-Include:
-1. **Steps to reproduce**
-2. **Expected vs. actual behavior**
-3. **Environment** (OS, Python version, GPU?)
-4. **Relevant log output** (last 50 lines)
-5. **Error traceback** (if applicable)
-
-### Example Issue Report
-
-```
-Title: Students not marked when classroom is dark
-
-Environment:
-- OS: Ubuntu 20.04
-- Python: 3.12.1
-- GPU: None (CPU only)
-- MongoDB: 4.4 (Atlas)
-
-Steps to reproduce:
-1. Dim lights to < 100 lux
-2. Run camera session for CS101
-3. Student stands in front of camera
-4. Expected: Student marked present after 2-3 frames
-5. Actual: No detection occurs
-
-Logs:
-[INFO] Camera loop started
-[DEBUG] Motion detected, running detection...
-[DEBUG] 0 detections found
-[INFO] No faces in frame
-...
-
-Suggestion: Maybe lighting threshold is too high?
-```
-
----
-
 **Last Updated**: April 16, 2026 | **Version**: 2.0.0
+

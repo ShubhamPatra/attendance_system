@@ -440,7 +440,7 @@ def _on_liveness_failed(self, track_id: str):
         break;
       
       case 'attendance_marked':
-        displayNotification(`✓ Attendance marked: ${event.student_id}`);
+        displayNotification(` Attendance marked: ${event.student_id}`);
         break;
       
       case 'liveness_failed':
@@ -607,7 +607,7 @@ def _process_track(self, track: FaceTrack, face_roi: np.ndarray):
                    f"similarity={similarity:.3f}, liveness={label == 1}")
         
         if track.is_confirmed and track.is_alive:
-            logger.info(f"[Track {track.id}] ✓ CONFIRMED: {match_id}")
+            logger.info(f"[Track {track.id}]  CONFIRMED: {match_id}")
 ```
 
 ### Visualization Debug Tool
@@ -665,3 +665,4 @@ python scripts/debug_pipeline.py --image=test.jpg
 ---
 
 **Last Updated**: April 16, 2026 | **Version**: 2.0.0
+

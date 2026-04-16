@@ -268,11 +268,11 @@ Verification accuracy (post-admin-review):  99.5%
 | **AutoAttendance** | YuNet | **ArcFace** | **Silent-Face** | **Yes** | **Yes** |
 
 **Key Advantages**:
-- ✓ Open-source, fully customizable.
-- ✓ Educational institutions can self-host (no third-party dependency).
-- ✓ Integrated anti-spoofing (not add-on).
-- ✓ Session-aware attendance model.
-- ✓ Deployed in real classrooms.
+-  Open-source, fully customizable.
+-  Educational institutions can self-host (no third-party dependency).
+-  Integrated anti-spoofing (not add-on).
+-  Session-aware attendance model.
+-  Deployed in real classrooms.
 
 ---
 
@@ -430,3 +430,4 @@ The system demonstrates that face recognition, when combined with anti-spoofing 
 ---
 
 **Last Updated**: April 16, 2026 | **Version**: 2.0.0
+

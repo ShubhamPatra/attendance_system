@@ -1,4 +1,4 @@
-﻿# AutoAttendance
+# AutoAttendance
 
 ## Intelligent Face Recognition Attendance System with Anti-Spoofing Detection
 
@@ -63,41 +63,41 @@ AutoAttendance solves these problems with:
 
 ### Core Attendance & Recognition
 
-- ✓ **Real-Time Face Detection & Tracking**: OpenCV CSRT trackers paired with YuNet ONNX detection.
-- ✓ **ArcFace Face Recognition**: 512-D embeddings with cosine similarity matching.
-- ✓ **Adaptive Quality Gating**: Blur, brightness, and face-size checks reject poor-quality captures.
-- ✓ **Multi-Frame Confirmation**: Temporal voting (≥3 of 5 frames) prevents false matches.
-- ✓ **Session-Based Attendance**: Attendance sessions can span multiple hours; idle auto-close after 15 minutes of inactivity.
+-  **Real-Time Face Detection & Tracking**: OpenCV CSRT trackers paired with YuNet ONNX detection.
+-  **ArcFace Face Recognition**: 512-D embeddings with cosine similarity matching.
+-  **Adaptive Quality Gating**: Blur, brightness, and face-size checks reject poor-quality captures.
+-  **Multi-Frame Confirmation**: Temporal voting (≥3 of 5 frames) prevents false matches.
+-  **Session-Based Attendance**: Attendance sessions can span multiple hours; idle auto-close after 15 minutes of inactivity.
 
 ### Anti-Spoofing & Liveness
 
-- ✓ **Silent-Face-Anti-Spoofing**: CNN-based real/spoof classification.
-- ✓ **Blink Detection**: Eye-Aspect Ratio (EAR) tracking supplements liveness scoring.
-- ✓ **Head Movement Detection**: Subtle motion confirms genuine face presence.
-- ✓ **Frame-Level Heuristics**: Contrast and brightness analysis flags screen replays and over-exposed footage.
+-  **Silent-Face-Anti-Spoofing**: CNN-based real/spoof classification.
+-  **Blink Detection**: Eye-Aspect Ratio (EAR) tracking supplements liveness scoring.
+-  **Head Movement Detection**: Subtle motion confirms genuine face presence.
+-  **Frame-Level Heuristics**: Contrast and brightness analysis flags screen replays and over-exposed footage.
 
 ### Student Onboarding & Verification
 
-- ✓ **Self-Service Enrollment**: Students capture 3–5 face samples via webcam.
-- ✓ **Automatic Scoring**: Liveness, consistency, and quality scores drive auto-approval or manual review.
-- ✓ **Duplicate Prevention**: Cosine similarity check prevents the same person enrolling twice.
-- ✓ **Admin Manual Approval**: Override auto-scores for edge cases.
+-  **Self-Service Enrollment**: Students capture 3–5 face samples via webcam.
+-  **Automatic Scoring**: Liveness, consistency, and quality scores drive auto-approval or manual review.
+-  **Duplicate Prevention**: Cosine similarity check prevents the same person enrolling twice.
+-  **Admin Manual Approval**: Override auto-scores for edge cases.
 
 ### Admin & Analytics
 
-- ✓ **Dashboard**: Real-time attendance count, heatmaps, and trends.
-- ✓ **Attendance Reports**: Daily, weekly, and custom-date-range CSV exports.
-- ✓ **At-Risk Detection**: Identifies students with low attendance percentages.
-- ✓ **Student Management**: Batch import, profile editing, and re-verification.
-- ✓ **Real-Time Camera Feed**: Live video with overlays showing identity, confidence, and liveness state.
+-  **Dashboard**: Real-time attendance count, heatmaps, and trends.
+-  **Attendance Reports**: Daily, weekly, and custom-date-range CSV exports.
+-  **At-Risk Detection**: Identifies students with low attendance percentages.
+-  **Student Management**: Batch import, profile editing, and re-verification.
+-  **Real-Time Camera Feed**: Live video with overlays showing identity, confidence, and liveness state.
 
 ### Deployment & Operations
 
-- ✓ **Docker Support**: CPU and GPU builds with multi-stage Dockerfile.
-- ✓ **MongoDB Atlas Integration**: Cloud or on-premise MongoDB support.
-- ✓ **Environment Configuration**: 80+ tunable parameters for thresholds, paths, and runtime behavior.
-- ✓ **Startup Diagnostics**: Automatic checks for models, camera, and database on startup.
-- ✓ **Circuit Breaker**: Fault tolerance for database failures with graceful degradation.
+-  **Docker Support**: CPU and GPU builds with multi-stage Dockerfile.
+-  **MongoDB Atlas Integration**: Cloud or on-premise MongoDB support.
+-  **Environment Configuration**: 80+ tunable parameters for thresholds, paths, and runtime behavior.
+-  **Startup Diagnostics**: Automatic checks for models, camera, and database on startup.
+-  **Circuit Breaker**: Fault tolerance for database failures with graceful degradation.
 
 ---
 
@@ -575,7 +575,7 @@ All configuration is driven by environment variables in `.env`. Key parameters:
 #### Database
 
 ```bash
-MONGO_URI=mongodb+srv://user:pass@cluster.mongodb.net/attendance_system
+MONGO_URI=mongodb+srv://user:REDACTED/attendance_system
 DATABASE_NAME=attendance_system
 MONGO_MAX_POOL_SIZE=50
 MONGO_CIRCUIT_BREAKER_THRESHOLD=5
@@ -754,13 +754,5 @@ This project is licensed under the **MIT License**. See [LICENSE](LICENSE) for d
 
 ---
 
-## Contact & Support
-
-For issues, feature requests, or questions:
-
-- **GitHub Issues**: [ShubhamPatra/attendance_system/issues](https://github.com/ShubhamPatra/attendance_system/issues)
-- **Email**: [contact@shubhampatra.com](mailto:contact@shubhampatra.com)
-
----
-
 **Last Updated**: April 16, 2026 | **Version**: 2.0.0 | **Status**: Production-Ready
+

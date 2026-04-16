@@ -267,7 +267,7 @@ class _InternalHelper:
     pass
 
 # Avoid: Single letter variables (except loop indices)
-# ✓ Good
+#  Good
 for track in tracks:
     process_track(track)
 
@@ -467,7 +467,6 @@ git branch -d feature/my-feature
 
 ```bash
 # 1. Check existing issues
-# GitHub issues search (already reported?)
 
 # 2. Try latest version
 git pull upstream main
@@ -546,3 +545,4 @@ We are committed to providing a welcoming environment for all contributors. Plea
 ---
 
 **Last Updated**: April 16, 2026 | **Version**: 2.0.0
+

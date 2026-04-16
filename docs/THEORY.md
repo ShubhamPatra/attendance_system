@@ -580,11 +580,11 @@ A single frame match can be noisy (lighting artifacts, partial faces). Multiple 
 For a track, collect recognition results over consecutive frames:
 
 ```
-Frame 1: Student A (confidence 0.92) ✓
+Frame 1: Student A (confidence 0.92) 
 Frame 2: No match (Laplacian blur)    ✗
-Frame 3: Student A (confidence 0.89)  ✓
+Frame 3: Student A (confidence 0.89)  
 Frame 4: Student B (confidence 0.50)  ✗
-Frame 5: Student A (confidence 0.91)  ✓
+Frame 5: Student A (confidence 0.91)  
 ```
 
 **Majority Vote**:
@@ -707,3 +707,4 @@ Each component is tuned for accuracy, speed, and robustness. See [PIPELINE.md](P
 ---
 
 **Last Updated**: April 16, 2026 | **Version**: 2.0.0
+

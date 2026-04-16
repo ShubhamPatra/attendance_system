@@ -951,8 +951,8 @@ Total                               | ~820 MB
 **Frame 11: Confirmation**
 ```
 [Frame 11] Check confirmation:
-  ├─ Identity votes: {Alice: 3} ≥ CONFIRM_THRESHOLD (2) ✓
-  ├─ Liveness mean: (1 + 1 + 1 + ...) / N ≥ 0.55 ✓
+  ├─ Identity votes: {Alice: 3} ≥ CONFIRM_THRESHOLD (2) 
+  ├─ Liveness mean: (1 + 1 + 1 + ...) / N ≥ 0.55 
   └─ CONFIRMED: Mark attendance for Alice
 
 Emit SocketIO event:
@@ -963,7 +963,7 @@ Emit SocketIO event:
     "timestamp": "2024-09-15T09:05:23.123Z"
   }
 
-Admin dashboard updates in real-time ✓
+Admin dashboard updates in real-time 
 ```
 
 ---
@@ -985,3 +985,4 @@ Next steps:
 ---
 
 **Last Updated**: April 16, 2026 | **Version**: 2.0.0
+

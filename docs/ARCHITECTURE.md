@@ -401,7 +401,7 @@ ENABLE_GPU_PROVIDERS=1
   "_id": ObjectId,
   "reg_no": "CS21001",           // Unique registration number
   "name": "Alice Johnson",
-  "email": "alice@university.edu",
+  "email": "REDACTED",
   "phone": "+1234567890",
   "semester": "6",
   "section": "A",
@@ -632,3 +632,4 @@ Next Steps:
 ---
 
 **Last Updated**: April 16, 2026 | **Version**: 2.0.0
+

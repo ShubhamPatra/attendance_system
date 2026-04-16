@@ -21,7 +21,7 @@ All admin endpoints require an active Flask session.
 ```bash
 # Login
 curl -X POST http://localhost:5000/login \
-  -d "email=admin@university.edu&password=admin123"
+  -d "email=REDACTED&password=admin123"
 
 # Cookies automatically stored by browser/curl
 # Subsequent requests include session cookie
@@ -281,7 +281,7 @@ Content-Type: application/json
 {
   "registration_number": "CS21001",
   "name": "John Doe",
-  "email": "john@university.edu",
+  "email": "REDACTED",
   "semester": 6,
   "course_ids": ["CS101", "CS102"]
 }
@@ -309,7 +309,7 @@ Content-Type: application/json
   "id": "507f1f77bcf86cd799439014",
   "registration_number": "CS21001",
   "name": "John Doe",
-  "email": "john@university.edu",
+  "email": "REDACTED",
   "semester": 6,
   "enrollment_status": "completed",
   "face_embedding": null,
@@ -628,3 +628,4 @@ Planned webhooks for event notifications:
 ---
 
 **Last Updated**: April 16, 2026 | **Version**: 2.0.0
+

@@ -35,11 +35,11 @@
 ```
 | Module | Target | Current |
 |--------|--------|---------|
-| core/database.py | 95% | ✓ |
-| vision/recognition.py | 90% | ✓ |
-| vision/anti_spoofing.py | 85% | ✓ |
-| web/routes.py | 80% | ✓ |
-| student_app/verification.py | 90% | ✓ |
+| core/database.py | 95% |  |
+| vision/recognition.py | 90% |  |
+| vision/anti_spoofing.py | 85% |  |
+| web/routes.py | 80% |  |
+| student_app/verification.py | 90% |  |
 ```
 
 ### Running Tests
@@ -283,7 +283,7 @@ def test_student_registration(client):
     response = client.post('/register', json={
         'reg_no': 'CS21001',
         'name': 'Test Student',
-        'email': 'test@university.edu',
+        'email': 'REDACTED',
         'password': 'secure-password',
         'semester': '6'
     })
@@ -298,7 +298,7 @@ def test_student_login_success(client):
     client.post('/register', json={
         'reg_no': 'CS21001',
         'name': 'Test Student',
-        'email': 'test@university.edu',
+        'email': 'REDACTED',
         'password': 'secure-password',
         'semester': '6'
     })
@@ -721,3 +721,4 @@ AutoAttendance testing provides:
 ---
 
 **Last Updated**: April 16, 2026 | **Version**: 2.0.0
+

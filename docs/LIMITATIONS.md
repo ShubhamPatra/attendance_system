@@ -258,8 +258,8 @@ Recommended Limit | 10 faces | For reliability
 ```
 Scenario | Marks/Day | Latency | Viable?
 ──────────────────────────────────────────
-Small campus (< 1000 students) | 5,000 | 10ms | ✓
-Medium campus (1000–10,000) | 50,000 | 50ms | ✓
+Small campus (< 1000 students) | 5,000 | 10ms | 
+Medium campus (1000–10,000) | 50,000 | 50ms | 
 Large campus (10,000+) | 200,000+ | 300ms | ✗
 ```
 
@@ -397,3 +397,4 @@ AutoAttendance is production-ready for **typical classroom scenarios** (20–50 
 ---
 
 **Last Updated**: April 16, 2026 | **Version**: 2.0.0
+

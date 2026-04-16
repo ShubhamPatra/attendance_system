@@ -169,7 +169,7 @@ INSTALL_GPU=1 docker-compose up -d  # GPU
 **Setup**:
 ```bash
 # Set MongoDB URI in .env
-MONGODB_URI=mongodb+srv://user:password@your-cluster.mongodb.net/
+MONGODB_URI=mongodb+srv://user:REDACTED/
 MONGODB_DATABASE=attendance_system
 
 # Run bootstrap (creates collections & indexes)
@@ -236,10 +236,10 @@ mongoexport --uri="mongodb://..." --collection=attendance --out=data.json
 **A**: 
 
 **Vulnerabilities addressed**:
-- ✓ Anti-spoofing defense (can't use photos/videos)
-- ✓ HTTPS/TLS encryption
-- ✓ Session-based auth (cookies)
-- ✓ Role-based access control (RBAC)
+-  Anti-spoofing defense (can't use photos/videos)
+-  HTTPS/TLS encryption
+-  Session-based auth (cookies)
+-  Role-based access control (RBAC)
 
 **Remaining risks** (mitigated but not eliminated):
 - Deep fake attacks (high-quality synthetic videos)
@@ -324,7 +324,7 @@ sudo systemctl status mongod
 
 # Or for MongoDB Atlas
 # Verify connection string in .env:
-# MONGODB_URI=mongodb+srv://user:password@cluster.mongodb.net/
+# MONGODB_URI=mongodb+srv://user:REDACTED/
 ```
 
 See [TROUBLESHOOTING.md](TROUBLESHOOTING.md#mongodb-connection-refused) for details.
@@ -356,14 +356,5 @@ python -c "import cv2; cap = cv2.VideoCapture(0); print(cap.isOpened())"
 
 ---
 
-## Need More Help?
-
-- **Documentation**: See [docs/](../) directory
-- **GitHub Issues**: Report bugs at [github.com/ShubhamPatra/attendance_system/issues](https://github.com/ShubhamPatra/attendance_system/issues)
-- **Detailed Troubleshooting**: [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
-- **Build Guide**: [BUILD_GUIDE.md](BUILD_GUIDE.md)
-- **API Reference**: [API_REFERENCE.md](API_REFERENCE.md)
-
----
-
 **Last Updated**: April 16, 2026 | **Version**: 2.0.0
+

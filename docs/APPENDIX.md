@@ -268,7 +268,7 @@ INSTALL_GPU=1 docker-compose build
 mongosh  # MongoDB Shell
 
 # Connect to MongoDB Atlas (cloud)
-mongosh "mongodb+srv://user:password@cluster.mongodb.net/attendance_system"
+mongosh "mongodb+srv://user:REDACTED/attendance_system"
 ```
 
 #### MongoDB Shell Commands
@@ -518,7 +518,7 @@ brew services start mongodb-community  # Mac
 # Verify connection string
 echo $MONGODB_URI
 # Should be: mongodb://localhost (local)
-# or: mongodb+srv://user:password@cluster.mongodb.net/attendance_system (Atlas)
+# or: mongodb+srv://user:REDACTED/attendance_system (Atlas)
 ```
 
 #### 6. "Slow Face Recognition Latency"
@@ -768,3 +768,4 @@ db.attendance.getIndexes()
 ---
 
 **Last Updated**: April 16, 2026 | **Version**: 2.0.0
+

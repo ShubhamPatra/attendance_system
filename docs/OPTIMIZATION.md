@@ -777,3 +777,4 @@ embeddings = batch_generate_embeddings(student_images, batch_size=64)
 ---
 
 **Last Updated**: April 16, 2026 | **Version**: 2.0.0
+

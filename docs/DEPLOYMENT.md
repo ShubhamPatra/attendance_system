@@ -56,7 +56,7 @@ nano .env  # or use editor of choice
 
 ```bash
 # MongoDB
-MONGO_URI=mongodb+srv://user:password@cluster.mongodb.net/attendance_system
+MONGO_URI=mongodb+srv://user:REDACTED/attendance_system
 
 # Flask
 FLASK_ENV=development
@@ -93,9 +93,9 @@ python scripts/download_models.py
 **Expected Output**:
 
 ```
-✓ YuNet model: models/face_detection_yunet_2023mar.onnx
-✓ Anti-spoofing model: models/anti_spoofing/
-✓ All models verified
+ YuNet model: models/face_detection_yunet_2023mar.onnx
+ Anti-spoofing model: models/anti_spoofing/
+ All models verified
 ```
 
 ### Step 4: Bootstrap Admin User
@@ -261,7 +261,7 @@ config.py defaults (lowest)
 **Database**
 
 ```bash
-MONGO_URI=mongodb+srv://user:pass@cluster.mongodb.net/db_name
+MONGO_URI=mongodb+srv://user:REDACTED/db_name
 MONGO_MAX_POOL_SIZE=50                    # Connection pool size
 MONGO_CIRCUIT_BREAKER_THRESHOLD=5         # Failures before circuit opens
 ```
@@ -685,7 +685,7 @@ import os
 uri = os.getenv('MONGO_URI')
 client = MongoClient(uri, serverSelectionTimeoutMS=5000)
 client.admin.command('ping')
-print('✓ Connection successful')
+print(' Connection successful')
 "
 ```
 
@@ -760,3 +760,4 @@ Next steps:
 ---
 
 **Last Updated**: April 16, 2026 | **Version**: 2.0.0
+

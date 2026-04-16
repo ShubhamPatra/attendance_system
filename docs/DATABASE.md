@@ -29,7 +29,7 @@ AutoAttendance uses **MongoDB Atlas** (cloud) or **MongoDB Server** (on-premise)
 # In core/config.py
 MONGO_URI = os.getenv(
     'MONGO_URI',
-    'mongodb+srv://user:pass@cluster.mongodb.net/attendance_system'
+    'mongodb+srv://user:REDACTED/attendance_system'
 )
 MONGO_MAX_POOL_SIZE = int(os.getenv('MONGO_MAX_POOL_SIZE', 50))
 MONGO_CIRCUIT_BREAKER_THRESHOLD = int(os.getenv('MONGO_CIRCUIT_BREAKER_THRESHOLD', 5))
@@ -48,7 +48,7 @@ Enrollment records with face encodings.
   "_id": ObjectId("507f1f77bcf86cd799439011"),
   "reg_no": "CS21001",
   "name": "Alice Johnson",
-  "email": "alice@university.edu",
+  "email": "REDACTED",
   "phone": "+1-555-0001",
   "semester": "6",
   "section": "A",
@@ -214,7 +214,7 @@ Admin and teacher accounts.
 {
   "_id": ObjectId("507f1f77bcf86cd799439012"),
   "username": "admin",
-  "email": "admin@university.edu",
+  "email": "REDACTED",
   "password_hash": "$2b$12$...",
   "role": "admin",
   "created_at": ISODate("2024-01-01T00:00:00.000Z"),
@@ -272,7 +272,7 @@ Absence alerts and system events.
   "current_attendance": 72,
   "course_id": "CS101",
   "created_at": ISODate("2024-09-15T12:00:00.000Z"),
-  "sent_to": "alice@university.edu",
+  "sent_to": "REDACTED",
   "acknowledged": false
 }
 ```
@@ -496,7 +496,7 @@ db.attendance.insert_one({
     'status': 'Present',
     ...
 })
-# ✓ Success
+#  Success
 
 # Duplicate mark (fails)
 db.attendance.insert_one({
@@ -809,12 +809,12 @@ MongoDB Atlas provides automated daily backups:
 ```bash
 # Export entire database
 mongodump \
-  --uri="mongodb+srv://user:pass@cluster.mongodb.net/attendance_system" \
+  --uri="mongodb+srv://user:REDACTED/attendance_system" \
   --out=./backups/$(date +%Y-%m-%d)
 
 # Restore from backup
 mongorestore \
-  --uri="mongodb+srv://user:pass@cluster.mongodb.net/attendance_system" \
+  --uri="mongodb+srv://user:REDACTED/attendance_system" \
   ./backups/2024-09-15
 ```
 
@@ -849,3 +849,4 @@ Next steps:
 ---
 
 **Last Updated**: April 16, 2026 | **Version**: 2.0.0
+

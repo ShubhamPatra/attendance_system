@@ -24,10 +24,10 @@ AutoAttendance runs two separate Flask applications:
 │   (admin_app/app.py) │         │(student_app/app.py)  │
 │   Port 5000          │         │   Port 5001          │
 ├──────────────────────┤         ├──────────────────────┤
-│ ✓ SocketIO (real-time)        │ ✗ SocketIO (async)   │
-│ ✓ Camera feeds                │ ✗ Light-weight       │
-│ ✓ Analytics                   │ ✓ Registration       │
-│ ✓ Admin dashboard             │ ✓ Attendance view    │
+│  SocketIO (real-time)        │ ✗ SocketIO (async)   │
+│  Camera feeds                │ ✗ Light-weight       │
+│  Analytics                   │  Registration       │
+│  Admin dashboard             │  Attendance view    │
 └──────────────────────┘         └──────────────────────┘
          │                               │
          └───────────────┬───────────────┘
@@ -438,7 +438,7 @@ Content-Type: application/json
 {
   "reg_no": "CS21001",
   "name": "Alice Johnson",
-  "email": "alice@university.edu",
+  "email": "REDACTED",
   "semester": "6",
   "section": "A",
   "password": "secure-password"
@@ -516,7 +516,7 @@ Content-Type: application/json
 {
   "reg_no": "CS21001",
   "name": "Alice Johnson",
-  "email": "alice@university.edu",
+  "email": "REDACTED",
   "semester": "6",
   "password": "secure-password"
 }
@@ -821,3 +821,4 @@ Next steps:
 ---
 
 **Last Updated**: April 16, 2026 | **Version**: 2.0.0
+
