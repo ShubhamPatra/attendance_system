@@ -7,6 +7,7 @@ import os
 import sys
 import time
 import numpy as np
+import cv2
 
 import core.config as config
 from core.utils import setup_logging
@@ -107,7 +108,94 @@ def get_initialization_error() -> str | None:
     return _initialization_error
 
 
-def check_liveness(frame: np.ndarray) -> tuple[int, float]:
+def _is_face_too_small(
+    frame: np.ndarray,
+    face_bbox: tuple[int, int, int, int] | None = None,
+) -> bool:
+    """Return True when the face crop or bbox is too small for reliable inference."""
+    h, w = frame.shape[:2]
+    min_pixels = max(1, int(config.LIVENESS_MIN_FACE_SIZE_PIXELS))
+    if h < min_pixels or w < min_pixels:
+        return True
+    if face_bbox is None:
+        return False
+
+    _, _, bw, bh = face_bbox
+    if bw < min_pixels or bh < min_pixels:
+        return True
+
+    frame_area = max(1, h * w)
+    bbox_area = max(1, int(bw * bh))
+    return (bbox_area / frame_area) < config.LIVENESS_MIN_FACE_AREA_RATIO
+
+
+def _compute_frame_heuristics(frame: np.ndarray) -> dict:
+    """Return cheap quality and screen-spoof heuristics for a face crop."""
+    h, w = frame.shape[:2]
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    mean_brightness = float(np.mean(gray))
+    brightness_std = float(np.std(gray))
+    laplacian_var = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    saturation_mean = float(np.mean(hsv[:, :, 1]))
+    highlight_ratio = float(np.mean(gray >= 245))
+    return {
+        "frame_shape": (h, w),
+        "face_area": int(h * w),
+        "mean_brightness": mean_brightness,
+        "brightness_std": brightness_std,
+        "laplacian_var": laplacian_var,
+        "saturation_mean": saturation_mean,
+        "highlight_ratio": highlight_ratio,
+        "contrast_proxy": brightness_std,
+        "screen_suspicious": bool(
+            mean_brightness >= config.LIVENESS_SCREEN_BRIGHTNESS_MIN
+            and (
+                laplacian_var <= config.LIVENESS_SCREEN_LAPLACIAN_MIN
+                or brightness_std <= config.LIVENESS_SCREEN_CONTRAST_MIN
+                or highlight_ratio >= config.LIVENESS_SCREEN_HIGHLIGHT_RATIO_MAX
+            )
+        ),
+    }
+
+
+def analyze_liveness_frame(
+    frame: np.ndarray,
+    face_bbox: tuple[int, int, int, int] | None = None,
+) -> dict:
+    """Return a full liveness analysis result and frame heuristics.
+
+    Performs an early size rejection before the model runs so tiny
+    distant faces or postage-stamp crops do not waste inference budget.
+    """
+    heuristics = _compute_frame_heuristics(frame)
+    heuristics["too_small"] = _is_face_too_small(frame, face_bbox)
+
+    if heuristics["too_small"]:
+        return {
+            "label": 0,
+            "confidence": 0.0,
+            "model_confidence": 0.0,
+            "early_reject": True,
+            "reject_reason": "face_too_small",
+            **heuristics,
+        }
+
+    label, confidence = check_liveness(frame, face_bbox=face_bbox)
+    return {
+        "label": label,
+        "confidence": confidence,
+        "model_confidence": confidence,
+        "early_reject": confidence < config.LIVENESS_EARLY_REJECT_CONFIDENCE,
+        "reject_reason": "low_confidence" if confidence < config.LIVENESS_EARLY_REJECT_CONFIDENCE else None,
+        **heuristics,
+    }
+
+
+def check_liveness(
+    frame: np.ndarray,
+    face_bbox: tuple[int, int, int, int] | None = None,
+) -> tuple[int, float]:
     """Determine whether the face in *frame* is real or spoofed.
     
     The *frame* passed by the camera pipeline is already an adaptive
@@ -128,13 +216,24 @@ def check_liveness(frame: np.ndarray) -> tuple[int, float]:
         h, w = frame.shape[:2]
         if h == 0 or w == 0:
             return 0, 0.0
+
+        bbox = face_bbox
+        if bbox is None and _predictor is not None and hasattr(_predictor, "get_bbox"):
+            bbox = _predictor.get_bbox(frame)
+            if bbox in (None, [], ()):  # Preserve legacy no-face semantics.
+                return 0, 0.0
+
+        if _is_face_too_small(frame, bbox):
+            logger.debug("Early reject: face crop too small for liveness inference")
+            return 0, 0.0
         
         # The frame IS the face crop — synthesize a bbox covering the
         # entire crop with a small margin inset, avoiding the expensive
         # RetinaFace detection that would redundantly re-locate the face.
-        margin_x = int(w * 0.05)
-        margin_y = int(h * 0.05)
-        bbox = [margin_x, margin_y, w - 2 * margin_x, h - 2 * margin_y]
+        if bbox is None:
+            margin_x = int(w * 0.05)
+            margin_y = int(h * 0.05)
+            bbox = [margin_x, margin_y, w - 2 * margin_x, h - 2 * margin_y]
         
         # Run prediction with all models
         prediction = np.zeros((1, 3))
@@ -154,6 +253,8 @@ def check_liveness(frame: np.ndarray) -> tuple[int, float]:
         # Get consensus label
         label = int(np.argmax(prediction))
         confidence = float(prediction[0][label] / len(_model_names))
+        if confidence < config.LIVENESS_EARLY_REJECT_CONFIDENCE:
+            logger.debug("Early reject: low model confidence %.4f", confidence)
         
         if label == 0:
             logger.debug(f"Spoof detected (confidence={confidence:.4f})")

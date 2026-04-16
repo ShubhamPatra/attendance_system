@@ -92,6 +92,11 @@ def check_liveness(*args, **kwargs):
     return _anti_spoofing_module().check_liveness(*args, **kwargs)
 
 
+def analyze_liveness_frame(*args, **kwargs):
+    """Compatibility wrapper for tests and monkeypatching."""
+    return _anti_spoofing_module().analyze_liveness_frame(*args, **kwargs)
+
+
 def encode_face(*args, **kwargs):
     """Compatibility wrapper for tests and monkeypatching."""
     return _recognition_module().encode_face(*args, **kwargs)
@@ -107,6 +112,17 @@ def _compute_smoothed_embedding(embedding_history: list) -> np.ndarray | None:
     if norm > 0:
         avg = avg / norm
     return avg.astype(np.float32)
+
+
+def _track_center_from_box(box_xywh: tuple[int, int, int, int]) -> tuple[float, float]:
+    x, y, w, h = box_xywh
+    return x + (w / 2.0), y + (h / 2.0)
+
+
+def _safe_std(values: list[float]) -> float:
+    if len(values) < 2:
+        return 0.0
+    return float(np.std(np.asarray(values, dtype=np.float32)))
 
 
 def detect_ppe(*args, **kwargs):
@@ -322,6 +338,76 @@ class Camera:
 
     def _record_stage_time(self, stage_name: str, start_time: float) -> None:
         tracker.record_stage_time(stage_name, time.perf_counter() - start_time)
+
+    def _reset_track_verification(
+        self,
+        trk: FaceTrack,
+        reason: str,
+        keep_spoof_hold: bool = False,
+        preserve_state: bool = False,
+    ) -> None:
+        """Reset verification-specific state without destroying the tracker."""
+        trk.liveness_history = []
+        trk.confidence_history = []
+        trk.motion_history = []
+        trk.face_center_history = []
+        trk.screen_history = []
+        trk.brightness_history = []
+        trk.contrast_history = []
+        trk.last_liveness_meta = {"reset_reason": reason}
+        trk.verification_started_at = None
+        trk.last_seen_at = time.monotonic()
+        if not keep_spoof_hold:
+            trk.spoof_hold_until = 0.0
+        if not preserve_state:
+            trk.is_unknown = True
+            trk.is_spoof = False
+            trk.liveness_state = "init"
+            trk.state = "detecting"
+
+    def _update_track_motion_history(
+        self,
+        trk: FaceTrack,
+        bbox_xywh: tuple[int, int, int, int],
+    ) -> float:
+        now = time.monotonic()
+        center_x, center_y = _track_center_from_box(bbox_xywh)
+        trk.face_center_history.append((now, center_x, center_y))
+        if len(trk.face_center_history) > max(5, int(config.LIVENESS_HISTORY_SIZE)):
+            trk.face_center_history.pop(0)
+
+        motion_px = 0.0
+        if len(trk.face_center_history) >= 2:
+            _, prev_x, prev_y = trk.face_center_history[-2]
+            motion_px = float(np.hypot(center_x - prev_x, center_y - prev_y))
+        trk.motion_history.append(motion_px)
+        if len(trk.motion_history) > max(5, int(config.LIVENESS_HISTORY_SIZE)):
+            trk.motion_history.pop(0)
+        return motion_px
+
+    def _track_motion_low(self, trk: FaceTrack) -> bool:
+        recent = trk.motion_history[-3:] if trk.motion_history else []
+        if not recent:
+            return True
+        return float(np.mean(recent)) < config.LIVENESS_FACE_MOTION_MIN_PIXELS
+
+    def _screen_heuristics_allowed(self, trk: FaceTrack) -> bool:
+        has_blink = getattr(trk, "blink_count", 0) > 0
+        return (not has_blink) and self._track_motion_low(trk)
+
+    def _weighted_liveness_score(
+        self,
+        model_conf: float,
+        blink_score: float,
+        motion_score: float,
+        screen_penalty: float,
+    ) -> float:
+        model_weight = 0.7
+        blink_weight = 0.15
+        motion_weight = 0.15
+        score = (model_weight * model_conf) + (blink_weight * blink_score) + (motion_weight * motion_score)
+        score -= screen_penalty
+        return float(max(0.0, min(1.0, score)))
 
     @staticmethod
     def _track_priority(trk: FaceTrack) -> tuple[int, int, int]:
@@ -693,40 +779,137 @@ class Camera:
         5. Default: "uncertain"
         """
         now = time.monotonic()
+        trk.last_seen_at = now
+
+        if trk.verification_started_at is None:
+            trk.verification_started_at = now
 
         if config.BYPASS_ANTISPOOF:
-            label, conf = 1, 1.0
+            analysis = {
+                "label": 1,
+                "confidence": 1.0,
+                "early_reject": False,
+                "too_small": False,
+                "screen_suspicious": False,
+                "mean_brightness": 0.0,
+                "contrast_proxy": 0.0,
+            }
         else:
             face_crop = self._adaptive_liveness_crop(liveness_frame, liveness_box)
             if face_crop.size == 0:
-                label, conf = 0, 0.0
+                analysis = {
+                    "label": 0,
+                    "confidence": 0.0,
+                    "early_reject": True,
+                    "reject_reason": "empty_crop",
+                    "too_small": True,
+                    "screen_suspicious": False,
+                    "mean_brightness": 0.0,
+                    "contrast_proxy": 0.0,
+                }
             else:
-                label, conf = check_liveness(face_crop)
+                analysis = analyze_liveness_frame(face_crop, face_bbox=liveness_box)
+
+        label = int(analysis.get("label", 0))
+        conf = float(analysis.get("confidence", 0.0))
+        trk.last_liveness_meta = analysis
 
         if label == -1:
             tracker.record_liveness_event("liveness_error")
 
+        if analysis.get("too_small") or conf < config.LIVENESS_EARLY_REJECT_CONFIDENCE:
+            trk.liveness_history.append((0, conf))
+            trk.confidence_history.append(conf)
+            if len(trk.liveness_history) > config.LIVENESS_HISTORY_SIZE:
+                trk.liveness_history.pop(0)
+            if len(trk.confidence_history) > config.LIVENESS_HISTORY_SIZE:
+                trk.confidence_history.pop(0)
+            trk.spoof_hold_until = now + config.LIVENESS_SPOOF_COOLDOWN_SECONDS
+            self._reset_track_verification(
+                trk,
+                analysis.get("reject_reason", "early_reject"),
+                keep_spoof_hold=True,
+                preserve_state=True,
+            )
+            tracker.record_liveness_event("liveness_early_reject")
+            return "spoof", conf
+
         trk.liveness_history.append((label, conf))
+        trk.confidence_history.append(conf)
         if len(trk.liveness_history) > config.LIVENESS_HISTORY_SIZE:
             trk.liveness_history.pop(0)
+        if len(trk.confidence_history) > config.LIVENESS_HISTORY_SIZE:
+            trk.confidence_history.pop(0)
+
+        motion_px = self._update_track_motion_history(trk, liveness_box)
+        trk.brightness_history.append(float(analysis.get("mean_brightness", 0.0)))
+        trk.contrast_history.append(float(analysis.get("contrast_proxy", 0.0)))
+        trk.screen_history.append(bool(analysis.get("screen_suspicious", False)))
+        if len(trk.brightness_history) > config.LIVENESS_HISTORY_SIZE:
+            trk.brightness_history.pop(0)
+        if len(trk.contrast_history) > config.LIVENESS_HISTORY_SIZE:
+            trk.contrast_history.pop(0)
+        if len(trk.screen_history) > config.LIVENESS_HISTORY_SIZE:
+            trk.screen_history.pop(0)
+
+        score_std = _safe_std(trk.confidence_history)
+        if score_std > config.LIVENESS_SCORE_STD_THRESHOLD:
+            tracker.record_liveness_event("liveness_unstable")
+            if config.DEBUG_MODE:
+                logger.debug(
+                    "Track #%d unstable liveness scores: std=%.4f threshold=%.4f",
+                    trk.track_id,
+                    score_std,
+                    config.LIVENESS_SCORE_STD_THRESHOLD,
+                )
+            return "uncertain", conf
+
+        verification_age = now - float(trk.verification_started_at or now)
+        if verification_age > config.LIVENESS_MAX_VERIFICATION_TIMEOUT_SECONDS:
+            tracker.record_liveness_event("liveness_timeout")
+            self._reset_track_verification(trk, "verification_timeout")
+            trk.verification_started_at = now
+            return "uncertain", conf
 
         # Check spoof hold temporal override
         if now < trk.spoof_hold_until:
             state = "spoof"
             score = max(conf, config.LIVENESS_SPOOF_CONFIDENCE_MIN)
             tracker.record_liveness_event("temporal_override")
-        # Check for strong real signal (fast path)
-        elif self._is_real_fast(label, conf):
-            state = "real"
-            score = conf
         # Check for strong spoof signal
         elif self._is_spoof_strong(label, conf):
             state = "spoof"
             score = conf
-            trk.spoof_hold_until = now + config.SPOOF_HOLD_SECONDS
+            trk.spoof_hold_until = now + config.LIVENESS_SPOOF_COOLDOWN_SECONDS
+            self._reset_track_verification(
+                trk,
+                "spoof_detected",
+                keep_spoof_hold=True,
+                preserve_state=True,
+            )
+        elif analysis.get("screen_suspicious") and self._screen_heuristics_allowed(trk):
+            state = "spoof"
+            score = conf
+            trk.spoof_hold_until = now + config.LIVENESS_SPOOF_COOLDOWN_SECONDS
+            tracker.record_liveness_event("screen_spoof_suspected")
+            self._reset_track_verification(
+                trk,
+                "screen_spoof",
+                keep_spoof_hold=True,
+                preserve_state=True,
+            )
         # Otherwise, use temporal voting on history
         else:
             state, score = self._decide_liveness_from_history(trk)
+
+        if state == "uncertain" and config.LIVENESS_WEIGHTED_DECISION_ENABLED:
+            blink_score = 1.0 if getattr(trk, "blink_count", 0) > 0 else 0.0
+            motion_score = min(1.0, motion_px / max(1.0, config.LIVENESS_FACE_MOTION_MIN_PIXELS))
+            screen_penalty = 0.25 if analysis.get("screen_suspicious") and self._screen_heuristics_allowed(trk) else 0.0
+            weighted = self._weighted_liveness_score(conf, blink_score, motion_score, screen_penalty)
+            if weighted >= config.LIVENESS_WEIGHTED_ACCEPT_THRESHOLD and conf >= config.LIVENESS_STRICT_THRESHOLD:
+                state = "real"
+                score = weighted
 
         # Map decision to internal label
         if state == "real":
@@ -741,10 +924,10 @@ class Camera:
         return state, score
 
     def _is_real_fast(self, label: int, conf: float) -> bool:
-        """Fast path: Mark real if label=1 and confidence high (≥0.72)."""
+        """Fast path: Mark real if label=1 and confidence high (≥ strict threshold)."""
         return (
             label == 1
-            and conf >= config.LIVENESS_REAL_FAST_CONFIDENCE
+            and conf >= config.LIVENESS_STRICT_THRESHOLD
         )
 
     def _is_spoof_strong(self, label: int, conf: float) -> bool:
@@ -757,8 +940,8 @@ class Camera:
     def _decide_liveness_from_history(self, trk: FaceTrack) -> tuple[str, float]:
         """Use temporal voting on liveness history to make decision.
         
-        Requires at least config.LIVENESS_MIN_HISTORY (default 3) valid frames.
-        Incorporates blink detection evidence if enabled.
+        Requires at least config.LIVENESS_MIN_HISTORY valid frames, stable
+        confidence across the rolling window, and behavioral evidence.
         Returns (state, score) where state ∈ {"real", "spoof", "uncertain"}.
         """
         latest_label, latest_conf = trk.liveness_history[-1]
@@ -773,10 +956,13 @@ class Camera:
             # Not enough history; return uncertain
             return "uncertain", latest_conf
 
+        if (time.monotonic() - float(trk.verification_started_at or time.monotonic())) < config.LIVENESS_DECISION_DELAY_SECONDS:
+            return "uncertain", latest_conf
+
         # Count votes: real vs spoof at different confidence thresholds
         real_votes = [
             c for l, c in valid_history
-            if l == 1 and c >= config.LIVENESS_CONFIDENCE_THRESHOLD
+            if l == 1 and c >= config.LIVENESS_STRICT_THRESHOLD
         ]
         spoof_votes = [
             c for l, c in valid_history
@@ -792,14 +978,21 @@ class Camera:
         spoof_ratio = len(spoof_votes) / total_valid
         weak_spoof_ratio = len(weak_spoof_votes) / total_valid
 
+        score_std = _safe_std([c for _, c in valid_history])
+        if score_std > config.LIVENESS_SCORE_STD_THRESHOLD:
+            return "uncertain", latest_conf
+
         # Get blink evidence (blink count > 0 indicates natural movement/real face)
         has_blink_evidence = getattr(trk, "blink_count", 0) > 0
+        has_motion_evidence = not self._track_motion_low(trk)
 
         # Decide based on vote ratios
-        if real_ratio >= config.LIVENESS_REAL_VOTE_RATIO and real_votes:
+        if real_ratio >= config.LIVENESS_REAL_VOTE_RATIO and real_votes and (has_blink_evidence or has_motion_evidence):
             # Majority voted real
             avg_score = float(sum(real_votes) / len(real_votes))
-            return "real", avg_score
+            if avg_score >= config.LIVENESS_STRICT_THRESHOLD:
+                return "real", avg_score
+            return "uncertain", avg_score
         elif spoof_ratio >= config.LIVENESS_SPOOF_VOTE_RATIO and spoof_votes:
             # Majority voted spoof (strong confidence)
             avg_score = float(sum(spoof_votes) / len(spoof_votes))
@@ -813,11 +1006,14 @@ class Camera:
             # Majority voted spoof even with weak confidence threshold
             avg_score = float(sum(weak_spoof_votes) / len(weak_spoof_votes))
             return "spoof", avg_score
-        elif real_ratio >= 0.5 and has_blink_evidence and config.BLINK_DETECTION_ENABLED:
-            # Borderline real + has blink evidence = likely real
-            avg_score = float(sum([c for l, c in valid_history if l == 1]) / len([c for l, c in valid_history if l == 1]))
-            logger.debug("Track #%d: Upgrading to 'real' based on blink evidence (ratio=%.2f, blinks=%d)", trk.track_id, real_ratio, getattr(trk, "blink_count", 0))
-            return "real", avg_score
+        elif config.LIVENESS_WEIGHTED_DECISION_ENABLED:
+            blink_score = 1.0 if has_blink_evidence else 0.0
+            motion_score = 1.0 if has_motion_evidence else 0.0
+            screen_penalty = 0.25 if any(trk.screen_history[-3:]) and self._screen_heuristics_allowed(trk) else 0.0
+            weighted = self._weighted_liveness_score(latest_conf, blink_score, motion_score, screen_penalty)
+            if weighted >= config.LIVENESS_WEIGHTED_ACCEPT_THRESHOLD:
+                return "real", weighted
+            return "uncertain", weighted
         else:
             # No clear verdict
             return "uncertain", latest_conf
@@ -830,6 +1026,7 @@ class Camera:
 
         if state == "real":
             trk.is_spoof = False
+            trk.spoof_hold_until = 0.0
             if trk.identity is None:
                 trk.is_unknown = False
                 trk.state = "liveness_pending"
@@ -949,6 +1146,12 @@ class Camera:
         """
         if liveness_conf < (config.LIVENESS_CONFIDENCE_THRESHOLD + config.LIVENESS_NO_ENCODE_MARGIN):
             tracker.record_liveness_event("no_encode_guard")
+            trk.is_unknown = True
+            trk.state = "liveness_pending"
+            return
+
+        if liveness_conf < config.LIVENESS_STRICT_THRESHOLD:
+            tracker.record_liveness_event("strict_liveness_guard")
             trk.is_unknown = True
             trk.state = "liveness_pending"
             return
@@ -1432,6 +1635,7 @@ class Camera:
                     surviving.append(trk)
                 else:
                     trk.state = "expired"
+                    self._reset_track_verification(trk, "track_expired")
                     self._track_identity_cache.pop(trk.track_id, None)
                     tracker.record_liveness_event("tracker_expired")
                     logger.debug("Track #%d expired.", trk.track_id)
@@ -1473,6 +1677,7 @@ class Camera:
                             stale_tracks.append(trk)
                         else:
                             trk.state = "expired"
+                            self._reset_track_verification(trk, "detector_pruned")
                             self._track_identity_cache.pop(trk.track_id, None)
                             tracker.record_liveness_event("detector_pruned")
                             if not config.DEBUG_MODE:
@@ -1507,6 +1712,11 @@ class Camera:
                         if trk.identity is not None:
                             continue
                         if trk.track_id in created_track_ids:
+                            continue
+
+                        if trk.spoof_hold_until and time.monotonic() < trk.spoof_hold_until:
+                            trk.is_spoof = True
+                            trk.state = "spoof"
                             continue
 
                         # -- Performance gating: skip expensive ops on most cycles --

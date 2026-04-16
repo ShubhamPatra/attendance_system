@@ -65,7 +65,7 @@ class AntiSpoofPredict(Detection):
         self.model = MODEL_MAPPING[model_type](conv6_kernel=self.kernel_size).to(self.device)
 
         # load model weight
-        state_dict = torch.load(model_path, map_location=self.device)
+        state_dict = torch.load(model_path, map_location=self.device, weights_only=True)
         keys = iter(state_dict)
         first_layer_name = keys.__next__()
         if first_layer_name.find('module.') >= 0:
@@ -96,7 +96,7 @@ class AntiSpoofPredict(Detection):
         model = self._get_cached_model(model_path)
         with torch.no_grad():
             result = model.forward(img)
-            result = F.softmax(result).cpu().numpy()
+            result = F.softmax(result, dim=1).cpu().numpy()
         return result
 
 

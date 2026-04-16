@@ -88,6 +88,9 @@ class FaceTrack:
         "identity", "liveness", "is_spoof", "is_unknown",
         "frames_missing", "detector_misses",
         "liveness_history", "spoof_hold_until", "liveness_state",
+        "verification_started_at", "last_seen_at", "last_liveness_meta",
+        "confidence_history", "motion_history", "face_center_history",
+        "screen_history", "brightness_history", "contrast_history",
         "ppe_state", "ppe_confidence", "ppe_history", "ppe_updated_at",
         "state", "quality_reason", "created_at",
         "candidate_student_id", "candidate_name",
@@ -124,6 +127,15 @@ class FaceTrack:
         self.liveness_history: list[tuple[int, float]] = []
         self.spoof_hold_until: float = 0.0
         self.liveness_state: str = "init"
+        self.verification_started_at: float | None = None
+        self.last_seen_at: float = 0.0
+        self.last_liveness_meta: dict | None = None
+        self.confidence_history: list[float] = []
+        self.motion_history: list[float] = []
+        self.face_center_history: list[tuple[float, float, float]] = []
+        self.screen_history: list[bool] = []
+        self.brightness_history: list[float] = []
+        self.contrast_history: list[float] = []
         self.ppe_state: str = "none"
         self.ppe_confidence: float = 0.0
         self.ppe_history: list[tuple[str, float]] = []

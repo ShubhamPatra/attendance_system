@@ -102,20 +102,20 @@ ATTENDANCE_SESSION_CACHE_SECONDS = float(
 # Face Recognition (tuned for cosine similarity with ArcFace)
 # ---------------------------------------------------------------------------
 RECOGNITION_THRESHOLD = float(
-    os.environ.get("RECOGNITION_THRESHOLD", "0.45")
+    os.environ.get("RECOGNITION_THRESHOLD", "0.38")
 )  # Cosine similarity; higher = stricter match requirement
 RECOGNITION_MIN_CONFIDENCE = float(
-    os.environ.get("RECOGNITION_MIN_CONFIDENCE", "0.50")
+    os.environ.get("RECOGNITION_MIN_CONFIDENCE", "0.46")
 )  # Minimum cosine similarity score to accept
 RECOGNITION_MIN_DISTANCE_GAP = float(
-    os.environ.get("RECOGNITION_MIN_DISTANCE_GAP", "0.10")
+    os.environ.get("RECOGNITION_MIN_DISTANCE_GAP", "0.08")
 )  # Gap between best and 2nd-best must be substantial
 RECOGNITION_CONFIDENCE_ALPHA = float(
     os.environ.get("RECOGNITION_CONFIDENCE_ALPHA", "3.0")
 )
 RECOGNITION_CONFIRM_FRAMES = int(
-    os.environ.get("RECOGNITION_CONFIRM_FRAMES", "4")
-)  # Require 4 consecutive confident frames before marking attendance
+    os.environ.get("RECOGNITION_CONFIRM_FRAMES", "2")
+)  # Require 2 consecutive confident frames before marking attendance (speed optimized)
 RECOGNITION_STABILITY_WINDOW = int(
     os.environ.get("RECOGNITION_STABILITY_WINDOW", "5")
 )
@@ -149,9 +149,9 @@ RECOGNITION_COOLDOWN = 30     # Seconds to skip re-processing a recognized stude
 # ---------------------------------------------------------------------------
 # Detect-Track-Recognize Pipeline
 # ---------------------------------------------------------------------------
-DETECTION_INTERVAL = 10        # Run face detection every N-th frame
+DETECTION_INTERVAL = 6         # Run face detection every N-th frame (reduced from 10 for faster detection)
 DETECTION_INTERVAL_MIN = int(os.environ.get("DETECTION_INTERVAL_MIN", "3"))
-DETECTION_INTERVAL_MAX = int(os.environ.get("DETECTION_INTERVAL_MAX", "15"))
+DETECTION_INTERVAL_MAX = int(os.environ.get("DETECTION_INTERVAL_MAX", "10"))
 TRACK_EXPIRATION_FRAMES = 30   # Remove track after N consecutive failed updates
 TRACK_DETECTOR_MISS_TOLERANCE = 2  # Expire track after N detector cycles without support
 MOTION_THRESHOLD = 5000        # Min non-zero pixels to consider "motion detected"
@@ -162,14 +162,20 @@ MOTION_THRESHOLD = 5000        # Min non-zero pixels to consider "motion detecte
 LIVENESS_CONFIDENCE_THRESHOLD = float(
     os.environ.get("LIVENESS_CONFIDENCE_THRESHOLD", "0.55")
 )
+LIVENESS_STRICT_THRESHOLD = float(
+    os.environ.get("LIVENESS_STRICT_THRESHOLD", "0.85")
+)
+LIVENESS_EARLY_REJECT_CONFIDENCE = float(
+    os.environ.get("LIVENESS_EARLY_REJECT_CONFIDENCE", "0.5")
+)
 LIVENESS_REAL_FAST_CONFIDENCE = float(
     os.environ.get("LIVENESS_REAL_FAST_CONFIDENCE", "0.72")
 )
 LIVENESS_HISTORY_SIZE = int(
-    os.environ.get("LIVENESS_HISTORY_SIZE", "8")
+    os.environ.get("LIVENESS_HISTORY_SIZE", "5")
 )
 LIVENESS_MIN_HISTORY = int(
-    os.environ.get("LIVENESS_MIN_HISTORY", "3")
+    os.environ.get("LIVENESS_MIN_HISTORY", "2")  # Reduced from 3 for faster confirmation with temporal voting
 )
 LIVENESS_REAL_VOTE_RATIO = float(
     os.environ.get("LIVENESS_REAL_VOTE_RATIO", "0.7")
@@ -186,14 +192,53 @@ LIVENESS_SPOOF_WEAK_CONFIDENCE_MIN = float(
 LIVENESS_STRONG_SPOOF_CONFIDENCE = float(
     os.environ.get("LIVENESS_STRONG_SPOOF_CONFIDENCE", "0.85")
 )
+LIVENESS_SCORE_STD_THRESHOLD = float(
+    os.environ.get("LIVENESS_SCORE_STD_THRESHOLD", "0.12")
+)
+LIVENESS_MIN_FACE_SIZE_PIXELS = int(
+    os.environ.get("LIVENESS_MIN_FACE_SIZE_PIXELS", "64")
+)
+LIVENESS_MIN_FACE_AREA_RATIO = float(
+    os.environ.get("LIVENESS_MIN_FACE_AREA_RATIO", "0.01")
+)
+LIVENESS_DECISION_DELAY_SECONDS = float(
+    os.environ.get("LIVENESS_DECISION_DELAY_SECONDS", "2.5")
+)
+LIVENESS_SPOOF_COOLDOWN_SECONDS = float(
+    os.environ.get("LIVENESS_SPOOF_COOLDOWN_SECONDS", "2.5")
+)
+LIVENESS_MAX_VERIFICATION_TIMEOUT_SECONDS = float(
+    os.environ.get("LIVENESS_MAX_VERIFICATION_TIMEOUT_SECONDS", "5.5")
+)
+LIVENESS_FACE_MOTION_MIN_PIXELS = float(
+    os.environ.get("LIVENESS_FACE_MOTION_MIN_PIXELS", "8.0")
+)
+LIVENESS_SCREEN_LAPLACIAN_MIN = float(
+    os.environ.get("LIVENESS_SCREEN_LAPLACIAN_MIN", "35.0")
+)
+LIVENESS_SCREEN_CONTRAST_MIN = float(
+    os.environ.get("LIVENESS_SCREEN_CONTRAST_MIN", "20.0")
+)
+LIVENESS_SCREEN_HIGHLIGHT_RATIO_MAX = float(
+    os.environ.get("LIVENESS_SCREEN_HIGHLIGHT_RATIO_MAX", "0.08")
+)
+LIVENESS_SCREEN_BRIGHTNESS_MIN = float(
+    os.environ.get("LIVENESS_SCREEN_BRIGHTNESS_MIN", "170.0")
+)
+LIVENESS_WEIGHTED_DECISION_ENABLED = os.environ.get(
+    "LIVENESS_WEIGHTED_DECISION_ENABLED", "0"
+) == "1"
+LIVENESS_WEIGHTED_ACCEPT_THRESHOLD = float(
+    os.environ.get("LIVENESS_WEIGHTED_ACCEPT_THRESHOLD", "0.72")
+)
 LIVENESS_NO_ENCODE_MARGIN = float(
     os.environ.get("LIVENESS_NO_ENCODE_MARGIN", "0.03")
 )
 SPOOF_HOLD_SECONDS = float(
-    os.environ.get("SPOOF_HOLD_SECONDS", "1.5")
+    os.environ.get("SPOOF_HOLD_SECONDS", str(LIVENESS_SPOOF_COOLDOWN_SECONDS))
 )
 TRACK_STATE_PENDING_SECONDS = float(
-    os.environ.get("TRACK_STATE_PENDING_SECONDS", "2.5")
+    os.environ.get("TRACK_STATE_PENDING_SECONDS", str(LIVENESS_DECISION_DELAY_SECONDS))
 )
 ANTI_SPOOF_PAD_RATIO_BASE = float(
     os.environ.get("ANTI_SPOOF_PAD_RATIO_BASE", "0.12")
@@ -208,10 +253,12 @@ ANTI_SPOOF_PAD_MIN_PIXELS = int(
 # ---------------------------------------------------------------------------
 # Image Quality
 # ---------------------------------------------------------------------------
-BLUR_THRESHOLD = 10.0              # Laplacian variance; below = too blurry
+BLUR_THRESHOLD = float(
+    os.environ.get("BLUR_THRESHOLD", "6.0")
+)  # Laplacian variance; below = too blurry (relaxed with CLAHE preprocessing)
 BRIGHTNESS_THRESHOLD = 40.0        # Mean pixel brightness; below = too dark
-MIN_FACE_SIZE_PIXELS = int(os.environ.get("MIN_FACE_SIZE_PIXELS", "48"))
-MIN_FACE_AREA_RATIO = float(os.environ.get("MIN_FACE_AREA_RATIO", "0.01"))
+MIN_FACE_SIZE_PIXELS = int(os.environ.get("MIN_FACE_SIZE_PIXELS", "36"))
+MIN_FACE_AREA_RATIO = float(os.environ.get("MIN_FACE_AREA_RATIO", "0.005"))
 MAX_REGISTRATION_IMAGES = 5        # Max images accepted per registration
 
 # ---------------------------------------------------------------------------
@@ -223,7 +270,7 @@ ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg"}
 # ---------------------------------------------------------------------------
 # Frame Processing
 # ---------------------------------------------------------------------------
-FRAME_PROCESS_WIDTH = 640          # Resize frames to this width before processing
+FRAME_PROCESS_WIDTH = 512          # Resize frames to this width before processing (reduced from 640 for 20% speedup)
 
 # ---------------------------------------------------------------------------
 # Motion & Detection Gating
@@ -250,8 +297,12 @@ LOG_BUFFER_MAX = 200               # Max log entries in deque
 # ---------------------------------------------------------------------------
 # YuNet Face Detector
 # ---------------------------------------------------------------------------
-YUNET_SCORE_THRESHOLD = 0.7        # Detection confidence threshold
-YUNET_NMS_THRESHOLD = 0.3          # Non-maximum suppression threshold
+YUNET_SCORE_THRESHOLD = float(
+    os.environ.get("YUNET_SCORE_THRESHOLD", "0.62")
+)  # Detection confidence threshold (lower = more detections)
+YUNET_NMS_THRESHOLD = float(
+    os.environ.get("YUNET_NMS_THRESHOLD", "0.23")
+)  # Non-maximum suppression threshold
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -471,12 +522,12 @@ PERF_MAX_FACES = int(
 )  # Cap on simultaneous tracked faces; new detections ignored when at limit
 
 PERF_RECOGNITION_INTERVAL = int(
-    os.environ.get("PERF_RECOGNITION_INTERVAL", "3")
-)  # Re-attempt recognition on existing unidentified tracks every N detection cycles
+    os.environ.get("PERF_RECOGNITION_INTERVAL", "2")
+)  # Re-attempt recognition on existing unidentified tracks every N detection cycles (reduced from 3)
 
 PERF_ANTISPOOF_INTERVAL = int(
-    os.environ.get("PERF_ANTISPOOF_INTERVAL", "3")
-)  # Re-evaluate liveness on uncertain tracks every N detection cycles
+    os.environ.get("PERF_ANTISPOOF_INTERVAL", "1")
+)  # Re-evaluate liveness on uncertain tracks every N detection cycles (reduced from 3 for faster liveness confirmation)
 
 PERF_RECOGNITION_COOLDOWN_FRAMES = int(
     os.environ.get("PERF_RECOGNITION_COOLDOWN_FRAMES", "30")

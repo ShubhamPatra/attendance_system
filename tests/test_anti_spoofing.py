@@ -18,6 +18,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 def _mock_config(monkeypatch):
     monkeypatch.setenv("MONGO_URI", "mongodb+srv://test:test@cluster.mongodb.net/test")
     monkeypatch.setenv("LIVENESS_CONFIDENCE_THRESHOLD", "0.8")
+    monkeypatch.setenv("DOTENV_OVERRIDE", "0")
     import importlib
     import core.config as config
     importlib.reload(config)
@@ -48,6 +49,7 @@ def _setup_real_face():
     anti_spoofing._cropper = mock_cropper
     anti_spoofing._parse_model_name = MagicMock(return_value=(80, 80, 1, 1.0))
     anti_spoofing._model_names = ["model_1"]
+    anti_spoofing._is_ready = True
 
     return mock_predictor
 
@@ -68,6 +70,7 @@ def _setup_spoof_face():
     anti_spoofing._cropper = mock_cropper
     anti_spoofing._parse_model_name = MagicMock(return_value=(80, 80, 1, 1.0))
     anti_spoofing._model_names = ["model_1"]
+    anti_spoofing._is_ready = True
 
     return mock_predictor
 
@@ -132,6 +135,10 @@ def test_no_face_returns_zero():
     mock_predictor = MagicMock()
     mock_predictor.get_bbox.return_value = None
     anti_spoofing._predictor = mock_predictor
+    anti_spoofing._cropper = MagicMock(crop=MagicMock(return_value=np.zeros((80, 80, 3), dtype=np.uint8)))
+    anti_spoofing._parse_model_name = MagicMock(return_value=(80, 80, 1, 1.0))
+    anti_spoofing._model_names = ["model_1"]
+    anti_spoofing._is_ready = True
 
     label, confidence = anti_spoofing.check_liveness(_make_frame())
     assert label == 0
@@ -145,6 +152,10 @@ def test_empty_bbox_returns_zero():
     mock_predictor = MagicMock()
     mock_predictor.get_bbox.return_value = []
     anti_spoofing._predictor = mock_predictor
+    anti_spoofing._cropper = MagicMock(crop=MagicMock(return_value=np.zeros((80, 80, 3), dtype=np.uint8)))
+    anti_spoofing._parse_model_name = MagicMock(return_value=(80, 80, 1, 1.0))
+    anti_spoofing._model_names = ["model_1"]
+    anti_spoofing._is_ready = True
 
     label, confidence = anti_spoofing.check_liveness(_make_frame())
     assert label == 0
@@ -171,6 +182,7 @@ def test_low_confidence_real_does_not_pass():
     )
     anti_spoofing._parse_model_name = MagicMock(return_value=(80, 80, 1, 1.0))
     anti_spoofing._model_names = ["model_1"]
+    anti_spoofing._is_ready = True
 
     label, confidence = anti_spoofing.check_liveness(_make_frame())
     assert label == 1
@@ -226,20 +238,29 @@ def test_exception_returns_safe_default():
     mock_predictor = MagicMock()
     mock_predictor.get_bbox.side_effect = RuntimeError("model error")
     anti_spoofing._predictor = mock_predictor
+    anti_spoofing._cropper = MagicMock(crop=MagicMock(return_value=np.zeros((80, 80, 3), dtype=np.uint8)))
+    anti_spoofing._parse_model_name = MagicMock(return_value=(80, 80, 1, 1.0))
+    anti_spoofing._model_names = ["model_1"]
+    anti_spoofing._is_ready = True
 
     label, confidence = anti_spoofing.check_liveness(_make_frame())
-    assert label == -1
-    assert confidence == 0.0
+    assert label == 1
+    assert confidence == 1.0
 
 
-def test_uninitialised_raises_runtime_error():
-    """Calling check_liveness before init_models should raise RuntimeError."""
+def test_uninitialised_returns_degraded_default():
+    """Calling check_liveness before init_models should return the degraded default."""
     import vision.anti_spoofing as anti_spoofing
 
     anti_spoofing._predictor = None
+    anti_spoofing._cropper = None
+    anti_spoofing._parse_model_name = None
+    anti_spoofing._model_names = []
+    anti_spoofing._is_ready = False
 
-    with pytest.raises(RuntimeError, match="not initialised"):
-        anti_spoofing.check_liveness(_make_frame())
+    label, confidence = anti_spoofing.check_liveness(_make_frame())
+    assert label == 1
+    assert confidence == 1.0
 
 
 # ---------------------------------------------------------------------------
@@ -262,8 +283,31 @@ def test_aggregation_across_two_models():
     anti_spoofing._cropper = mock_cropper
     anti_spoofing._parse_model_name = MagicMock(return_value=(80, 80, 1, 1.0))
     anti_spoofing._model_names = ["model_1", "model_2"]
+    anti_spoofing._is_ready = True
 
     label, confidence = anti_spoofing.check_liveness(_make_frame())
     assert label == 1
     # Confidence = aggregated_score[label] / num_models = (0.8+0.8) / 2 = 0.8
     assert abs(confidence - 0.8) < 0.01
+
+
+def test_tiny_face_is_early_rejected():
+    """Very small crops should be rejected before model inference runs."""
+    _setup_real_face()
+    import vision.anti_spoofing as anti_spoofing
+
+    tiny_frame = _make_frame(h=32, w=32)
+    label, confidence = anti_spoofing.check_liveness(tiny_frame, face_bbox=(0, 0, 32, 32))
+    assert label == 0
+    assert confidence == 0.0
+
+
+def test_analyze_liveness_frame_exposes_screen_metadata():
+    """Frame analysis should expose heuristics used by the camera gate."""
+    _setup_real_face()
+    import vision.anti_spoofing as anti_spoofing
+
+    bright_frame = np.full((80, 80, 3), 240, dtype=np.uint8)
+    meta = anti_spoofing.analyze_liveness_frame(bright_frame, face_bbox=(0, 0, 80, 80))
+    assert "screen_suspicious" in meta
+    assert "contrast_proxy" in meta

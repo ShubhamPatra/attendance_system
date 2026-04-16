@@ -3,6 +3,7 @@
 import os
 import sys
 import types
+import time
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -54,21 +55,35 @@ class _FakeTrack:
         self.liveness_history = []
         self.spoof_hold_until = 0.0
         self.liveness_state = "init"
+        self.verification_started_at = None
+        self.last_seen_at = 0.0
+        self.last_liveness_meta = None
+        self.confidence_history = []
+        self.motion_history = []
+        self.face_center_history = []
+        self.screen_history = []
+        self.brightness_history = []
+        self.contrast_history = []
         self.ppe_state = "none"
         self.ppe_confidence = 0.0
         self.ppe_history = []
         self.ppe_updated_at = 0.0
+        self.state = "detecting"
+        self.quality_reason = ""
+        self.created_at = 0.0
+        self.recognition_cycle_count = 0
+        self.antispoof_cycle_count = 0
 
 
-@patch("app_camera.camera.cv2.VideoCapture", return_value=_FakeCap())
+@patch("camera.camera.cv2.VideoCapture", return_value=_FakeCap())
 def test_create_track_low_confidence_spoof_is_uncertain(mock_cap):
     import camera.camera as camera
 
     frame = np.zeros((240, 320, 3), dtype=np.uint8)
 
-    with patch("app_camera.camera.FaceTrack", _FakeTrack), \
-         patch("app_camera.camera.check_liveness", return_value=(0, 0.2)), \
-         patch("app_camera.camera.tracker") as mock_tracker:
+    with patch("camera.camera.FaceTrack", _FakeTrack), \
+         patch("camera.camera.analyze_liveness_frame", return_value={"label": 0, "confidence": 0.6, "screen_suspicious": False, "too_small": False, "mean_brightness": 120.0, "contrast_proxy": 40.0}), \
+         patch("camera.camera.tracker") as mock_tracker:
         cam = camera.Camera(0)
         trk = cam._create_track(frame, (10, 10, 80, 80), raw_frame=frame)
 
@@ -77,15 +92,15 @@ def test_create_track_low_confidence_spoof_is_uncertain(mock_cap):
     mock_tracker.record_recognition.assert_called_with(False, False)
 
 
-@patch("app_camera.camera.cv2.VideoCapture", return_value=_FakeCap())
+@patch("camera.camera.cv2.VideoCapture", return_value=_FakeCap())
 def test_create_track_label_two_sets_spoof(mock_cap):
     import camera.camera as camera
 
     frame = np.zeros((240, 320, 3), dtype=np.uint8)
 
-    with patch("app_camera.camera.FaceTrack", _FakeTrack), \
-         patch("app_camera.camera.check_liveness", return_value=(2, 0.9)), \
-         patch("app_camera.camera.tracker") as mock_tracker:
+    with patch("camera.camera.FaceTrack", _FakeTrack), \
+         patch("camera.camera.analyze_liveness_frame", return_value={"label": 2, "confidence": 0.9, "screen_suspicious": False, "too_small": False, "mean_brightness": 110.0, "contrast_proxy": 30.0}), \
+         patch("camera.camera.tracker") as mock_tracker:
         cam = camera.Camera(0)
         trk = cam._create_track(frame, (10, 10, 80, 80), raw_frame=frame)
 
@@ -94,28 +109,29 @@ def test_create_track_label_two_sets_spoof(mock_cap):
     mock_tracker.record_recognition.assert_called_with(False, False)
 
 
-@patch("app_camera.camera.cv2.VideoCapture", return_value=_FakeCap())
+@patch("camera.camera.cv2.VideoCapture", return_value=_FakeCap())
 def test_create_track_antispoof_error_is_fail_safe_unknown(mock_cap):
     import camera.camera as camera
 
     frame = np.zeros((240, 320, 3), dtype=np.uint8)
 
-    with patch("app_camera.camera.FaceTrack", _FakeTrack), \
-         patch("app_camera.camera.check_liveness", return_value=(-1, 0.0)), \
-         patch("app_camera.camera.encode_face") as mock_encode, \
-         patch("app_camera.camera.tracker") as mock_tracker:
+    with patch("camera.camera.FaceTrack", _FakeTrack), \
+         patch("camera.camera.analyze_liveness_frame", return_value={"label": -1, "confidence": 0.0, "screen_suspicious": False, "too_small": False, "mean_brightness": 100.0, "contrast_proxy": 20.0}), \
+         patch("camera.camera.encode_face") as mock_encode, \
+         patch("camera.camera.tracker") as mock_tracker:
         cam = camera.Camera(0)
         cam._handle_recognized = MagicMock()
         trk = cam._create_track(frame, (10, 10, 80, 80), raw_frame=frame)
 
     assert trk.identity is None
-    assert trk.is_unknown is True
+    assert trk.is_spoof is True
+    assert trk.is_unknown is False
     cam._handle_recognized.assert_not_called()
     mock_encode.assert_not_called()
     mock_tracker.record_recognition.assert_called_with(False, False)
 
 
-@patch("app_camera.camera.cv2.VideoCapture", return_value=_FakeCap())
+@patch("camera.camera.cv2.VideoCapture", return_value=_FakeCap())
 def test_deduplicate_tracks_keeps_single_face_box(mock_cap):
     import camera.camera as camera
 
@@ -145,7 +161,7 @@ def test_deduplicate_tracks_keeps_single_face_box(mock_cap):
     assert cam._tracks[0].identity is not None
 
 
-@patch("app_camera.camera.cv2.VideoCapture", return_value=_FakeCap())
+@patch("camera.camera.cv2.VideoCapture", return_value=_FakeCap())
 def test_deduplicate_tracks_keeps_one_for_nested_boxes(mock_cap):
     import camera.camera as camera
 
@@ -174,15 +190,16 @@ def test_deduplicate_tracks_keeps_one_for_nested_boxes(mock_cap):
     assert len(cam._tracks) == 1
 
 
-@patch("app_camera.camera.cv2.VideoCapture", return_value=_FakeCap())
+@patch("camera.camera.cv2.VideoCapture", return_value=_FakeCap())
 def test_temporal_non_real_votes_promote_to_spoof(mock_cap):
     import camera.camera as camera
 
     frame = np.zeros((240, 320, 3), dtype=np.uint8)
     cam = camera.Camera(0)
     trk = _FakeTrack(1, frame, (10, 10, 80, 80))
+    trk.verification_started_at = time.monotonic() - 3.0
 
-    with patch("app_camera.camera.check_liveness", return_value=(0, 0.52)):
+    with patch("camera.camera.analyze_liveness_frame", return_value={"label": 0, "confidence": 0.62, "screen_suspicious": False, "too_small": False, "mean_brightness": 105.0, "contrast_proxy": 25.0}):
         # Build enough history to trigger temporal spoof decision.
         for _ in range(3):
             state, score = cam._evaluate_track_liveness(trk, frame, (10, 10, 80, 80))
@@ -191,7 +208,7 @@ def test_temporal_non_real_votes_promote_to_spoof(mock_cap):
     assert score >= 0.5
 
 
-@patch("app_camera.camera.cv2.VideoCapture", return_value=_FakeCap())
+@patch("camera.camera.cv2.VideoCapture", return_value=_FakeCap())
 def test_deduplicate_prefers_higher_confidence_identity(mock_cap):
     import camera.camera as camera
 
@@ -221,7 +238,7 @@ def test_deduplicate_prefers_higher_confidence_identity(mock_cap):
     assert cam._tracks[0].identity[1] == "Bob"
 
 
-@patch("app_camera.camera.cv2.VideoCapture", return_value=_FakeCap())
+@patch("camera.camera.cv2.VideoCapture", return_value=_FakeCap())
 def test_recognition_requires_consistent_confirmation(mock_cap):
     import camera.camera as camera
 
@@ -231,11 +248,11 @@ def test_recognition_requires_consistent_confirmation(mock_cap):
 
     fake_encoding = np.random.rand(128).astype(np.float64)
 
-    with patch("app_camera.camera.config.SMOOTHING_MIN_FRAMES", 1), \
-         patch("app_camera.camera.config.RECOGNITION_CONFIRM_FRAMES", 2), \
-         patch("app_camera.camera.config.RECOGNITION_STABILITY_MIN_HITS", 2), \
-         patch("app_camera.camera._recognition_module") as mock_rec_mod_factory, \
-         patch("app_camera.camera._face_engine_module") as mock_face_engine_factory:
+    with patch("camera.camera.config.SMOOTHING_MIN_FRAMES", 1), \
+         patch("camera.camera.config.RECOGNITION_CONFIRM_FRAMES", 2), \
+         patch("camera.camera.config.RECOGNITION_STABILITY_MIN_HITS", 2), \
+         patch("camera.camera._recognition_module") as mock_rec_mod_factory, \
+         patch("camera.camera._face_engine_module") as mock_face_engine_factory:
         mock_rec_mod = MagicMock()
         mock_rec_mod.encode_face_with_reason.return_value = (fake_encoding, "")
         mock_rec_mod_factory.return_value = mock_rec_mod
@@ -267,7 +284,7 @@ def test_recognition_requires_consistent_confirmation(mock_cap):
         assert trk.identity is not None
 
 
-@patch("app_camera.camera.cv2.VideoCapture", return_value=_FakeCap())
+@patch("camera.camera.cv2.VideoCapture", return_value=_FakeCap())
 def test_track_identity_cache_skips_recompute_when_valid(mock_cap):
     import camera.camera as camera
 
@@ -277,15 +294,15 @@ def test_track_identity_cache_skips_recompute_when_valid(mock_cap):
 
     fake_encoding = np.random.rand(128).astype(np.float64)
 
-    with patch("app_camera.camera.config.SMOOTHING_MIN_FRAMES", 1), \
-         patch("app_camera.camera.config.SMOOTHING_WINDOW", 3), \
-         patch("app_camera.camera.config.RECOGNITION_CONFIRM_FRAMES", 2), \
-         patch("app_camera.camera.config.RECOGNITION_STABILITY_MIN_HITS", 2), \
-         patch("app_camera.camera.config.RECOGNITION_STABILITY_WINDOW", 3), \
-         patch("app_camera.camera.config.RECOGNITION_TRACK_CACHE_TTL_SECONDS", 5.0), \
-         patch("app_camera.camera.config.BLINK_DETECTION_ENABLED", False), \
-         patch("app_camera.camera._recognition_module") as mock_rec_mod_factory, \
-         patch("app_camera.camera._face_engine_module") as mock_face_engine_factory:
+    with patch("camera.camera.config.SMOOTHING_MIN_FRAMES", 1), \
+         patch("camera.camera.config.SMOOTHING_WINDOW", 3), \
+         patch("camera.camera.config.RECOGNITION_CONFIRM_FRAMES", 2), \
+         patch("camera.camera.config.RECOGNITION_STABILITY_MIN_HITS", 2), \
+         patch("camera.camera.config.RECOGNITION_STABILITY_WINDOW", 3), \
+         patch("camera.camera.config.RECOGNITION_TRACK_CACHE_TTL_SECONDS", 5.0), \
+         patch("camera.camera.config.BLINK_DETECTION_ENABLED", False), \
+         patch("camera.camera._recognition_module") as mock_rec_mod_factory, \
+         patch("camera.camera._face_engine_module") as mock_face_engine_factory:
         mock_rec_mod = MagicMock()
         mock_rec_mod.encode_face_with_reason.return_value = (fake_encoding, "")
         mock_rec_mod_factory.return_value = mock_rec_mod
@@ -315,7 +332,7 @@ def test_track_identity_cache_skips_recompute_when_valid(mock_cap):
         cam._handle_recognized.assert_called_once()
 
 
-@patch("app_camera.camera.cv2.VideoCapture", return_value=_FakeCap())
+@patch("camera.camera.cv2.VideoCapture", return_value=_FakeCap())
 def test_track_identity_cache_recomputes_after_expiry(mock_cap):
     import camera.camera as camera
 
@@ -325,15 +342,15 @@ def test_track_identity_cache_recomputes_after_expiry(mock_cap):
 
     fake_encoding = np.random.rand(128).astype(np.float64)
 
-    with patch("app_camera.camera.config.SMOOTHING_MIN_FRAMES", 1), \
-         patch("app_camera.camera.config.SMOOTHING_WINDOW", 3), \
-         patch("app_camera.camera.config.RECOGNITION_CONFIRM_FRAMES", 3), \
-         patch("app_camera.camera.config.RECOGNITION_STABILITY_MIN_HITS", 3), \
-         patch("app_camera.camera.config.RECOGNITION_STABILITY_WINDOW", 3), \
-         patch("app_camera.camera.config.RECOGNITION_TRACK_CACHE_TTL_SECONDS", 5.0), \
-         patch("app_camera.camera.config.BLINK_DETECTION_ENABLED", False), \
-         patch("app_camera.camera._recognition_module") as mock_rec_mod_factory, \
-         patch("app_camera.camera._face_engine_module") as mock_face_engine_factory:
+    with patch("camera.camera.config.SMOOTHING_MIN_FRAMES", 1), \
+         patch("camera.camera.config.SMOOTHING_WINDOW", 3), \
+         patch("camera.camera.config.RECOGNITION_CONFIRM_FRAMES", 3), \
+         patch("camera.camera.config.RECOGNITION_STABILITY_MIN_HITS", 3), \
+         patch("camera.camera.config.RECOGNITION_STABILITY_WINDOW", 3), \
+         patch("camera.camera.config.RECOGNITION_TRACK_CACHE_TTL_SECONDS", 5.0), \
+         patch("camera.camera.config.BLINK_DETECTION_ENABLED", False), \
+         patch("camera.camera._recognition_module") as mock_rec_mod_factory, \
+         patch("camera.camera._face_engine_module") as mock_face_engine_factory:
         mock_rec_mod = MagicMock()
         mock_rec_mod.encode_face_with_reason.return_value = (fake_encoding, "")
         mock_rec_mod_factory.return_value = mock_rec_mod
@@ -363,7 +380,7 @@ def test_track_identity_cache_recomputes_after_expiry(mock_cap):
         assert mock_face_engine.recognize_face.call_count == 2
 
 
-@patch("app_camera.camera.cv2.VideoCapture", return_value=_FakeCap())
+@patch("camera.camera.cv2.VideoCapture", return_value=_FakeCap())
 def test_unknown_snapshot_logs_confidence_and_track(mock_cap):
     import camera.camera as camera
 
@@ -373,10 +390,10 @@ def test_unknown_snapshot_logs_confidence_and_track(mock_cap):
     cam._last_unknown_track_id = 42
     cam._last_unknown_confidence = 0.37
 
-    with patch("app_camera.camera.os.makedirs") as mock_makedirs, \
-         patch("app_camera.camera.cv2.imwrite", return_value=True), \
-         patch("app_camera.camera._snapshot_executor") as mock_executor, \
-         patch("app_camera.camera.logger") as mock_logger:
+    with patch("camera.camera.os.makedirs") as mock_makedirs, \
+         patch("camera.camera.cv2.imwrite", return_value=True), \
+         patch("camera.camera._snapshot_executor") as mock_executor, \
+         patch("camera.camera.logger") as mock_logger:
         future = MagicMock()
         def _run_now(func):
             func()
@@ -389,3 +406,101 @@ def test_unknown_snapshot_logs_confidence_and_track(mock_cap):
     mock_executor.submit.assert_called_once()
     assert mock_logger.info.call_args[0][0] == "Unknown face snapshot saved: %s (track=%s confidence=%.4f)"
     assert mock_logger.info.call_args[0][3] == 0.37
+
+
+@patch("camera.camera.cv2.VideoCapture", return_value=_FakeCap())
+def test_screen_spoof_heuristics_only_apply_without_blink_and_motion(mock_cap):
+    import camera.camera as camera
+
+    frame = np.zeros((240, 320, 3), dtype=np.uint8)
+    cam = camera.Camera(0)
+    trk = _FakeTrack(12, frame, (10, 10, 80, 80))
+    trk.verification_started_at = time.monotonic() - 3.0
+
+    # Blink evidence present -> do not trigger screen-spoof rejection.
+    trk.blink_count = 1
+    trk.motion_history = [0.0, 0.0, 0.0]
+    with patch(
+        "camera.camera.analyze_liveness_frame",
+        return_value={
+            "label": 1,
+            "confidence": 0.9,
+            "screen_suspicious": True,
+            "too_small": False,
+            "mean_brightness": 210.0,
+            "contrast_proxy": 10.0,
+        },
+    ):
+        state, _ = cam._evaluate_track_liveness(trk, frame, (10, 10, 80, 80))
+    assert state != "spoof"
+
+    # No blink + low motion -> screen spoof rule may reject.
+    trk.blink_count = 0
+    trk.motion_history = [0.0, 0.0, 0.0]
+    trk.verification_started_at = time.monotonic() - 3.0
+    with patch(
+        "camera.camera.analyze_liveness_frame",
+        return_value={
+            "label": 1,
+            "confidence": 0.9,
+            "screen_suspicious": True,
+            "too_small": False,
+            "mean_brightness": 210.0,
+            "contrast_proxy": 10.0,
+        },
+    ):
+        state, _ = cam._evaluate_track_liveness(trk, frame, (10, 10, 80, 80))
+    assert state == "spoof"
+
+
+@patch("camera.camera.cv2.VideoCapture", return_value=_FakeCap())
+def test_liveness_verification_timeout_resets_track_state(mock_cap):
+    import camera.camera as camera
+
+    frame = np.zeros((240, 320, 3), dtype=np.uint8)
+    cam = camera.Camera(0)
+    trk = _FakeTrack(13, frame, (10, 10, 80, 80))
+    trk.verification_started_at = time.monotonic() - 10.0
+
+    with patch(
+        "camera.camera.analyze_liveness_frame",
+        return_value={
+            "label": 1,
+            "confidence": 0.9,
+            "screen_suspicious": False,
+            "too_small": False,
+            "mean_brightness": 130.0,
+            "contrast_proxy": 35.0,
+        },
+    ):
+        state, _ = cam._evaluate_track_liveness(trk, frame, (10, 10, 80, 80))
+
+    assert state == "uncertain"
+    assert trk.verification_started_at is not None
+    assert trk.liveness_history == []
+
+
+@patch("camera.camera.cv2.VideoCapture", return_value=_FakeCap())
+def test_spoof_cooldown_temporal_override_blocks_immediate_retry(mock_cap):
+    import camera.camera as camera
+
+    frame = np.zeros((240, 320, 3), dtype=np.uint8)
+    cam = camera.Camera(0)
+    trk = _FakeTrack(14, frame, (10, 10, 80, 80))
+    trk.verification_started_at = time.monotonic() - 3.0
+    trk.spoof_hold_until = time.monotonic() + 2.0
+
+    with patch(
+        "camera.camera.analyze_liveness_frame",
+        return_value={
+            "label": 1,
+            "confidence": 0.95,
+            "screen_suspicious": False,
+            "too_small": False,
+            "mean_brightness": 120.0,
+            "contrast_proxy": 40.0,
+        },
+    ):
+        state, _ = cam._evaluate_track_liveness(trk, frame, (10, 10, 80, 80))
+
+    assert state == "spoof"
