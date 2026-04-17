@@ -7,7 +7,7 @@ from flask_login import login_user, logout_user
 from flask_restx import Api, Namespace, Resource, fields
 
 import core.database as database
-from core.auth import authenticate_user
+from core.auth import authenticate_user, generate_jwt_token, verify_jwt_token
 from core.performance import tracker
 from vision.face_engine import get_embedding_backend_name
 from web.decorators import require_roles
@@ -49,6 +49,10 @@ def init_restx_api(app):
             "ok": fields.Boolean,
             "username": fields.String,
             "role": fields.String,
+            "access_token": fields.String,
+            "refresh_token": fields.String,
+            "token_type": fields.String,
+            "expires_in": fields.Integer,
         },
     )
 
@@ -134,17 +138,103 @@ def init_restx_api(app):
             payload = request.get_json(silent=True) or {}
             username = (payload.get("username") or "").strip()
             password = payload.get("password") or ""
+            
+            # Record login attempt and check lockout
             user = authenticate_user(username, password)
             if user is None:
+                # Log failed attempt
+                database.log_auth_event(
+                    event_type='API_LOGIN_FAILED',
+                    status='invalid_credentials',
+                    ip_address=request.remote_addr,
+                    user_agent=request.headers.get('User-Agent', ''),
+                    details={'username': username}
+                )
                 return {"error": "Invalid credentials."}, 401
+            
+            # Log successful login
+            database.log_auth_event(
+                event_type='API_LOGIN',
+                user_id=user.id,
+                status='success',
+                ip_address=request.remote_addr,
+                user_agent=request.headers.get('User-Agent', ''),
+            )
+            
+            # Generate JWT tokens
+            access_token = generate_jwt_token(user.id, user.role, expires_in_hours=1)
+            refresh_token = generate_jwt_token(user.id, user.role, expires_in_hours=24)
+            
             login_user(user, remember=True)
-            return {"ok": True, "username": user.username, "role": user.role}
+            return {
+                "ok": True,
+                "username": user.username,
+                "role": user.role,
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+                "token_type": "Bearer",
+                "expires_in": 3600,  # 1 hour in seconds
+            }
 
     @auth_ns.route("/logout")
     class AuthLogout(Resource):
         def post(self):
+            database.log_auth_event(
+                event_type='API_LOGOUT',
+                status='success',
+                ip_address=request.remote_addr,
+                user_agent=request.headers.get('User-Agent', ''),
+            )
             logout_user()
             return {"ok": True}
+
+    refresh_request = auth_ns.model(
+        "RefreshTokenRequest",
+        {
+            "refresh_token": fields.String(required=True),
+        },
+    )
+
+    @auth_ns.route("/refresh")
+    class AuthRefresh(Resource):
+        @auth_ns.expect(refresh_request)
+        @auth_ns.response(200, "Token refreshed", login_response)
+        @auth_ns.response(401, "Invalid token")
+        def post(self):
+            payload = request.get_json(silent=True) or {}
+            refresh_token = payload.get("refresh_token", "")
+            
+            # Verify refresh token
+            token_data = verify_jwt_token(refresh_token)
+            if not token_data:
+                database.log_auth_event(
+                    event_type='TOKEN_REFRESH_FAILED',
+                    status='invalid_token',
+                    ip_address=request.remote_addr,
+                    user_agent=request.headers.get('User-Agent', ''),
+                )
+                return {"error": "Invalid or expired refresh token"}, 401
+            
+            # Generate new access token
+            user_id = token_data.get('user_id')
+            user_role = token_data.get('role', 'student')
+            
+            access_token = generate_jwt_token(user_id, user_role, expires_in_hours=1)
+            
+            database.log_auth_event(
+                event_type='TOKEN_REFRESHED',
+                user_id=user_id,
+                status='success',
+                ip_address=request.remote_addr,
+                user_agent=request.headers.get('User-Agent', ''),
+            )
+            
+            return {
+                "ok": True,
+                "access_token": access_token,
+                "token_type": "Bearer",
+                "expires_in": 3600,
+            }
 
     @health_ns.route("/health")
     class Health(Resource):

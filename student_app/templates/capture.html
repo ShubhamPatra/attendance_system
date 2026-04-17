@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 {% block title %}Face Capture{% endblock %}
+{% from "partials/ui.html" import page_header, panel_section %}
 
 {% block content %}
+{{ page_header('Face Verification', 'Capture Face Samples', 'Take ' ~ min_images ~ ' to ' ~ max_images ~ ' clear webcam images with different head angles.') }}
+
 <div class="two-col two-col--sidebar">
-    <!-- Main Capture Area -->
-    <div class="card card-body">
-        <h1 class="mb-1">Capture Face Samples</h1>
-        <p class="text-sm text-muted mb-5">Take {{ min_images }} to {{ max_images }} clear webcam images with different head angles.</p>
+    {% call panel_section('Capture Workspace', icon='camera', eyebrow='Webcam') %}
 
         <div class="video-container mb-4" style="aspect-ratio:16/9">
             <video id="cam" autoplay playsinline class="video-feed-img"></video>
@@ -27,18 +27,16 @@
         <div id="okBox" class="alert alert-success hidden"></div>
 
         <div id="thumbs" class="preview-grid preview-grid--4 mt-5"></div>
-    </div>
+    {% endcall %}
 
-    <!-- Tips Sidebar -->
-    <div class="card card-body">
-        <h3 class="text-xs font-semibold uppercase tracking-wide text-muted mb-4">Tips</h3>
+    {% call panel_section('Tips', icon='tips_and_updates', eyebrow='Guidance') %}
         <ul style="list-style:disc;padding-left:var(--space-5);font-size:var(--font-size-sm);color:var(--color-text-muted);display:flex;flex-direction:column;gap:var(--space-2)">
             <li>Keep one face in frame.</li>
             <li>Use balanced lighting.</li>
             <li>Capture front, left, right, slight up/down angles.</li>
             <li>Avoid blur and heavy backlight.</li>
         </ul>
-    </div>
+    {% endcall %}
 </div>
 {% endblock %}
 

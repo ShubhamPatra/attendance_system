@@ -7,8 +7,6 @@
 3. [Evaluation Metrics](#evaluation-metrics)
 4. [Comparative Analysis](#comparative-analysis)
 5. [Literature Review](#literature-review)
-6. [Future Research Directions](#future-research-directions)
-
 ---
 
 ## System Novelty
@@ -123,12 +121,12 @@ Decision = CNN_classification ×
 
 4. **Benchmark Dataset**
    - "AutoAttendance-Wild": 10,000 faces, 50 hours video, labeled attacks.
-   - Available for research community.
+   - Used here as a reference point for evaluation and discussion.
 
 ### Practical Contributions
 
-1. **Open-Source Reference Implementation**
-   - Production-ready code: [github.com/ShubhamPatra/attendance_system](https://github.com/ShubhamPatra/attendance_system)
+1. **Reference Implementation**
+   - Production-ready code base used for the system described in this report.
    - Deployed in 5+ institutions (100+ users).
 
 2. **Deployment Best Practices**
@@ -259,16 +257,16 @@ Verification accuracy (post-admin-review):  99.5%
 
 ### vs. Competing Face Recognition Systems
 
-| System | Detection | Recognition | Anti-Spoof | Real-Time | Open-Source |
-|---|---|---|---|---|---|
-| **AWS Rekognition** | YuNet | Custom CNN | Yes | Yes | No |
-| **Google Cloud Vision** | SSD | VGGFace | Yes | Yes | No |
-| **OpenFace** | Dlib | Dlib FaceNet | No | Yes | Yes |
-| **InsightFace** | RetinaFace | ArcFace | No | Yes | Yes |
-| **AutoAttendance** | YuNet | **ArcFace** | **Silent-Face** | **Yes** | **Yes** |
+| System | Detection | Recognition | Anti-Spoof | Real-Time |
+|---|---|---|---|---|
+| **AWS Rekognition** | YuNet | Custom CNN | Yes | Yes |
+| **Google Cloud Vision** | SSD | VGGFace | Yes | Yes |
+| **OpenFace** | Dlib | Dlib FaceNet | No | Yes |
+| **InsightFace** | RetinaFace | ArcFace | No | Yes |
+| **AutoAttendance** | YuNet | **ArcFace** | **Silent-Face** | **Yes** |
 
 **Key Advantages**:
--  Open-source, fully customizable.
+-  Fully configurable and tailored to the requirements of this project.
 -  Educational institutions can self-host (no third-party dependency).
 -  Integrated anti-spoofing (not add-on).
 -  Session-aware attendance model.
@@ -343,59 +341,13 @@ Verification accuracy (post-admin-review):  99.5%
 
 ---
 
-## Future Research Directions
-
-### Short-Term (1–2 years)
-
-1. **Multi-Modal Biometric Fusion**
-   - Combine face + iris recognition for ultra-high security.
-   - Mitigate single-mode spoofing vulnerabilities.
-
-2. **Privacy-Preserving Recognition**
-   - Federated learning: Train models without centralizing biometric data.
-   - Homomorphic encryption: Encrypt embeddings server-side.
-
-3. **Adversarial Robustness**
-   - Study adversarial perturbations on ArcFace embeddings.
-   - Develop robust matching under adversarial attacks.
-
-### Medium-Term (2–5 years)
-
-1. **Edge Deployment at Scale**
-   - Embed inference on edge devices (Raspberry Pi, Jetson Nano).
-   - Reduce latency and privacy concerns (no cloud upload).
-
-2. **Demographic Bias Analysis**
-   - Evaluate system across gender, ethnicity, age groups.
-   - Mitigate performance disparities (current gap: < 2% across demographics).
-
-3. **Continuous Authentication**
-   - Extend from attendance (once per day) to continuous verification.
-   - Applications: Exam proctoring, secure classroom sessions.
-
-### Long-Term (5+ years)
-
-1. **Gait & Behavioral Biometrics**
-   - Integrate gait recognition for multi-modal identity.
-   - Detect spoofing via behavioral anomalies.
-
-2. **Cross-Domain Face Recognition**
-   - Train on synthetic/3D data to generalize to real classrooms.
-   - Reduce dependence on large labeled datasets.
-
-3. **Lifelong Learning**
-   - Adapt model to new students without re-training.
-   - Online learning from labeled attendance data.
-
----
-
 ## Conclusion
 
 AutoAttendance advances the state of attendance systems through:
 
 1. **Integration**: Combines YuNet, ArcFace, and Silent-Face into cohesive system.
 2. **Innovation**: Session-based model and multi-frame voting reduce false positives.
-3. **Practicality**: Open-source, deployable in resource-constrained environments.
+3. **Practicality**: Deployable as a personal project in resource-constrained environments.
 4. **Evaluation**: Achieves 99.1% accuracy with < 0.4% false positive rate.
 
 The system demonstrates that face recognition, when combined with anti-spoofing and robust design patterns, can reliably replace manual and proxy-vulnerable attendance methods in educational institutions.

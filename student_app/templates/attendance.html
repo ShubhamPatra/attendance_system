@@ -1,19 +1,17 @@
 {% extends "base.html" %}
 {% block title %}Attendance History{% endblock %}
+{% from "partials/ui.html" import page_header, stat_card, panel_section %}
 
 {% block content %}
 <div class="flex flex-col gap-6">
-    <!-- Header -->
     <div class="flex items-start justify-between" style="flex-wrap:wrap;gap:var(--space-3)">
-        <div class="page-header" style="margin-bottom:0">
-            <h1>Attendance History</h1>
-            <p class="page-header-desc">{{ student.name }} ({{ student.registration_number }})</p>
+        <div style="margin-bottom:0">
+            {{ page_header('Student Records', 'Attendance History', student.name ~ ' (' ~ student.registration_number ~ ')') }}
         </div>
         <a href="{{ url_for('student.status') }}" class="btn btn-secondary">Back to Status</a>
     </div>
 
-    <!-- Filters -->
-    <div class="card card-body">
+    {% call panel_section('Filters', icon='filter_list', eyebrow='Search') %}
         <form method="get" class="grid grid-3 gap-4" style="align-items:end">
             <div class="form-group">
                 <label for="date" class="form-label">Filter by Date</label>
@@ -28,26 +26,15 @@
                 <a href="{{ url_for('student.attendance') }}" class="btn btn-secondary">Clear</a>
             </div>
         </form>
-    </div>
+    {% endcall %}
 
-    <!-- Summary Cards -->
     <div class="grid grid-3 gap-4">
-        <div class="stat-card">
-            <span class="stat-card-label">Attendance</span>
-            <span class="stat-card-value mt-2">{{ '%.1f'|format(student.percentage or 0) }}%</span>
-        </div>
-        <div class="stat-card">
-            <span class="stat-card-label">Present Days</span>
-            <span class="stat-card-value mt-2">{{ student.days_present or 0 }}</span>
-        </div>
-        <div class="stat-card">
-            <span class="stat-card-label">Unique Days</span>
-            <span class="stat-card-value mt-2">{{ student.days_total or 0 }}</span>
-        </div>
+        {{ stat_card('Attendance', '%.1f'|format(student.percentage or 0) ~ '%', 'query_stats') }}
+        {{ stat_card('Present Days', student.days_present or 0, 'event_available') }}
+        {{ stat_card('Unique Days', student.days_total or 0, 'calendar_month') }}
     </div>
 
-    <!-- Attendance Table -->
-    <div class="panel">
+    {% call panel_section('Attendance Records', icon='table_view', eyebrow='History', body_class='panel-body') %}
         <div class="table-wrap">
             <table class="data-table">
                 <thead>
@@ -74,6 +61,6 @@
                 </tbody>
             </table>
         </div>
-    </div>
+    {% endcall %}
 </div>
 {% endblock %}

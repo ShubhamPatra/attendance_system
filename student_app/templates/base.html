@@ -5,72 +5,192 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="AutoAttendance Student Portal — View attendance, manage face verification, and track academic records.">
     <title>{% block title %}Student Portal{% endblock %}</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/stitch-colors.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/student.css') }}">
 </head>
 <body>
-    <div class="app-layout app-layout--student">
-        <!-- Navbar -->
-        <header class="navbar">
-            <a href="{{ url_for('student.status') }}" class="navbar-brand">
-                <span class="navbar-brand-icon">
-                    <span class="material-symbols-outlined" aria-hidden="true">school</span>
-                </span>
-                <span class="navbar-brand-text">
-                    <span class="navbar-brand-title">AutoAttendance</span>
-                    <span class="navbar-brand-sub">Student Portal</span>
-                </span>
-            </a>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    <header class="navbar">
+        <a href="{{ url_for('student.index') }}" class="navbar-brand" aria-label="Go to student home">
+            <span class="navbar-brand-icon">
+                <span class="material-symbols-outlined" aria-hidden="true">school</span>
+            </span>
+            <span class="navbar-brand-text">
+                <span class="navbar-brand-title">AutoAttendance</span>
+                <span class="navbar-brand-sub">Student Portal</span>
+            </span>
+        </a>
+
+        <div class="navbar-right">
+            <button
+                id="mobileMenuBtn"
+                class="mobile-menu-btn"
+                aria-label="Open site menu"
+                aria-expanded="false"
+                aria-controls="mobileMenu"
+            >
+                <span class="material-symbols-outlined" aria-hidden="true">menu</span>
+            </button>
+        </div>
+    </header>
+
+    <div id="mobileMenuBackdrop" class="mobile-backdrop" aria-hidden="true"></div>
+    <aside id="mobileMenu" class="mobile-panel" aria-hidden="true">
+        <div class="mobile-panel-header">
+            <h3>Navigation</h3>
+            <button id="mobileMenuClose" class="mobile-close-btn" aria-label="Close site menu">
+                <span class="material-symbols-outlined" aria-hidden="true">close</span>
+            </button>
+        </div>
+        <nav aria-label="Mobile">
             {% if current_user.is_authenticated %}
-            <nav class="navbar-nav" aria-label="Student navigation">
-                <a class="navbar-link" href="{{ url_for('student.status') }}">
-                    <span class="material-symbols-outlined" style="font-size:18px;margin-right:4px">verified</span> Status
-                </a>
-                <a class="navbar-link" href="{{ url_for('student.capture') }}">
-                    <span class="material-symbols-outlined" style="font-size:18px;margin-right:4px">camera</span> Capture
-                </a>
-                <a class="navbar-link" href="{{ url_for('student.attendance') }}">
-                    <span class="material-symbols-outlined" style="font-size:18px;margin-right:4px">calendar_today</span> Attendance
-                </a>
-                <a class="navbar-link navbar-link--logout" href="{{ url_for('student.logout') }}">Logout</a>
-            </nav>
+            <a class="mobile-nav-link" href="{{ url_for('student.portal') }}">
+                <span class="material-symbols-outlined" aria-hidden="true">dashboard</span> Portal
+            </a>
+            <a class="mobile-nav-link" href="{{ url_for('student.attendance') }}">
+                <span class="material-symbols-outlined" aria-hidden="true">calendar_today</span> Attendance
+            </a>
+            <div class="mobile-divider"></div>
+            <a class="mobile-nav-link mobile-nav-link--muted" href="{{ url_for('student.logout') }}">
+                <span class="material-symbols-outlined" aria-hidden="true">logout</span> Logout
+            </a>
+            {% else %}
+            <a class="mobile-nav-link" href="{{ url_for('student.login') }}">
+                <span class="material-symbols-outlined" aria-hidden="true">login</span> Login
+            </a>
+            <a class="mobile-nav-link" href="{{ url_for('student.register') }}">
+                <span class="material-symbols-outlined" aria-hidden="true">person_add</span> Register
+            </a>
             {% endif %}
-        </header>
+        </nav>
+    </aside>
 
-        <!-- Main Content -->
-        <main class="content-area">
-            {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                <div class="mb-6 space-y-4">
+    <div class="app-layout">
+        <aside class="sidebar">
+            <div class="sidebar-section">
+                <span class="sidebar-label">Student</span>
+                {% if current_user.is_authenticated %}
+                <a class="sidebar-link{% if request.endpoint == 'student.portal' %} active{% endif %}" href="{{ url_for('student.portal') }}">
+                    <span class="material-symbols-outlined">dashboard</span> Portal
+                </a>
+                <a class="sidebar-link{% if request.endpoint == 'student.attendance' %} active{% endif %}" href="{{ url_for('student.attendance') }}">
+                    <span class="material-symbols-outlined">calendar_today</span> Attendance
+                </a>
+                {% else %}
+                <a class="sidebar-link{% if request.endpoint == 'student.login' %} active{% endif %}" href="{{ url_for('student.login') }}">
+                    <span class="material-symbols-outlined">login</span> Login
+                </a>
+                <a class="sidebar-link{% if request.endpoint == 'student.register' %} active{% endif %}" href="{{ url_for('student.register') }}">
+                    <span class="material-symbols-outlined">person_add</span> Register
+                </a>
+                {% endif %}
+            </div>
+            {% if current_user.is_authenticated %}
+            <div class="sidebar-divider"></div>
+            <div class="sidebar-section">
+                <span class="sidebar-label">Account</span>
+                <a class="sidebar-link" href="{{ url_for('student.logout') }}">
+                    <span class="material-symbols-outlined">logout</span> Logout
+                </a>
+            </div>
+            {% endif %}
+        </aside>
+
+        <div class="app-main">
+            <main id="main-content" class="content-area" tabindex="-1">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="mb-6 space-y-4">
                     {% for category, message in messages %}
-                    <div class="alert {% if category == 'success' %}alert-success{% elif category == 'danger' %}alert-error{% else %}alert-warning{% endif %}" role="alert">
-                        <span class="alert-icon">
-                            <span class="material-symbols-outlined" style="font-size:16px" aria-hidden="true">{% if category == 'success' %}check_circle{% elif category == 'danger' %}error{% else %}warning{% endif %}</span>
-                        </span>
-                        <span class="alert-content">{{ message }}</span>
-                    </div>
+                        {% if category == 'success' %}
+                        <div class="alert alert-success" role="alert" aria-live="polite">
+                            <span class="alert-icon">
+                                <span class="material-symbols-outlined" style="font-size:16px" aria-hidden="true">check_circle</span>
+                            </span>
+                            <span class="alert-content">{{ message }}</span>
+                            <button onclick="this.closest('.alert').remove()" class="alert-close" aria-label="Dismiss">
+                                <span class="material-symbols-outlined" style="font-size:18px" aria-hidden="true">close</span>
+                            </button>
+                        </div>
+                        {% elif category == 'danger' %}
+                        <div class="alert alert-error" role="alert" aria-live="polite">
+                            <span class="alert-icon">
+                                <span class="material-symbols-outlined" style="font-size:16px" aria-hidden="true">error</span>
+                            </span>
+                            <span class="alert-content">{{ message }}</span>
+                            <button onclick="this.closest('.alert').remove()" class="alert-close" aria-label="Dismiss">
+                                <span class="material-symbols-outlined" style="font-size:18px" aria-hidden="true">close</span>
+                            </button>
+                        </div>
+                        {% else %}
+                        <div class="alert alert-warning" role="alert" aria-live="polite">
+                            <span class="alert-icon">
+                                <span class="material-symbols-outlined" style="font-size:16px" aria-hidden="true">warning</span>
+                            </span>
+                            <span class="alert-content">{{ message }}</span>
+                            <button onclick="this.closest('.alert').remove()" class="alert-close" aria-label="Dismiss">
+                                <span class="material-symbols-outlined" style="font-size:18px" aria-hidden="true">close</span>
+                            </button>
+                        </div>
+                        {% endif %}
                     {% endfor %}
-                </div>
-            {% endif %}
-            {% endwith %}
+                    </div>
+                {% endif %}
+                {% endwith %}
 
-            {% block content %}{% endblock %}
-        </main>
+                {% block content %}{% endblock %}
+            </main>
 
-        <!-- Footer -->
-        <footer class="site-footer">
-            <a href="#">Contact</a>
-            <span class="sep">&middot;</span>
-            <a href="#">Terms</a>
-            <span class="sep">&middot;</span>
-            <a href="#">Privacy</a>
-        </footer>
+            <footer class="site-footer">
+                <span>&copy; AutoAttendance</span>
+            </footer>
+        </div>
     </div>
 
+    <script>
+    (function() {
+        var btn = document.getElementById('mobileMenuBtn');
+        var panel = document.getElementById('mobileMenu');
+        var closeBtn = document.getElementById('mobileMenuClose');
+        var backdrop = document.getElementById('mobileMenuBackdrop');
+
+        if (!btn || !panel || !backdrop) return;
+
+        function setMenuState(open) {
+            btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+            panel.setAttribute('aria-hidden', open ? 'false' : 'true');
+            panel.classList.toggle('open', open);
+            backdrop.classList.toggle('open', open);
+            document.body.style.overflow = open ? 'hidden' : '';
+            if (open) {
+                panel.querySelector('a')?.focus();
+            } else {
+                btn.focus();
+            }
+        }
+
+        btn.addEventListener('click', function() {
+            setMenuState(btn.getAttribute('aria-expanded') !== 'true');
+        });
+
+        closeBtn?.addEventListener('click', function() { setMenuState(false); });
+        backdrop.addEventListener('click', function() { setMenuState(false); });
+
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape' && btn.getAttribute('aria-expanded') === 'true') {
+                setMenuState(false);
+            }
+        });
+    })();
+    </script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

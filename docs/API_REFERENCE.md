@@ -606,26 +606,5 @@ X-RateLimit-Reset: 1694711400
 }
 ```
 
----
-
-## Webhooks (Future)
-
-Planned webhooks for event notifications:
-
-```json
-{
-  "event": "attendance.marked",
-  "data": {
-    "student_id": "507f1f77bcf86cd799439014",
-    "date": "2024-09-15",
-    "status": "Present",
-    "confidence": 0.94
-  },
-  "timestamp": "2024-09-15T09:05:30Z"
-}
-```
-
----
-
 **Last Updated**: April 16, 2026 | **Version**: 2.0.0
 

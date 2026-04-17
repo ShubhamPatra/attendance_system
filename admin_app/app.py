@@ -28,6 +28,47 @@ from core.utils import setup_logging
 socketio = SocketIO()
 
 
+def _build_swagger_paths(app: Flask) -> dict[str, dict[str, dict]]:
+    """Build a minimal Swagger paths object from registered /api routes."""
+    paths: dict[str, dict[str, dict]] = {}
+    ignored_prefixes = ("/api/docs", "/apispec", "/flasgger_static")
+
+    for rule in app.url_map.iter_rules():
+        route = rule.rule
+        if not route.startswith("/api/"):
+            continue
+        if route.startswith(ignored_prefixes):
+            continue
+
+        methods = sorted(m for m in rule.methods if m not in {"HEAD", "OPTIONS"})
+        if not methods:
+            continue
+
+        # Convert Flask path params (<name>, <type:name>) to Swagger style {name}.
+        swagger_path = route
+        while "<" in swagger_path and ">" in swagger_path:
+            start = swagger_path.index("<")
+            end = swagger_path.index(">", start)
+            segment = swagger_path[start + 1:end]
+            param_name = segment.split(":", 1)[-1]
+            swagger_path = f"{swagger_path[:start]}{{{param_name}}}{swagger_path[end + 1:]}"
+
+        operation_group = route.split("/")[2] if len(route.split("/")) > 2 else "api"
+        path_item = paths.setdefault(swagger_path, {})
+        for method in methods:
+            path_item[method.lower()] = {
+                "summary": rule.endpoint,
+                "tags": [operation_group],
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                    }
+                },
+            }
+
+    return paths
+
+
 def _cleanup_uploads(logger):
     """Delete stale uploaded capture files older than retention window."""
     cutoff = time.time() - config.UPLOAD_RETENTION_SECONDS
@@ -137,40 +178,18 @@ def create_app() -> Flask:
     )
     app.secret_key = config.SECRET_KEY
     app.config["MAX_CONTENT_LENGTH"] = config.UPLOAD_MAX_SIZE
+    
+    # Session security configuration
+    app.config["SESSION_COOKIE_SECURE"] = config.SESSION_COOKIE_SECURE
+    app.config["SESSION_COOKIE_HTTPONLY"] = config.SESSION_COOKIE_HTTPONLY
+    app.config["SESSION_COOKIE_SAMESITE"] = config.SESSION_COOKIE_SAMESITE
+    app.config["PERMANENT_SESSION_LIFETIME"] = config.ADMIN_SESSION_LIFETIME
 
     socketio.init_app(
         app,
         cors_allowed_origins=config.SOCKETIO_CORS_ORIGINS,
         async_mode="threading",
     )
-
-    if config.ENABLE_RESTX_API:
-        from web.api_restx import init_restx_api
-
-        init_restx_api(app)
-    else:
-        swagger_config = {
-            "headers": [],
-            "specs": [
-                {
-                    "endpoint": "apispec",
-                    "route": "/apispec.json",
-                    "rule_filter": lambda rule: True,
-                    "model_filter": lambda tag: True,
-                }
-            ],
-            "static_url_path": "/flasgger_static",
-            "swagger_ui": True,
-            "specs_route": "/api/docs",
-        }
-        swagger_template = {
-            "info": {
-                "title": "AutoAttendance API",
-                "description": "REST API for the AutoAttendance face recognition system",
-                "version": "2.0.0",
-            }
-        }
-        Swagger(app, config=swagger_config, template=swagger_template)
 
     logger = setup_logging()
 
@@ -223,6 +242,37 @@ def create_app() -> Flask:
 
     # Register blueprint
     app.register_blueprint(main_bp)
+
+    # Initialize API documentation after route registration so all
+    # endpoints are visible in generated specs.
+    if config.ENABLE_RESTX_API:
+        from web.api_restx import init_restx_api
+
+        init_restx_api(app)
+    else:
+        swagger_config = {
+            "headers": [],
+            "specs": [
+                {
+                    "endpoint": "apispec",
+                    "route": "/apispec.json",
+                    "rule_filter": lambda rule: True,
+                    "model_filter": lambda tag: True,
+                }
+            ],
+            "static_url_path": "/flasgger_static",
+            "swagger_ui": True,
+            "specs_route": "/api/docs",
+        }
+        swagger_template = {
+            "info": {
+                "title": "AutoAttendance API",
+                "description": "REST API for the AutoAttendance face recognition system",
+                "version": "2.0.0",
+            },
+            "paths": _build_swagger_paths(app),
+        }
+        Swagger(app, config=swagger_config, template=swagger_template)
 
     # Favicon redirect
     from flask import redirect, url_for

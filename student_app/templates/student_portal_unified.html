@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+{% block title %}Student Portal{% endblock %}
+{% from "partials/ui.html" import page_header, stat_card, panel_section %}
+
+{% block content %}
+{% if student %}
+  {% set student_name = student.name if student.name else 'Student' %}
+  {% set student_reg = student.registration_number if student.registration_number else 'N/A' %}
+  {% set verification_status = student.verification_status if student.verification_status else 'pending' %}
+
+  {{ page_header('Student Dashboard', 'My Portal', 'Registration No: ' ~ student_reg) }}
+
+  <div class="status-grid">
+    <!-- Enrollment Status Section -->
+    {% call panel_section('Enrollment Status', icon='verified_user', eyebrow='Account Overview') %}
+      <div class="flex items-start justify-between" style="flex-wrap:wrap;gap:var(--space-3)">
+        <span class="badge {% if verification_status == 'approved' %}badge-success{% elif verification_status == 'verified' %}badge-success{% else %}badge-warning{% endif %}" style="text-transform:uppercase;letter-spacing:0.05em">{{ verification_status }}</span>
+      </div>
+    {% endcall %}
+
+    <!-- Conditional Content Based on Verification Status -->
+    {% if verification_status == 'pending' %}
+      <!-- PENDING: Show Upload Photo Section -->
+      {% call panel_section('Complete Enrollment', icon='camera', eyebrow='Face Capture Required') %}
+        <p class="text-sm text-muted mb-4">
+          To complete your enrollment, please capture <strong>{{ min_images }} to {{ max_images }}</strong> clear face photos from different angles. This helps verify your identity for attendance tracking.
+        </p>
+
+        <!-- Webcam Container -->
+        <div class="video-container mb-4" style="aspect-ratio:16/9">
+          <video id="webcam" autoplay playsinline class="video-feed-img" style="display:none;"></video>
+          <div id="webcam-placeholder" class="flex flex-column items-center justify-center" style="height:100%;gap:var(--space-4);color:var(--color-text-muted)">
+            <span class="material-symbols-outlined" style="font-size:3rem;opacity:0.5">camera_alt</span>
+            <p class="text-sm" style="margin:0">Click "Start Webcam" to begin</p>
+          </div>
+        </div>
+
+        <!-- Button Group -->
+        <div class="flex items-center gap-3 mb-4" style="flex-wrap:wrap">
+          <button id="startWebcamBtn" type="button" class="btn btn-primary">
+            <span class="material-symbols-outlined">videocam</span> Start Camera
+          </button>
+          <button id="captureBtn" type="button" class="btn btn-secondary" disabled style="display:none">
+            <span class="material-symbols-outlined">camera</span> Capture Frame
+          </button>
+          <p id="frameCounter" class="text-sm text-muted">
+            <strong id="frameCount">0</strong> / <strong>{{ max_images }}</strong> captured
+          </p>
+        </div>
+
+        <!-- Preview Grid -->
+        <div id="capturedFrames" class="preview-grid preview-grid--4 mb-5" style="display:none"></div>
+
+        <!-- Submit Button -->
+        <button id="submitBtn" type="button" class="btn btn-primary btn-block" style="background:var(--color-text);border-color:var(--color-text);display:none">
+          <span class="material-symbols-outlined">upload</span> Submit Photos
+        </button>
+
+        <div id="errorBox" class="alert alert-error hidden mt-4"></div>
+        <div id="okBox" class="alert alert-success hidden mt-4"></div>
+      {% endcall %}
+
+      <!-- Capture Tips -->
+      {% call panel_section('Capture Tips', icon='tips_and_updates', eyebrow='Guidance') %}
+        <ul style="list-style:disc;padding-left:var(--space-5);font-size:var(--font-size-sm);color:var(--color-text-muted);display:flex;flex-direction:column;gap:var(--space-2)">
+          <li>Keep one face in frame</li>
+          <li>Use balanced lighting</li>
+          <li>Capture front, left, right, and slight up/down angles</li>
+          <li>Avoid blur and heavy backlight</li>
+          <li>Avoid sunglasses, hats, or heavy makeup</li>
+        </ul>
+      {% endcall %}
+
+    {% else %}
+      <!-- VERIFIED/APPROVED: Show Attendance Status -->
+      <!-- Attendance Stats Grid -->
+      <div class="status-grid">
+        {{ stat_card('Attendance', '%.1f'|format(student.percentage or 0) ~ '%', 'query_stats') }}
+        {{ stat_card('Present Days', student.days_present or 0, 'event_available') }}
+        {{ stat_card('Total Days', student.days_total or 0, 'calendar_month') }}
+      </div>
+
+      <!-- Update Photos Section -->
+      {% call panel_section('Update Photos', icon='camera', eyebrow='Enhancement') %}
+        <p class="text-sm text-muted mb-4">Want to improve your verification with additional face samples?</p>
+        <a href="{{ url_for('student.capture') }}" class="btn btn-primary btn-block btn-lg">
+          <span class="material-symbols-outlined">camera</span> Update Face Photos
+        </a>
+      {% endcall %}
+
+      <!-- Attendance History -->
+      {% call panel_section('Recent Attendance', icon='calendar_today', eyebrow='Activity') %}
+        {% if student.records %}
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Time</th>
+                  <th>Status</th>
+                  <th>Confidence</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in student.records[:10] %}
+                <tr>
+                  <td>{{ row.date or '-' }}</td>
+                  <td class="text-muted">{{ row.time or '-' }}</td>
+                  <td>
+                    <span class="badge {% if row.status == 'Present' %}badge-success{% else %}badge-neutral{% endif %}">{{ row.status or '-' }}</span>
+                  </td>
+                  <td class="text-muted">{{ '%.2f'|format(row.confidence_score) if row.confidence_score is not none else '-' }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% if student.records|length > 10 %}
+          <p class="text-sm text-muted mt-4" style="text-align:center"><a href="{{ url_for('student.attendance') }}">View all attendance records →</a></p>
+          {% endif %}
+        {% else %}
+          <p class="text-sm text-muted text-center" style="padding:var(--space-4);margin:0">No attendance records yet</p>
+        {% endif %}
+      {% endcall %}
+    {% endif %}
+  </div>
+
+{% else %}
+  <!-- Error State -->
+  {{ page_header('Error', 'Unable to Load', 'Student information could not be retrieved') }}
+  <div class="alert alert-error">
+    <span class="alert-icon">
+      <span class="material-symbols-outlined">error</span>
+    </span>
+    <span class="alert-content">{{ error | default('Unable to load student information') }}</span>
+  </div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if student and student.verification_status == 'pending' %}
+<script>
+(() => {
+  const MIN_IMAGES = {{ min_images|int }};
+  const MAX_IMAGES = {{ max_images|int }};
+  const videoElement = document.getElementById('webcam');
+  const startWebcamBtn = document.getElementById('startWebcamBtn');
+  const captureBtn = document.getElementById('captureBtn');
+  const submitBtn = document.getElementById('submitBtn');
+  const frameCounter = document.getElementById('frameCounter');
+  const capturedFramesDiv = document.getElementById('capturedFrames');
+  const frameCountSpan = document.getElementById('frameCount');
+  const webcamPlaceholder = document.getElementById('webcam-placeholder');
+  const errorBox = document.getElementById('errorBox');
+  const okBox = document.getElementById('okBox');
+
+  let stream = null;
+  let frames = [];
+
+  function showError(msg) {
+    errorBox.textContent = msg;
+    errorBox.classList.remove('hidden');
+  }
+
+  function clearError() {
+    errorBox.classList.add('hidden');
+    errorBox.textContent = '';
+  }
+
+  function showOk(msg) {
+    okBox.textContent = msg;
+    okBox.classList.remove('hidden');
+  }
+
+  startWebcamBtn.addEventListener('click', async () => {
+    clearError();
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      videoElement.srcObject = stream;
+      videoElement.style.display = 'block';
+      webcamPlaceholder.style.display = 'none';
+      startWebcamBtn.disabled = true;
+      captureBtn.style.display = 'block';
+      captureBtn.disabled = false;
+    } catch (err) {
+      showError(`Unable to access webcam: ${err.message}`);
+    }
+  });
+
+  captureBtn.addEventListener('click', () => {
+    clearError();
+    if (frames.length >= MAX_IMAGES) {
+      showError(`Maximum ${MAX_IMAGES} photos reached`);
+      return;
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = videoElement.videoWidth || 640;
+    canvas.height = videoElement.videoHeight || 480;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(videoElement, 0, 0);
+
+    const imageData = canvas.toDataURL('image/jpeg');
+    frames.push(imageData);
+    frameCountSpan.textContent = frames.length;
+    capturedFramesDiv.style.display = 'grid';
+
+    // Add preview
+    const img = document.createElement('img');
+    img.src = imageData;
+    img.style.width = '100%';
+    img.style.borderRadius = 'var(--border-radius)';
+    img.alt = `Capture ${frames.length}`;
+    capturedFramesDiv.appendChild(img);
+
+    // Show submit button if minimum reached
+    if (frames.length >= MIN_IMAGES) {
+      submitBtn.style.display = 'block';
+    }
+
+    if (frames.length >= MAX_IMAGES) {
+      captureBtn.disabled = true;
+    }
+  });
+
+  submitBtn.addEventListener('click', async () => {
+    clearError();
+    if (frames.length < MIN_IMAGES) {
+      showError(`Please capture at least ${MIN_IMAGES} photos`);
+      return;
+    }
+
+    submitBtn.disabled = true;
+    const originalText = submitBtn.innerHTML;
+    submitBtn.innerHTML = '<span class="material-symbols-outlined">hourglass_empty</span> Uploading...';
+
+    try {
+      const response = await fetch('{{ url_for("student.api_capture") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ frames: frames })
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Upload failed');
+
+      showOk('Photos uploaded successfully! Your enrollment is now complete.');
+      setTimeout(() => window.location.reload(), 2000);
+    } catch (err) {
+      showError(`Error: ${err.message}`);
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = originalText;
+    }
+  });
+
+  // Cleanup on page unload
+  window.addEventListener('beforeunload', () => {
+    if (stream) stream.getTracks().forEach(track => track.stop());
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

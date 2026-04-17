@@ -1,36 +1,28 @@
 {% extends "base.html" %}
 {% block title %}Verification Status{% endblock %}
+{% from "partials/ui.html" import page_header, stat_card, panel_section %}
 
 {% block content %}
-<div class="page-header mb-6">
-    <h1>Welcome, {{ student.name or current_user.name }}</h1>
-    <p class="page-header-desc">Registration No: {{ student.registration_number }}</p>
-</div>
+{% set student_name = student.name if student and student.name else (current_user.name if current_user.is_authenticated else 'Student') %}
+{% set student_reg = student.registration_number if student and student.registration_number else 'N/A' %}
+{% set verification_status = student.verification_status if student and student.verification_status else 'pending' %}
+{% set verification_score = student.verification_score if student and student.verification_score is not none else 0 %}
+{% set face_samples = student.face_samples if student and student.face_samples else [] %}
+
+{{ page_header('Student Verification', 'Welcome, ' ~ student_name, 'Registration No: ' ~ student_reg) }}
 
 <div class="status-grid">
-    <!-- Main Info Card -->
-    <div class="card card-body">
+    {% call panel_section('Account Status', icon='verified_user', eyebrow='Verification and face capture details') %}
         <div class="flex items-start justify-between" style="flex-wrap:wrap;gap:var(--space-3)">
-            <div>
-                <h2>Account Status</h2>
-                <p class="text-sm text-muted mt-1">Verification and face capture details</p>
-            </div>
-            {% set status = (student.verification_status or 'pending') %}
-            <span class="badge {% if status == 'approved' %}badge-success{% elif status == 'rejected' %}badge-error{% else %}badge-warning{% endif %}" style="text-transform:uppercase;letter-spacing:0.05em">{{ status }}</span>
+            <span class="badge {% if verification_status == 'approved' %}badge-success{% elif verification_status == 'rejected' %}badge-error{% else %}badge-warning{% endif %}" style="text-transform:uppercase;letter-spacing:0.05em">{{ verification_status }}</span>
         </div>
 
         <div class="grid grid-2 gap-4 mt-6">
-            <div class="stat-card">
-                <span class="stat-card-label">Verification Score</span>
-                <span class="stat-card-value mt-2">{{ '%.1f'|format(student.verification_score or 0) }}%</span>
-            </div>
-            <div class="stat-card">
-                <span class="stat-card-label">Captured Samples</span>
-                <span class="stat-card-value mt-2">{{ (student.face_samples or [])|length }}</span>
-            </div>
+            {{ stat_card('Verification Score', '%.1f'|format(verification_score) ~ '%', 'scoreboard') }}
+            {{ stat_card('Captured Samples', face_samples|length, 'photo_library') }}
         </div>
 
-        {% if student.verification_reason %}
+        {% if student and student.verification_reason %}
         <div class="alert alert-warning mt-4">
             <span class="alert-icon">
                 <span class="material-symbols-outlined" style="font-size:16px">info</span>
@@ -38,12 +30,10 @@
             <span class="alert-content">{{ student.verification_reason }}</span>
         </div>
         {% endif %}
-    </div>
+    {% endcall %}
 
-    <!-- Next Step Card -->
-    <div class="card card-body">
-        <h3 class="text-xs font-semibold uppercase tracking-wide text-muted mb-4">Next Step</h3>
-        {% if student.verification_status == 'approved' %}
+    {% call panel_section('Next Step', icon='arrow_forward', eyebrow='Action') %}
+        {% if verification_status == 'approved' %}
         <p class="text-sm text-muted mb-4">Your account is verified. You can now open attendance history.</p>
         <a href="{{ url_for('student.attendance') }}" class="btn btn-primary btn-block btn-lg">
             <span class="material-symbols-outlined">calendar_today</span> View Attendance
@@ -54,6 +44,6 @@
             <span class="material-symbols-outlined">camera</span> Start Capture
         </a>
         {% endif %}
-    </div>
+    {% endcall %}
 </div>
 {% endblock %}

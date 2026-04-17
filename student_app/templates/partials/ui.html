@@ -1,0 +1,50 @@
+{% macro page_header(eyebrow, title, description='') -%}
+<div class="page-header">
+    {% if eyebrow %}
+    <p class="page-header-eyebrow">{{ eyebrow }}</p>
+    {% endif %}
+    <h1>{{ title }}</h1>
+    {% if description %}
+    <p class="page-header-desc">{{ description }}</p>
+    {% endif %}
+</div>
+{%- endmacro %}
+
+{% macro stat_card(label, value, icon, icon_class='stat-card-icon--primary', badge='', badge_class='', value_id='') -%}
+<div class="stat-card">
+    <div class="stat-card-top">
+        <span class="stat-card-label">{{ label }}</span>
+        <span class="material-symbols-outlined stat-card-icon {{ icon_class }}">{{ icon }}</span>
+    </div>
+    <div class="stat-card-footer">
+        <span{% if value_id %} id="{{ value_id }}"{% endif %} class="stat-card-value">{{ value }}</span>
+        {% if badge %}
+        <span class="stat-card-badge {{ badge_class }}">{{ badge }}</span>
+        {% endif %}
+    </div>
+</div>
+{%- endmacro %}
+
+{% macro panel_section(title, icon='', eyebrow='', body_class='panel-body', panel_class='', header_right='', outer_id='', outer_style='') -%}
+<div{% if outer_id %} id="{{ outer_id }}"{% endif %}{% if outer_style %} style="{{ outer_style }}"{% endif %} class="panel {{ panel_class }}">
+    <div class="panel-header">
+        <div class="panel-header-left">
+            {% if icon %}
+            <span class="material-symbols-outlined">{{ icon }}</span>
+            {% endif %}
+            <div>
+                {% if eyebrow %}
+                <p class="page-header-eyebrow">{{ eyebrow }}</p>
+                {% endif %}
+                <h3>{{ title }}</h3>
+            </div>
+        </div>
+        {% if header_right %}
+        <div class="flex items-center gap-3">{{ header_right|safe }}</div>
+        {% endif %}
+    </div>
+    <div class="{{ body_class }}">
+        {{ caller() }}
+    </div>
+</div>
+{%- endmacro %}

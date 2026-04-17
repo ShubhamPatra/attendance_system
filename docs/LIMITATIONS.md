@@ -362,7 +362,7 @@ Large campus (10,000+) | 200,000+ | 300ms | ✗
 **Workaround**:
 - Use managed MongoDB Atlas (outsource DB ops).
 - Deploy via pre-built Docker images (simplify setup).
-- Provide training documentation + support channel.
+- Provide training documentation and resources.
 
 ---
 

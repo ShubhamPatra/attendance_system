@@ -19,8 +19,6 @@ AutoAttendance is a production-ready, computer-vision-based automated attendance
 9. [Configuration](#configuration)
 10. [API Overview](#api-overview)
 11. [Documentation Index](#documentation-index)
-12. [Contributing](#contributing)
-13. [License](#license)
 
 ---
 
@@ -350,8 +348,8 @@ Attendance Session → Admin Analytics
 ### 1. Local Setup (CPU)
 
 ```bash
-# Clone the repository
-git clone https://github.com/ShubhamPatra/attendance_system.git
+# Clone the repository (set your remote URL)
+git clone <your-repository-url>
 cd attendance_system
 
 # Create virtual environment
@@ -452,7 +450,7 @@ attendance_system/
 │  ├─ BACKEND.md                      # Flask routes & API design
 │  ├─ DEPLOYMENT.md                   # Docker, environment, scaling
 │  ├─ TESTING.md                      # Unit & integration tests
-│  ├─ RESEARCH.md                     # Research paper support
+│  ├─ RESEARCH.md                     # Research report and evaluation
 │  └─ APPENDIX.md                     # Glossary, config reference, commands
 ├─ admin_app/                         # Admin Flask application
 │  ├─ app.py                          # Admin app factory & startup
@@ -720,26 +718,6 @@ For detailed technical information, see:
    - Complete configuration reference
    - Useful commands and troubleshooting
    - Glossary of technical terms
-
----
-
-## Contributing
-
-Contributions are welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/my-feature`)
-3. Make changes and add tests
-4. Commit with clear messages
-5. Push and open a Pull Request
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
----
-
-## License
-
-This project is licensed under the **MIT License**. See [LICENSE](LICENSE) for details.
 
 ---
 

@@ -1,2 +1,43 @@
+.sidebar-link.active {
+   background: var(--color-primary-container);
+   color: var(--color-on-primary-container);
+   border-color: transparent;
+}
+
+.auth-wrapper {
+   max-width: 860px;
+   margin: 0 auto;
+}
+
+.auth-card {
+   border: 1px solid var(--color-outline-variant);
+   border-radius: var(--radius-xl);
+   padding: var(--space-6);
+   background: var(--color-surface);
+   box-shadow: var(--shadow-sm);
+}
+
+.auth-card--wide {
+   max-width: 860px;
+   margin: 0 auto;
+}
+
+.auth-footer {
+   margin-top: var(--space-5);
+   text-align: center;
+   color: var(--color-on-surface-variant);
+}
+
+.status-grid {
+   display: grid;
+   grid-template-columns: 2fr 1fr;
+   gap: var(--space-4);
+}
+
+@media (max-width: 960px) {
+   .status-grid {
+      grid-template-columns: 1fr;
+   }
+}
 /* Student Portal — minimal overrides
    Main styles loaded from style.css */

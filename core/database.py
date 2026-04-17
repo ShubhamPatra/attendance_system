@@ -317,10 +317,18 @@ def insert_user(
         raise ValueError(f"Username '{username}' already exists.") from exc
 
 
-def get_user_by_username(username: str) -> dict | None:
-    """Return user document by username."""
+def get_user_by_username(username: str, include_sensitive: bool = False) -> dict | None:
+    """Return user document by username.
+    
+    Args:
+        username: Username to search for
+        include_sensitive: If True, include password_hash; if False, exclude it
+    """
     db = get_db()
-    return db.users.find_one({"username": username})
+    user = db.users.find_one({"username": username})
+    if user and not include_sensitive:
+        user.pop("password_hash", None)
+    return user
 
 
 def get_user_by_id(user_id: bson.ObjectId) -> dict | None:
@@ -1520,4 +1528,491 @@ def validate_student_encodings(student_id: bson.ObjectId | None = None) -> dict:
         'students_with_corrupted': len(corrupted_students),
         'corrupted_students': corrupted_students,
     }
+
+
+# ---------------------------------------------------------------------------
+# JWT Token Blacklist (for logout and token revocation)
+# ---------------------------------------------------------------------------
+
+def blacklist_token(jti: str, expires_at: datetime) -> None:
+    """
+    Add a JWT ID (jti) to the token blacklist.
+    
+    Args:
+        jti: JWT ID to blacklist
+        expires_at: When the token expires (used for cleanup)
+    """
+    db = get_db()
+    try:
+        db.token_blacklist.insert_one({
+            'jti': jti,
+            'blacklisted_at': datetime.now(timezone.utc),
+            'expires_at': expires_at,
+        })
+    except Exception as e:
+        logger.error(f"Failed to blacklist token: {e}")
+
+
+def is_token_blacklisted(jti: str) -> bool:
+    """
+    Check if a JWT ID (jti) is blacklisted.
+    
+    Args:
+        jti: JWT ID to check
+        
+    Returns:
+        True if token is blacklisted, False otherwise
+    """
+    db = get_db()
+    try:
+        result = db.token_blacklist.find_one({'jti': jti})
+        return result is not None
+    except Exception as e:
+        logger.error(f"Failed to check token blacklist: {e}")
+        return False
+
+
+def cleanup_expired_blacklist_tokens() -> int:
+    """
+    Remove expired tokens from the blacklist (cleanup task).
+    
+    Returns:
+        Number of tokens removed
+    """
+    db = get_db()
+    try:
+        result = db.token_blacklist.delete_many({
+            'expires_at': {'$lt': datetime.now(timezone.utc)}
+        })
+        return result.deleted_count
+    except Exception as e:
+        logger.error(f"Failed to cleanup expired blacklist tokens: {e}")
+        return 0
+
+
+# ---------------------------------------------------------------------------
+# Login Attempt Tracking (for rate limiting and account lockout)
+# ---------------------------------------------------------------------------
+
+def record_login_attempt(user_id: str | bson.ObjectId, success: bool, ip_address: str = "", user_agent: str = "") -> None:
+    """
+    Record a login attempt for rate limiting and lockout tracking.
+    
+    Args:
+        user_id: Student or admin ID
+        success: Whether the login was successful
+        ip_address: IP address of the login attempt
+        user_agent: User agent string
+    """
+    db = get_db()
+    try:
+        db.login_attempts.insert_one({
+            'user_id': user_id,
+            'success': success,
+            'timestamp': datetime.now(timezone.utc),
+            'ip_address': ip_address,
+            'user_agent': user_agent,
+        })
+    except Exception as e:
+        logger.error(f"Failed to record login attempt: {e}")
+
+
+def get_recent_login_failures(user_id: str | bson.ObjectId, minutes: int = 15) -> int:
+    """
+    Get count of recent failed login attempts for a user.
+    
+    Args:
+        user_id: Student or admin ID
+        minutes: Look back this many minutes
+        
+    Returns:
+        Number of failed login attempts in the time window
+    """
+    db = get_db()
+    try:
+        cutoff_time = datetime.now(timezone.utc) - timedelta(minutes=minutes)
+        count = db.login_attempts.count_documents({
+            'user_id': user_id,
+            'success': False,
+            'timestamp': {'$gte': cutoff_time}
+        })
+        return count
+    except Exception as e:
+        logger.error(f"Failed to get recent login failures: {e}")
+        return 0
+
+
+def get_account_lockout_status(user_id: str | bson.ObjectId, threshold: int = 5, lockout_minutes: int = 30) -> dict:
+    """
+    Check if an account should be locked out based on failed attempts.
+    
+    Args:
+        user_id: Student or admin ID
+        threshold: Number of failures before lockout
+        lockout_minutes: How long to lock out (in minutes)
+        
+    Returns:
+        {
+            'is_locked': bool,
+            'failed_attempts': int,
+            'minutes_until_unlock': int (0 if not locked)
+        }
+    """
+    db = get_db()
+    try:
+        # Get recent failures in the lockout window
+        cutoff_time = datetime.now(timezone.utc) - timedelta(minutes=lockout_minutes)
+        failed_count = db.login_attempts.count_documents({
+            'user_id': user_id,
+            'success': False,
+            'timestamp': {'$gte': cutoff_time}
+        })
+        
+        if failed_count >= threshold:
+            # Find the oldest failed attempt in this window
+            oldest_attempt = db.login_attempts.find_one(
+                {
+                    'user_id': user_id,
+                    'success': False,
+                    'timestamp': {'$gte': cutoff_time}
+                },
+                sort=[('timestamp', 1)]
+            )
+            
+            if oldest_attempt:
+                oldest_time = oldest_attempt['timestamp']
+                unlock_time = oldest_time + timedelta(minutes=lockout_minutes)
+                now = datetime.now(timezone.utc)
+                
+                if now < unlock_time:
+                    minutes_remaining = int((unlock_time - now).total_seconds() / 60) + 1
+                    return {
+                        'is_locked': True,
+                        'failed_attempts': failed_count,
+                        'minutes_until_unlock': minutes_remaining
+                    }
+        
+        return {
+            'is_locked': False,
+            'failed_attempts': failed_count,
+            'minutes_until_unlock': 0
+        }
+    except Exception as e:
+        logger.error(f"Failed to check account lockout status: {e}")
+        return {'is_locked': False, 'failed_attempts': 0, 'minutes_until_unlock': 0}
+
+
+def cleanup_old_login_attempts(days: int = 30) -> int:
+    """
+    Remove old login attempt records (cleanup task).
+    
+    Args:
+        days: Delete records older than this many days
+        
+    Returns:
+        Number of records deleted
+    """
+    db = get_db()
+    try:
+        cutoff_time = datetime.now(timezone.utc) - timedelta(days=days)
+        result = db.login_attempts.delete_many({
+            'timestamp': {'$lt': cutoff_time}
+        })
+        return result.deleted_count
+    except Exception as e:
+        logger.error(f"Failed to cleanup old login attempts: {e}")
+        return 0
+
+
+# ---------------------------------------------------------------------------
+# Security Audit Logging
+# ---------------------------------------------------------------------------
+
+def log_auth_event(
+    event_type: str,
+    user_id: str | bson.ObjectId | None = None,
+    status: str = "success",
+    ip_address: str = "",
+    user_agent: str = "",
+    details: dict | None = None
+) -> None:
+    """
+    Log an authentication event for audit and security purposes.
+    
+    Args:
+        event_type: Type of event (LOGIN, LOGIN_FAILED, LOGOUT, PASSWORD_CHANGED, etc.)
+        user_id: User or student ID (optional for some events)
+        status: Event status (success, failed, rejected, etc.)
+        ip_address: IP address of the request
+        user_agent: User agent string
+        details: Additional details dict
+    """
+    db = get_db()
+    try:
+        db.audit_logs.insert_one({
+            'event_type': event_type,
+            'user_id': user_id,
+            'status': status,
+            'timestamp': datetime.now(timezone.utc),
+            'ip_address': ip_address,
+            'user_agent': user_agent,
+            'details': details or {},
+        })
+    except Exception as e:
+        logger.error(f"Failed to log auth event: {e}")
+
+
+def get_audit_logs(
+    limit: int = 100,
+    event_type: str | None = None,
+    user_id: str | bson.ObjectId | None = None,
+    days: int = 30
+) -> list[dict]:
+    """
+    Retrieve audit logs with optional filtering.
+    
+    Args:
+        limit: Maximum number of records to return
+        event_type: Filter by event type (optional)
+        user_id: Filter by user ID (optional)
+        days: Only return logs from the last N days
+        
+    Returns:
+        List of audit log records
+    """
+    db = get_db()
+    try:
+        cutoff_time = datetime.now(timezone.utc) - timedelta(days=days)
+        
+        query = {'timestamp': {'$gte': cutoff_time}}
+        if event_type:
+            query['event_type'] = event_type
+        if user_id:
+            query['user_id'] = user_id
+        
+        logs = list(db.audit_logs.find(query).sort('timestamp', -1).limit(limit))
+        return logs
+    except Exception as e:
+        logger.error(f"Failed to retrieve audit logs: {e}")
+        return []
+
+
+def get_suspicious_auth_patterns(hours: int = 24) -> list[dict]:
+    """
+    Find suspicious authentication patterns (multiple failed attempts, etc.).
+    
+    Args:
+        hours: Look back this many hours
+        
+    Returns:
+        List of suspicious patterns found
+    """
+    db = get_db()
+    suspicious = []
+    
+    try:
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
+        
+        # Find users with multiple failed login attempts
+        pipeline = [
+            {
+                '$match': {
+                    'event_type': 'LOGIN_FAILED',
+                    'timestamp': {'$gte': cutoff_time}
+                }
+            },
+            {
+                '$group': {
+                    '_id': '$user_id',
+                    'count': {'$sum': 1},
+                    'last_attempt': {'$max': '$timestamp'},
+                    'ip_addresses': {'$addToSet': '$ip_address'}
+                }
+            },
+            {
+                '$match': {
+                    'count': {'$gte': 3}  # 3 or more failures
+                }
+            },
+            {
+                '$sort': {'count': -1}
+            }
+        ]
+        
+        results = list(db.audit_logs.aggregate(pipeline))
+        for result in results:
+            suspicious.append({
+                'user_id': result.get('_id'),
+                'failed_attempts': result.get('count', 0),
+                'last_attempt': result.get('last_attempt'),
+                'ip_addresses': result.get('ip_addresses', []),
+                'pattern': 'multiple_failed_logins'
+            })
+        
+        return suspicious
+    except Exception as e:
+        logger.error(f"Failed to analyze suspicious patterns: {e}")
+        return []
+
+
+def cleanup_old_audit_logs(days: int = 90) -> int:
+    """
+    Remove old audit log records (cleanup task).
+    
+    Args:
+        days: Delete records older than this many days
+        
+    Returns:
+        Number of records deleted
+    """
+    db = get_db()
+    try:
+        cutoff_time = datetime.now(timezone.utc) - timedelta(days=days)
+        result = db.audit_logs.delete_many({
+            'timestamp': {'$lt': cutoff_time}
+        })
+        return result.deleted_count
+    except Exception as e:
+        logger.error(f"Failed to cleanup old audit logs: {e}")
+        return 0
+
+
+# ---------------------------------------------------------------------------
+# Email Verification (for registration)
+# ---------------------------------------------------------------------------
+
+def create_email_verification_token(student_id: bson.ObjectId) -> str:
+    """
+    Create and store an email verification token for a student.
+    
+    Args:
+        student_id: Student ID
+        
+    Returns:
+        Verification token
+    """
+    import secrets
+    from core.auth import generate_verification_token
+    
+    db = get_db()
+    try:
+        token, expires_at = generate_verification_token(expires_in_hours=24)
+        
+        db.email_verification.insert_one({
+            'student_id': student_id,
+            'token': token,
+            'created_at': datetime.now(timezone.utc),
+            'expires_at': expires_at,
+            'verified_at': None,
+            'attempts': 0,
+        })
+        
+        return token
+    except Exception as e:
+        logger.error(f"Failed to create email verification token: {e}")
+        return ""
+
+
+def verify_email_token(token: str) -> bool:
+    """
+    Verify an email verification token and mark email as verified.
+    
+    Args:
+        token: Verification token
+        
+    Returns:
+        True if verification successful, False otherwise
+    """
+    db = get_db()
+    try:
+        # Find the token
+        record = db.email_verification.find_one({
+            'token': token,
+            'verified_at': None,
+            'expires_at': {'$gt': datetime.now(timezone.utc)}
+        })
+        
+        if not record:
+            return False
+        
+        student_id = record['student_id']
+        
+        # Mark as verified
+        db.email_verification.update_one(
+            {'_id': record['_id']},
+            {'$set': {'verified_at': datetime.now(timezone.utc)}}
+        )
+        
+        # Update student's email verification status
+        db.students.update_one(
+            {'_id': student_id},
+            {'$set': {'email_verified': True, 'email_verified_at': datetime.now(timezone.utc)}}
+        )
+        
+        return True
+    except Exception as e:
+        logger.error(f"Failed to verify email token: {e}")
+        return False
+
+
+def get_email_verification_token(student_id: bson.ObjectId) -> dict | None:
+    """
+    Get the current email verification record for a student.
+    
+    Args:
+        student_id: Student ID
+        
+    Returns:
+        Verification record or None
+    """
+    db = get_db()
+    try:
+        return db.email_verification.find_one({
+            'student_id': student_id,
+            'verified_at': None,
+            'expires_at': {'$gt': datetime.now(timezone.utc)}
+        })
+    except Exception as e:
+        logger.error(f"Failed to get email verification token: {e}")
+        return None
+
+
+def is_email_verified(student_id: bson.ObjectId) -> bool:
+    """
+    Check if a student's email is verified.
+    
+    Args:
+        student_id: Student ID
+        
+    Returns:
+        True if email is verified
+    """
+    db = get_db()
+    try:
+        student = db.students.find_one(
+            {'_id': student_id},
+            {'email_verified': 1}
+        )
+        return student and student.get('email_verified', False)
+    except Exception as e:
+        logger.error(f"Failed to check email verification status: {e}")
+        return False
+
+
+def cleanup_expired_verification_tokens() -> int:
+    """
+    Remove expired email verification tokens (cleanup task).
+    
+    Returns:
+        Number of tokens removed
+    """
+    db = get_db()
+    try:
+        result = db.email_verification.delete_many({
+            'expires_at': {'$lt': datetime.now(timezone.utc)}
+        })
+        return result.deleted_count
+    except Exception as e:
+        logger.error(f"Failed to cleanup expired verification tokens: {e}")
+        return 0
 

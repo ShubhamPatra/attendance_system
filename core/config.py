@@ -59,11 +59,28 @@ MONGO_CIRCUIT_BREAKER_TIMEOUT_SECONDS = float(
 # ---------------------------------------------------------------------------
 SECRET_KEY = os.environ.get("SECRET_KEY")
 if not SECRET_KEY:
+    import warnings
+    warnings.warn(
+        "SECRET_KEY not set in environment. Generating random key for this session. "
+        "Set SECRET_KEY environment variable for production use (persists across restarts).",
+        RuntimeWarning
+    )
     SECRET_KEY = secrets.token_hex(32)
 
 APP_HOST = os.environ.get("APP_HOST", "0.0.0.0")
 APP_PORT = int(os.environ.get("APP_PORT", "5000"))
 APP_DEBUG = os.environ.get("APP_DEBUG", "0") == "1"
+
+# ---------------------------------------------------------------------------
+# JWT / API Authentication
+# ---------------------------------------------------------------------------
+JWT_ACCESS_TOKEN_LIFETIME_HOURS = int(
+    os.environ.get("JWT_ACCESS_TOKEN_LIFETIME_HOURS", "1")
+)
+JWT_REFRESH_TOKEN_LIFETIME_HOURS = int(
+    os.environ.get("JWT_REFRESH_TOKEN_LIFETIME_HOURS", "24")
+)
+JWT_ALGORITHM = "HS256"
 
 # ---------------------------------------------------------------------------
 # ML backend
@@ -426,9 +443,14 @@ STUDENT_PORTAL_BASE_URL = os.environ.get(
 ).rstrip("/")
 
 # Student portal session cookies (for Flask)
-SESSION_COOKIE_SECURE = os.environ.get("SESSION_COOKIE_SECURE", "0") == "1"
-SESSION_COOKIE_HTTPONLY = os.environ.get("SESSION_COOKIE_HTTPONLY", "1") == "1"
-SESSION_COOKIE_SAMESITE = os.environ.get("SESSION_COOKIE_SAMESITE", "Lax")
+# SECURITY: These settings enforce secure session handling
+SESSION_COOKIE_SECURE = os.environ.get("SESSION_COOKIE_SECURE", "1") == "1"  # Enforce HTTPS in production
+SESSION_COOKIE_HTTPONLY = os.environ.get("SESSION_COOKIE_HTTPONLY", "1") == "1"  # Prevent JS access (CSRF protection)
+SESSION_COOKIE_SAMESITE = os.environ.get("SESSION_COOKIE_SAMESITE", "Strict")  # Prevent cross-site requests
+
+# Session timeout configuration (in seconds)
+PERMANENT_SESSION_LIFETIME = int(os.environ.get("PERMANENT_SESSION_LIFETIME", "1800"))  # 30 minutes for students
+ADMIN_SESSION_LIFETIME = int(os.environ.get("ADMIN_SESSION_LIFETIME", "3600"))  # 60 minutes for admins
 
 # ---------------------------------------------------------------------------
 # SocketIO / CORS

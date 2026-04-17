@@ -12,6 +12,8 @@ from flask_login import current_user, login_user, logout_user
 
 import core.config as config
 from core.utils import sanitize_string, setup_logging
+from core.auth import validate_password
+import core.database as core_db
 
 from . import database
 from .auth import StudentUser, authenticate_student
@@ -24,12 +26,22 @@ bp = Blueprint("student", __name__)
 
 
 def login_required(view_func):
-    """No-op decorator: student authentication checks are disabled."""
-
+    """
+    Decorator to require student login for protected routes.
+    
+    Redirects unauthenticated users to login page.
+    For JSON requests (API), returns 401 Unauthorized.
+    """
     @wraps(view_func)
     def wrapped(*args, **kwargs):
+        if not current_user.is_authenticated:
+            if request.headers.get('Accept') == 'application/json' or request.path.startswith('/api/'):
+                return jsonify({'error': 'Authentication required'}), 401
+            flash('Please log in to access this page.', 'warning')
+            return redirect(url_for('student.login'))
+        
         return view_func(*args, **kwargs)
-
+    
     return wrapped
 
 
@@ -55,23 +67,23 @@ def _save_capture_frame(reg_no: str, frame_bytes: bytes, index: int) -> str:
 
 
 def _resolve_registration_number() -> str:
-    """Resolve active registration number from session or request payload."""
+    """
+    Resolve active registration number from authenticated session.
+    
+    SECURITY: Only return registration number from current_user if authenticated.
+    Do NOT accept registration_number from query/form params for security reasons.
+    This prevents attackers from accessing other students' data.
+    
+    Returns:
+        Registration number if authenticated, empty string otherwise
+    """
     if getattr(current_user, "is_authenticated", False):
         value = sanitize_string(getattr(current_user, "registration_number", "")).strip()
         if value:
             return value
-
-    for source in (request.args, request.form):
-        value = sanitize_string(source.get("registration_number", "")).strip()
-        if value:
-            return value
-
-    payload = request.get_json(silent=True)
-    if isinstance(payload, dict):
-        value = sanitize_string(str(payload.get("registration_number", ""))).strip()
-        if value:
-            return value
-
+    
+    # For unauthenticated requests, return empty string
+    # The calling route (protected by @login_required) will handle the error
     return ""
 
 
@@ -97,6 +109,8 @@ def register():
     section = sanitize_string(request.form.get("section", "")).strip()
     password = request.form.get("password", "")
     confirm_password = request.form.get("confirm_password", "")
+    ip_address = request.remote_addr
+    user_agent = request.headers.get('User-Agent', '')
 
     errors: list[str] = []
     if not name:
@@ -109,8 +123,15 @@ def register():
         errors.append("Semester is required.")
     if not section:
         errors.append("Section is required.")
-    if not password or len(password) < 8:
-        errors.append("Password must be at least 8 characters long.")
+    
+    # Validate password strength
+    if not password:
+        errors.append("Password is required.")
+    else:
+        is_valid, error_msg = validate_password(password, registration_number, email)
+        if not is_valid:
+            errors.append(error_msg)
+    
     if password != confirm_password:
         errors.append("Passwords do not match.")
     if database.get_student_by_reg_no(registration_number) is not None:
@@ -146,17 +167,33 @@ def register():
 
     student_doc = database.get_student_by_id(student_id, include_sensitive=False)
     if student_doc:
+        # Log registration
+        core_db.log_auth_event(
+            event_type='REGISTRATION',
+            user_id=student_id,
+            status='success',
+            ip_address=ip_address,
+            user_agent=user_agent
+        )
+        
+        # Auto-login user
         login_user(
             StudentUser(
-                student_id=str(student_doc["_id"]),
+                student_id=str(student_id),
                 registration_number=student_doc.get("registration_number", ""),
                 name=student_doc.get("name", ""),
                 verification_status=student_doc.get("verification_status", "pending"),
             )
         )
+        
+        flash("Account created successfully! Please upload your face samples to complete enrollment.", "success")
+        return redirect(url_for("student.portal"))
 
-    flash("Account created. Capture your face samples to complete verification.", "success")
-    return redirect(url_for("student.capture"))
+    flash("Failed to create account. Please try again.", "danger")
+    return render_template("register.html"), 500
+
+
+
 
 
 @bp.route("/login", methods=["GET", "POST"])
@@ -169,6 +206,8 @@ def login():
 
     credential = sanitize_string(request.form.get("credential", "")).strip()
     password = request.form.get("password", "")
+    ip_address = request.remote_addr
+    user_agent = request.headers.get('User-Agent', '')
 
     if not credential or not password:
         flash("Registration number/email and password are required.", "danger")
@@ -176,33 +215,127 @@ def login():
 
     student = authenticate_student(credential, password)
     if student is None:
+        # Check if account is locked (for better error message)
+        from . import database as student_db
+        
+        # Try to get student for lockout check
+        test_student = student_db.get_student_by_reg_no(credential)
+        if not test_student:
+            test_student = student_db.get_student_by_email(credential)
+        
+        if test_student:
+            lockout_status = core_db.get_account_lockout_status(test_student.get("_id"), threshold=5, lockout_minutes=30)
+            
+            # Log failed login attempt
+            core_db.log_auth_event(
+                event_type='LOGIN_FAILED',
+                user_id=test_student.get("_id"),
+                status='locked' if lockout_status['is_locked'] else 'invalid_password',
+                ip_address=ip_address,
+                user_agent=user_agent
+            )
+            
+            if lockout_status['is_locked']:
+                flash(
+                    f"Account locked due to too many failed login attempts. "
+                    f"Please try again in {lockout_status['minutes_until_unlock']} minutes.",
+                    "danger"
+                )
+                return render_template("login.html"), 403
+        
         flash("Invalid credentials.", "danger")
         return render_template("login.html"), 401
 
+    # Log successful login
+    core_db.log_auth_event(
+        event_type='LOGIN',
+        user_id=student.id,
+        status='success',
+        ip_address=ip_address,
+        user_agent=user_agent
+    )
+    
     login_user(student, remember=True)
+    
     return redirect(url_for("student.status"))
 
 
 @bp.route("/logout")
 @login_required
 def logout():
+    # Log logout event
+    ip_address = request.remote_addr
+    user_agent = request.headers.get('User-Agent', '')
+    
+    if current_user.is_authenticated:
+        core_db.log_auth_event(
+            event_type='LOGOUT',
+            user_id=current_user.id,
+            status='success',
+            ip_address=ip_address,
+            user_agent=user_agent
+        )
+    
     logout_user()
     return redirect(url_for("student.login"))
+
+
+@bp.route("/portal")
+@login_required
+def portal():
+    """Unified student portal: shows photo upload if pending, status if verified."""
+    reg_no = _resolve_registration_number()
+    if not reg_no:
+        return render_template(
+            "student_portal_unified.html",
+            student=None,
+            error="registration_number is required in query or form data when not logged in.",
+            min_images=config.STUDENT_MIN_CAPTURE_IMAGES,
+            max_images=config.STUDENT_MAX_CAPTURE_IMAGES,
+        ), 400
+
+    try:
+        student = database.get_student_status(reg_no)
+        if not student:
+            return render_template(
+                "student_portal_unified.html",
+                student=None,
+                error="Student record not found.",
+                min_images=config.STUDENT_MIN_CAPTURE_IMAGES,
+                max_images=config.STUDENT_MAX_CAPTURE_IMAGES,
+            ), 404
+
+        # For verified students, get detailed attendance data
+        if student.get("verification_status") in ["approved", "verified"]:
+            try:
+                student = database.get_attendance_overview(reg_no)
+            except Exception as e:
+                logger.error(f"Error fetching attendance overview for {reg_no}: {e}", exc_info=True)
+                # Fall back to status data if attendance fetch fails
+                pass
+        
+        return render_template(
+            "student_portal_unified.html",
+            student=student,
+            min_images=config.STUDENT_MIN_CAPTURE_IMAGES,
+            max_images=config.STUDENT_MAX_CAPTURE_IMAGES,
+        )
+    except Exception as e:
+        logger.error(f"Error loading portal for {reg_no}: {e}", exc_info=True)
+        return render_template(
+            "student_portal_unified.html",
+            student=None,
+            error="Error loading portal data.",
+            min_images=config.STUDENT_MIN_CAPTURE_IMAGES,
+            max_images=config.STUDENT_MAX_CAPTURE_IMAGES,
+        ), 500
 
 
 @bp.route("/status")
 @login_required
 def status():
-    reg_no = _resolve_registration_number()
-    if not reg_no:
-        return render_template(
-            "status.html",
-            student=None,
-            error="registration_number is required in query or form data when not logged in.",
-        ), 400
-
-    student = database.get_student_status(reg_no)
-    return render_template("status.html", student=student)
+    """Legacy status route - redirects to unified portal."""
+    return redirect(url_for("student.portal"))
 
 
 @bp.route("/capture")

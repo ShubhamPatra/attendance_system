@@ -1,0 +1,706 @@
+/**
+ * Responsive Design System
+ * Mobile-first approach with breakpoints for tablet and desktop
+ */
+
+/* ============================================================================
+   MOBILE LAYOUT (Default - Mobile First)
+   ============================================================================ */
+
+/* Hide sidebar on mobile, make header full width */
+@media (max-width: 47.99rem) {
+  /* 767px */
+  
+  .sidebar {
+    transform: translateX(-100%);
+    transition: transform var(--transition-base);
+    width: 16rem;
+    z-index: var(--z-modal);
+  }
+
+  .sidebar.active {
+    transform: translateX(0);
+  }
+
+  .header {
+    left: 0;
+    width: 100%;
+  }
+
+  .main-wrapper {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  main {
+    padding: var(--spacing-lg);
+  }
+
+  .header-search {
+    display: none;
+  }
+
+  .header-title {
+    font-size: var(--font-size-title-lg);
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing-md);
+  }
+
+  .content-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .content-grid-wide {
+    grid-template-columns: 1fr;
+  }
+
+  .layout-two-column {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-lg);
+  }
+
+  .content-header {
+    margin-bottom: var(--spacing-lg);
+  }
+
+  .content-header-title {
+    font-size: var(--font-size-headline-sm);
+  }
+
+  .content-header-subtitle {
+    font-size: var(--font-size-body-sm);
+  }
+
+  .stat-card {
+    padding: var(--spacing-md);
+  }
+
+  .stat-value {
+    font-size: var(--font-size-headline-lg);
+  }
+
+  .stat-label {
+    font-size: var(--font-size-label-sm);
+  }
+
+  .stat-change {
+    font-size: var(--font-size-body-sm);
+  }
+
+  /* Mobile table adjustments */
+  table {
+    font-size: var(--font-size-body-sm);
+  }
+
+  th,
+  td {
+    padding: var(--spacing-sm) var(--spacing-md);
+  }
+
+  .table-actions {
+    gap: 0;
+  }
+
+  .table-action-button {
+    padding: var(--spacing-xs);
+    font-size: var(--font-size-body-sm);
+  }
+
+  /* Mobile buttons */
+  .button,
+  button {
+    padding: var(--spacing-md) var(--spacing-lg);
+    font-size: var(--font-size-body-md);
+    min-height: 2.75rem;
+    width: 100%;
+  }
+
+  .button-small,
+  .btn-small {
+    width: auto;
+  }
+
+  .content-actions {
+    flex-direction: column;
+  }
+
+  .content-actions .button,
+  .content-actions button {
+    width: 100%;
+  }
+
+  /* Mobile modal */
+  .modal-dialog {
+    width: 95%;
+    max-width: 100%;
+  }
+
+  /* Mobile dropdown menu */
+  .dropdown-menu {
+    position: fixed;
+    top: auto;
+    left: var(--spacing-md);
+    right: var(--spacing-md);
+    bottom: var(--spacing-md);
+    max-height: 50vh;
+  }
+
+  /* Mobile profile card */
+  .profile-card {
+    width: 100%;
+  }
+
+  /* Mobile toast */
+  .toast-container {
+    left: var(--spacing-md);
+    right: var(--spacing-md);
+    top: calc(64px + var(--spacing-md));
+  }
+
+  .toast {
+    min-width: auto;
+    width: 100%;
+  }
+
+  /* Mobile icons */
+  .sidebar-nav-icon {
+    width: 1.25rem;
+    height: 1.25rem;
+    font-size: var(--font-size-title-sm);
+  }
+
+  /* Hide long text on mobile */
+  .hide-mobile {
+    display: none;
+  }
+
+  /* Full width forms */
+  .form-group input,
+  .form-group textarea,
+  .form-group select {
+    width: 100%;
+  }
+
+  /* Mobile hamburger menu */
+  .mobile-menu-toggle {
+    display: flex;
+  }
+
+  /* Reduce font sizes */
+  h1, .heading-1 {
+    font-size: var(--font-size-headline-sm);
+  }
+
+  h2, .heading-2 {
+    font-size: var(--font-size-headline-sm);
+  }
+
+  h3, .heading-3 {
+    font-size: var(--font-size-title-lg);
+  }
+}
+
+/* ============================================================================
+   TABLET LAYOUT
+   ============================================================================ */
+
+@media (min-width: 48rem) and (max-width: 63.99rem) {
+  /* 768px - 1023px */
+  
+  .sidebar {
+    width: 16rem;        /* Keep same width as desktop for consistency */
+  }
+
+  .header {
+    left: 16rem;
+  }
+
+  .main-wrapper {
+    margin-left: 16rem;
+    width: calc(100% - 16rem);
+  }
+
+  .sidebar-brand-title {
+    font-size: var(--font-size-title-md);
+  }
+
+  .sidebar-nav-item {
+    font-size: var(--font-size-body-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+  }
+
+  .header-search {
+    width: 16rem;
+  }
+
+  .header-title {
+    font-size: var(--font-size-title-lg);
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .content-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  main {
+    margin-top: 4rem;
+    padding: 1.5rem;
+    background-color: var(--surface);
+    overflow-x: hidden;
+  }
+
+  table {
+    font-size: var(--font-size-body-md);
+  }
+
+  .modal-dialog {
+    width: 90%;
+    max-width: 28rem;
+  }
+
+  .layout-two-column {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  /* Show more on tablet */
+  .hide-tablet {
+    display: none;
+  }
+}
+
+/* ============================================================================
+   DESKTOP LAYOUT (Default - 1024px and above)
+   ============================================================================ */
+
+@media (min-width: 64rem) {
+  /* 1024px+ */
+  
+  .sidebar {
+    width: 16rem;
+    position: fixed;
+  }
+
+  .header {
+    left: 16rem;
+    right: 0;
+    position: fixed;
+  }
+
+  .main-wrapper {
+    margin-left: 16rem;
+    width: calc(100% - 16rem);
+    margin-top: 0;
+  }
+
+  main {
+    margin-top: 4rem;
+    padding: 2rem;
+    background-color: var(--surface);
+    overflow-x: hidden;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .content-grid {
+    grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+  }
+
+  /* Ensure proper spacing for grid layouts */
+  [style*="grid-template-columns: repeat(12, 1fr)"] {
+    grid-auto-rows: auto;
+    width: 100%;
+  }
+
+  /* Two-column layouts */
+  [style*="grid-template-columns: 2fr 1fr"] {
+    width: 100%;
+    margin-bottom: 3rem;
+  }
+
+  /* Desktop specific */
+  .hide-desktop {
+    display: none;
+  }
+
+  /* Ensure tables don't overflow */
+  .table-wrapper {
+    overflow-x: auto;
+  }
+
+  table {
+    width: 100%;
+  }
+}
+
+/* ============================================================================
+   EXTRA LARGE SCREENS (1440px+)
+   ============================================================================ */
+
+@media (min-width: 90rem) {
+  /* 1440px+ */
+  
+  .sidebar {
+    width: 16rem;
+  }
+
+  .header-search {
+    width: 24rem;
+  }
+
+  main {
+    max-width: 120rem;
+    margin: 0 auto;
+  }
+
+  .content-grid {
+    grid-template-columns: repeat(auto-fit, minmax(24rem, 1fr));
+  }
+}
+
+/* ============================================================================
+   MOBILE SIDEBAR TOGGLE
+   ============================================================================ */
+
+.sidebar-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  background: none;
+  border: none;
+  color: var(--on-surface-variant);
+  cursor: pointer;
+  font-size: var(--font-size-title-md);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+}
+
+.sidebar-toggle:hover {
+  background-color: var(--surface-container-low);
+  color: var(--primary);
+}
+
+@media (max-width: 47.99rem) {
+  .sidebar-toggle {
+    display: flex;
+  }
+
+  .header-left {
+    gap: var(--spacing-sm);
+  }
+}
+
+/* ============================================================================
+   RESPONSIVE TEXT UTILITIES
+   ============================================================================ */
+
+@media (max-width: 47.99rem) {
+  .text-hide-mobile {
+    display: none;
+  }
+
+  .text-show-mobile {
+    display: inline;
+  }
+}
+
+@media (min-width: 48rem) and (max-width: 63.99rem) {
+  .text-hide-tablet {
+    display: none;
+  }
+
+  .text-show-tablet {
+    display: inline;
+  }
+}
+
+@media (min-width: 64rem) {
+  .text-hide-desktop {
+    display: none;
+  }
+
+  .text-show-desktop {
+    display: inline;
+  }
+}
+
+/* ============================================================================
+   RESPONSIVE GRID UTILITIES
+   ============================================================================ */
+
+@media (max-width: 47.99rem) {
+  .grid-mobile-1 { grid-template-columns: 1fr; }
+}
+
+@media (min-width: 48rem) and (max-width: 63.99rem) {
+  .grid-tablet-2 { grid-template-columns: repeat(2, 1fr); }
+  .grid-tablet-1 { grid-template-columns: 1fr; }
+}
+
+@media (min-width: 64rem) {
+  .grid-desktop-4 { grid-template-columns: repeat(4, 1fr); }
+  .grid-desktop-3 { grid-template-columns: repeat(3, 1fr); }
+  .grid-desktop-2 { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ============================================================================
+   RESPONSIVE DISPLAY UTILITIES
+   ============================================================================ */
+
+.show-mobile {
+  display: none;
+}
+
+.show-tablet {
+  display: none;
+}
+
+.show-desktop {
+  display: none;
+}
+
+@media (max-width: 47.99rem) {
+  .show-mobile {
+    display: block;
+  }
+
+  .hide-mobile {
+    display: none;
+  }
+}
+
+@media (min-width: 48rem) and (max-width: 63.99rem) {
+  .show-tablet {
+    display: block;
+  }
+
+  .hide-tablet {
+    display: none;
+  }
+}
+
+@media (min-width: 64rem) {
+  .show-desktop {
+    display: block;
+  }
+
+  .hide-desktop {
+    display: none;
+  }
+}
+
+/* ============================================================================
+   RESPONSIVE SPACING ADJUSTMENTS
+   ============================================================================ */
+
+@media (max-width: 47.99rem) {
+  .p-mobile-sm { padding: var(--spacing-sm); }
+  .p-mobile-md { padding: var(--spacing-md); }
+  .p-mobile-lg { padding: var(--spacing-lg); }
+
+  .m-mobile-sm { margin: var(--spacing-sm); }
+  .m-mobile-md { margin: var(--spacing-md); }
+  .m-mobile-lg { margin: var(--spacing-lg); }
+
+  .gap-mobile-sm { gap: var(--spacing-sm); }
+  .gap-mobile-md { gap: var(--spacing-md); }
+}
+
+/* ============================================================================
+   RESPONSIVE FLEXBOX
+   ============================================================================ */
+
+@media (max-width: 47.99rem) {
+  .flex-mobile-col {
+    flex-direction: column;
+  }
+
+  .flex-mobile-row {
+    flex-direction: row;
+  }
+
+  .justify-mobile-center {
+    justify-content: center;
+  }
+
+  .items-mobile-center {
+    align-items: center;
+  }
+}
+
+/* ============================================================================
+   RESPONSIVE TYPOGRAPHY
+   ============================================================================ */
+
+@media (max-width: 47.99rem) {
+  .text-body-lg {
+    font-size: var(--font-size-body-md);
+  }
+
+  .text-title-lg {
+    font-size: var(--font-size-title-md);
+  }
+
+  h1, .heading-1 {
+    font-size: 1.75rem;
+  }
+
+  h2, .heading-2 {
+    font-size: 1.5rem;
+  }
+
+  h3, .heading-3 {
+    font-size: 1.25rem;
+  }
+
+  .text-label-lg {
+    font-size: var(--font-size-label-sm);
+  }
+}
+
+/* ============================================================================
+   ASPECT RATIO FIXES
+   ============================================================================ */
+
+.aspect-video {
+  aspect-ratio: 16 / 9;
+}
+
+.aspect-square {
+  aspect-ratio: 1;
+}
+
+.aspect-portrait {
+  aspect-ratio: 3 / 4;
+}
+
+/* ============================================================================
+   LANDSCAPE MODE ADJUSTMENTS
+   ============================================================================ */
+
+@media (orientation: landscape) and (max-height: 32rem) {
+  .header {
+    height: 3.5rem;
+  }
+
+  main {
+    margin-top: 3.5rem;
+    padding: var(--spacing-lg);
+  }
+
+  .sidebar-nav-item {
+    padding: var(--spacing-xs) var(--spacing-md);
+    font-size: var(--font-size-body-sm);
+  }
+}
+
+/* ============================================================================
+   TOUCH-FRIENDLY ADJUSTMENTS
+   ============================================================================ */
+
+@media (hover: none) and (pointer: coarse) {
+  /* Touch devices */
+  
+  button,
+  a {
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+  }
+
+  .icon-button {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+
+  input,
+  textarea,
+  select {
+    padding: var(--spacing-md);
+    font-size: 16px;
+  }
+
+  /* Disable hover states on touch */
+  button:hover {
+    background-color: inherit;
+  }
+
+  a:hover {
+    color: inherit;
+  }
+}
+
+/* ============================================================================
+   HIGH DPI / RETINA DISPLAYS
+   ============================================================================ */
+
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  /* Thinner borders on high DPI */
+  border {
+    border-width: 0.5px;
+  }
+}
+
+/* ============================================================================
+   PRINT STYLES
+   ============================================================================ */
+
+@media print {
+  .sidebar,
+  .header,
+  .sidebar-footer,
+  .hide-print,
+  .mobile-menu-toggle,
+  .sidebar-toggle {
+    display: none;
+  }
+
+  .main-wrapper {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  main {
+    margin-top: 0;
+  }
+
+  .button,
+  button {
+    border: 1px solid var(--on-surface);
+    background: white;
+    color: var(--on-surface);
+  }
+
+  body {
+    background: white;
+  }
+}
+
+/* ============================================================================
+   BROWSER-SPECIFIC ADJUSTMENTS
+   ============================================================================ */
+
+/* Firefox */
+@-moz-document url-prefix() {
+  input,
+  textarea,
+  select {
+    padding: var(--spacing-md);
+  }
+}
+
+/* Safari specific */
+@supports (-webkit-appearance: none) {
+  input[type="date"],
+  input[type="time"] {
+    padding: var(--spacing-md);
+  }
+}
