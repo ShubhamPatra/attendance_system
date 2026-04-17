@@ -39,9 +39,11 @@ backups/
 # Celery runtime data (filesystem broker/result backend)
 celery_data/
 
-# Models (large binary files)
-models/*.onnx
-models/anti_spoofing/*.onnx
+# Models
+# Note: YuNet and anti-spoof ONNX models are committed to the repo as they are essential dependencies
+# Only ignore user-generated model files if needed
+# models/*.onnx
+# models/anti_spoofing/*.onnx
 
 # Database and cache
 *.db

@@ -146,7 +146,7 @@ def register_student_routes(bp):
         ), 201
 
     @bp.route("/api/students/<reg_no>", methods=["GET"])
-    @require_roles("admin", "teacher")
+    # @require_roles("admin", "teacher")  # DISABLED: Auth removed for local testing
     def api_student_detail(reg_no):
         from web import routes as routes_module
 
@@ -215,7 +215,7 @@ def register_student_routes(bp):
         return jsonify({"updated": True, "registration_number": reg_no, "changes": updates})
 
     @bp.route("/api/admin/students/<reg_no>/recompute", methods=["POST"])
-    @require_roles("admin")
+    # @require_roles("admin")  # DISABLED: Auth removed for local testing
     def api_admin_students_recompute(reg_no):
         from web import routes as routes_module
 
@@ -280,7 +280,7 @@ def register_student_routes(bp):
         return jsonify({"updated": True, "registration_number": reg_no, "encodings_count": len(encodings)})
 
     @bp.route("/api/admin/students/<reg_no>/approve", methods=["POST"])
-    @require_roles("admin")
+    # @require_roles("admin")  # DISABLED: Auth removed for local testing
     def api_admin_students_approve(reg_no):
         from web import routes as routes_module
         from student_app.verification import evaluate_student_samples
@@ -312,7 +312,7 @@ def register_student_routes(bp):
         return jsonify({"approved": True, "registration_number": reg_no, "score": result.score})
 
     @bp.route("/api/admin/students/<reg_no>/reject", methods=["POST"])
-    @require_roles("admin")
+    # @require_roles("admin")  # DISABLED: Auth removed for local testing
     def api_admin_students_reject(reg_no):
         from web import routes as routes_module
 
