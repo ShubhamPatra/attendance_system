@@ -55,7 +55,7 @@ from web.routes_helpers import (
 logger = setup_logging()
 
 bp = Blueprint("main", __name__)
-register_auth_routes(bp)
+# register_auth_routes(bp)  # DISABLED: Auth removed for local testing
 register_health_routes(bp)
 register_public_routes(bp)
 register_student_routes(bp)

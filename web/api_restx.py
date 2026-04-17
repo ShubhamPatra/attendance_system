@@ -266,7 +266,7 @@ def init_restx_api(app):
 
     @attendance_ns.route("")
     class AttendanceList(Resource):
-        method_decorators = [require_roles("admin", "teacher")]
+        # method_decorators = [require_roles("admin", "teacher")]  # DISABLED: Auth removed for local testing
 
         def get(self):
             reg_no = (request.args.get("reg_no") or "").strip()
@@ -321,7 +321,7 @@ def init_restx_api(app):
 
     @attendance_ns.route("/sessions")
     class AttendanceSessionStart(Resource):
-        method_decorators = [require_roles("admin", "teacher")]
+        # method_decorators = [require_roles("admin", "teacher")]  # DISABLED: Auth removed for local testing
 
         @attendance_ns.expect(attendance_session_start_model)
         @attendance_ns.marshal_with(
@@ -353,7 +353,7 @@ def init_restx_api(app):
 
     @attendance_ns.route("/sessions/<string:session_id>/end")
     class AttendanceSessionEnd(Resource):
-        method_decorators = [require_roles("admin", "teacher")]
+        # method_decorators = [require_roles("admin", "teacher")]  # DISABLED: Auth removed for local testing
 
         def post(self, session_id: str):
             try:
@@ -369,7 +369,7 @@ def init_restx_api(app):
 
     @attendance_ns.route("/sessions/active")
     class AttendanceSessionActive(Resource):
-        method_decorators = [require_roles("admin", "teacher")]
+        # method_decorators = [require_roles("admin", "teacher")]  # DISABLED: Auth removed for local testing
 
         def get(self):
             camera_id = (request.args.get("camera_id") or "").strip()
@@ -385,7 +385,7 @@ def init_restx_api(app):
 
     @students_ns.route("")
     class StudentsList(Resource):
-        method_decorators = [require_roles("admin", "teacher")]
+        # method_decorators = [require_roles("admin", "teacher")]  # DISABLED: Auth removed for local testing
 
         @students_ns.marshal_list_with(student_model)
         def get(self):
@@ -396,7 +396,7 @@ def init_restx_api(app):
 
     @ops_ns.route("/metrics")
     class OpsMetrics(Resource):
-        method_decorators = [require_roles("admin", "teacher")]
+        # method_decorators = [require_roles("admin", "teacher")]  # DISABLED: Auth removed for local testing
 
         def get(self):
             from camera.camera import get_camera_diagnostics
@@ -408,7 +408,7 @@ def init_restx_api(app):
 
     @camera_ns.route("")
     class CameraDiagnostics(Resource):
-        method_decorators = [require_roles("admin", "teacher")]
+        # method_decorators = [require_roles("admin", "teacher")]  # DISABLED: Auth removed for local testing
 
         def get(self):
             from camera.camera import get_camera_diagnostics
@@ -417,7 +417,7 @@ def init_restx_api(app):
 
     @report_ns.route("/csv/async")
     class ReportCsvAsync(Resource):
-        method_decorators = [require_roles("admin", "teacher")]
+        # method_decorators = [require_roles("admin", "teacher")]  # DISABLED: Auth removed for local testing
 
         @report_ns.expect(report_payload_model)
         def post(self):
@@ -437,7 +437,7 @@ def init_restx_api(app):
 
     @analytics_ns.route("/trends")
     class AnalyticsTrends(Resource):
-        method_decorators = [require_roles("admin", "teacher")]
+        # method_decorators = [require_roles("admin", "teacher")]  # DISABLED: Auth removed for local testing
 
         @analytics_ns.marshal_list_with(trend_model)
         def get(self):
@@ -446,7 +446,7 @@ def init_restx_api(app):
 
     @analytics_ns.route("/at-risk")
     class AnalyticsAtRisk(Resource):
-        method_decorators = [require_roles("admin", "teacher")]
+        # method_decorators = [require_roles("admin", "teacher")]  # DISABLED: Auth removed for local testing
 
         @analytics_ns.marshal_list_with(at_risk_model)
         def get(self):

@@ -8,7 +8,7 @@ import core.database as database
 
 def register_overview_routes(bp):
     @bp.route("/dashboard")
-    @require_roles("admin", "teacher")
+    # @require_roles("admin", "teacher")  # DISABLED: Auth removed for local testing
     def dashboard():
         total_students = database.student_count()
         today_count = database.today_attendance_count()
@@ -29,18 +29,18 @@ def register_overview_routes(bp):
         )
 
     @bp.route("/api/registration_numbers")
-    @require_roles("admin", "teacher")
+    # @require_roles("admin", "teacher")  # DISABLED: Auth removed for local testing
     def api_registration_numbers():
         return jsonify(database.get_all_registration_numbers())
 
     @bp.route("/api/analytics/trends")
-    @require_roles("admin", "teacher")
+    # @require_roles("admin", "teacher")  # DISABLED: Auth removed for local testing
     def api_analytics_trends():
         days = request.args.get("days", 14, type=int)
         return jsonify(database.get_attendance_trends(days=days))
 
     @bp.route("/api/analytics/at_risk")
-    @require_roles("admin", "teacher")
+    # @require_roles("admin", "teacher")  # DISABLED: Auth removed for local testing
     def api_analytics_at_risk():
         days = request.args.get("days", 30, type=int)
         threshold = request.args.get("threshold", None, type=int)
