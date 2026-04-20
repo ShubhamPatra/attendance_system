@@ -361,3 +361,94 @@ def update_blink_state(
     except Exception as e:
         logger.debug(f"Error updating blink state: {e}")
         return ear_history, blink_count, blink_frames_below
+
+
+def fuse_liveness_signals(
+    cnn_score: float,
+    blink_score: float,
+    motion_score: float,
+    texture_score: float,
+    challenge_score: float = 0.0,
+    weights: dict = None,
+) -> float:
+    """Fuse multiple liveness signals using weighted averaging.
+    
+    Combines CNN model, blink detection, motion, texture analysis, and
+    challenge-response into a single liveness score.
+    
+    Args:
+        cnn_score: CNN model confidence [0.0-1.0]
+        blink_score: Blink evidence [0.0-1.0] (1.0 = blink detected)
+        motion_score: Motion evidence [0.0-1.0] (1.0 = motion detected)
+        texture_score: Texture naturalness [0.0-1.0] (1.0 = natural, 0.0 = flat)
+        challenge_score: Challenge response confidence [0.0-1.0] (optional)
+        weights: Dict with keys 'cnn', 'blink', 'motion', 'texture', 'challenge'
+                If None, uses defaults from config
+    
+    Returns:
+        float: Fused liveness score [0.0-1.0]
+    """
+    if weights is None:
+        # Default weights from config
+        weights = {
+            'cnn': getattr(config, 'LIVENESS_FUSION_WEIGHT_CNN', 0.4),
+            'blink': getattr(config, 'LIVENESS_FUSION_WEIGHT_BLINK', 0.2),
+            'motion': getattr(config, 'LIVENESS_FUSION_WEIGHT_MOTION', 0.2),
+            'texture': getattr(config, 'LIVENESS_FUSION_WEIGHT_TEXTURE', 0.15),
+            'challenge': getattr(config, 'LIVENESS_FUSION_WEIGHT_CHALLENGE', 0.05),
+        }
+    
+    try:
+        # Normalize scores to [0.0, 1.0]
+        cnn_score = float(np.clip(cnn_score, 0.0, 1.0))
+        blink_score = float(np.clip(blink_score, 0.0, 1.0))
+        motion_score = float(np.clip(motion_score, 0.0, 1.0))
+        texture_score = float(np.clip(texture_score, 0.0, 1.0))
+        challenge_score = float(np.clip(challenge_score, 0.0, 1.0))
+        
+        # Compute weighted average
+        total_weight = sum(weights.values())
+        if total_weight <= 0:
+            logger.warning("Invalid fusion weights: sum <= 0, using CNN score only")
+            return cnn_score
+        
+        fused_score = (
+            weights['cnn'] * cnn_score +
+            weights['blink'] * blink_score +
+            weights['motion'] * motion_score +
+            weights['texture'] * texture_score +
+            weights['challenge'] * challenge_score
+        ) / total_weight
+        
+        return float(np.clip(fused_score, 0.0, 1.0))
+    
+    except Exception as exc:
+        logger.warning(f"Fusion scoring failed: {exc}, falling back to CNN score")
+        return cnn_score
+
+
+def normalize_signal_to_confidence(
+    signal_value: float,
+    signal_type: str = "binary"
+) -> float:
+    """Normalize a liveness signal to confidence [0.0-1.0].
+    
+    Args:
+        signal_value: Signal value (interpretation depends on type)
+        signal_type: "binary" (0/1), "continuous" (0.0-1.0), "flatness" (0.0-1.0, inverted)
+    
+    Returns:
+        float: Normalized confidence [0.0-1.0]
+    """
+    if signal_type == "binary":
+        # Binary signal: 0 -> 0.0, 1 -> 1.0
+        return float(np.clip(signal_value, 0.0, 1.0))
+    elif signal_type == "continuous":
+        # Already continuous
+        return float(np.clip(signal_value, 0.0, 1.0))
+    elif signal_type == "flatness":
+        # Flatness score (1.0 = flat, bad): invert to confidence
+        return 1.0 - float(np.clip(signal_value, 0.0, 1.0))
+    else:
+        logger.warning(f"Unknown signal type: {signal_type}")
+        return 0.5

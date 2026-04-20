@@ -122,8 +122,8 @@ RECOGNITION_THRESHOLD = float(
     os.environ.get("RECOGNITION_THRESHOLD", "0.38")
 )  # Cosine similarity; higher = stricter match requirement
 RECOGNITION_MIN_CONFIDENCE = float(
-    os.environ.get("RECOGNITION_MIN_CONFIDENCE", "0.46")
-)  # Minimum cosine similarity score to accept
+    os.environ.get("RECOGNITION_MIN_CONFIDENCE", "0.42")
+)  # Minimum cosine similarity score to accept (relaxed from 0.46)
 RECOGNITION_MIN_DISTANCE_GAP = float(
     os.environ.get("RECOGNITION_MIN_DISTANCE_GAP", "0.08")
 )  # Gap between best and 2nd-best must be substantial
@@ -131,8 +131,8 @@ RECOGNITION_CONFIDENCE_ALPHA = float(
     os.environ.get("RECOGNITION_CONFIDENCE_ALPHA", "3.0")
 )
 RECOGNITION_CONFIRM_FRAMES = int(
-    os.environ.get("RECOGNITION_CONFIRM_FRAMES", "2")
-)  # Require 2 consecutive confident frames before marking attendance (speed optimized)
+    os.environ.get("RECOGNITION_CONFIRM_FRAMES", "1")
+)  # Require 1 consecutive confident frame for faster detection (still validates via liveness)
 RECOGNITION_STABILITY_WINDOW = int(
     os.environ.get("RECOGNITION_STABILITY_WINDOW", "5")
 )
@@ -166,9 +166,9 @@ RECOGNITION_COOLDOWN = 30     # Seconds to skip re-processing a recognized stude
 # ---------------------------------------------------------------------------
 # Detect-Track-Recognize Pipeline
 # ---------------------------------------------------------------------------
-DETECTION_INTERVAL = 6         # Run face detection every N-th frame (reduced from 10 for faster detection)
-DETECTION_INTERVAL_MIN = int(os.environ.get("DETECTION_INTERVAL_MIN", "3"))
-DETECTION_INTERVAL_MAX = int(os.environ.get("DETECTION_INTERVAL_MAX", "10"))
+DETECTION_INTERVAL = 2         # Run face detection every 2nd frame (aggressive optimization)
+DETECTION_INTERVAL_MIN = int(os.environ.get("DETECTION_INTERVAL_MIN", "2"))
+DETECTION_INTERVAL_MAX = int(os.environ.get("DETECTION_INTERVAL_MAX", "5"))
 TRACK_EXPIRATION_FRAMES = 30   # Remove track after N consecutive failed updates
 TRACK_DETECTOR_MISS_TOLERANCE = 2  # Expire track after N detector cycles without support
 MOTION_THRESHOLD = 5000        # Min non-zero pixels to consider "motion detected"
@@ -192,7 +192,7 @@ LIVENESS_HISTORY_SIZE = int(
     os.environ.get("LIVENESS_HISTORY_SIZE", "5")
 )
 LIVENESS_MIN_HISTORY = int(
-    os.environ.get("LIVENESS_MIN_HISTORY", "2")  # Reduced from 3 for faster confirmation with temporal voting
+    os.environ.get("LIVENESS_MIN_HISTORY", "1")  # Fast liveness confirmation (1 frame minimum)
 )
 LIVENESS_REAL_VOTE_RATIO = float(
     os.environ.get("LIVENESS_REAL_VOTE_RATIO", "0.7")
@@ -303,7 +303,7 @@ CENTROID_DISTANCE_THRESHOLD = 100  # Max centroid distance (px) for match
 # ---------------------------------------------------------------------------
 # MJPEG Streaming
 # ---------------------------------------------------------------------------
-MJPEG_TARGET_FPS = int(os.environ.get("MJPEG_TARGET_FPS", "24"))  # Cap MJPEG stream frame rate
+MJPEG_TARGET_FPS = int(os.environ.get("MJPEG_TARGET_FPS", "15"))  # Reduced from 24 for faster processing
 
 # ---------------------------------------------------------------------------
 # Bounded Buffers
@@ -387,6 +387,91 @@ OCCLUDED_MIN_CONFIDENCE = float(
 OCCLUDED_DISABLE_INCREMENTAL_LEARNING = (
     os.environ.get("OCCLUDED_DISABLE_INCREMENTAL_LEARNING", "1") == "1"
 )
+
+
+# ---------------------------------------------------------------------------
+# Advanced Anti-Spoofing Features
+# ---------------------------------------------------------------------------
+ENABLE_ADVANCED_LIVENESS = os.environ.get("ENABLE_ADVANCED_LIVENESS", "1") == "1"
+ENABLE_CHALLENGE_RESPONSE = os.environ.get("ENABLE_CHALLENGE_RESPONSE", "0") == "1"
+ENABLE_TEXTURE_ANALYSIS = os.environ.get("ENABLE_TEXTURE_ANALYSIS", "1") == "1"
+
+# Liveness signal fusion weights
+LIVENESS_FUSION_WEIGHT_CNN = float(
+    os.environ.get("LIVENESS_FUSION_WEIGHT_CNN", "0.4")
+)
+LIVENESS_FUSION_WEIGHT_BLINK = float(
+    os.environ.get("LIVENESS_FUSION_WEIGHT_BLINK", "0.2")
+)
+LIVENESS_FUSION_WEIGHT_MOTION = float(
+    os.environ.get("LIVENESS_FUSION_WEIGHT_MOTION", "0.2")
+)
+LIVENESS_FUSION_WEIGHT_TEXTURE = float(
+    os.environ.get("LIVENESS_FUSION_WEIGHT_TEXTURE", "0.15")
+)
+LIVENESS_FUSION_WEIGHT_CHALLENGE = float(
+    os.environ.get("LIVENESS_FUSION_WEIGHT_CHALLENGE", "0.05")
+)
+
+# Texture analysis thresholds
+TEXTURE_FLATNESS_THRESHOLD = float(
+    os.environ.get("TEXTURE_FLATNESS_THRESHOLD", "0.7")
+)
+TEXTURE_LBP_RADIUS = int(
+    os.environ.get("TEXTURE_LBP_RADIUS", "1")
+)
+TEXTURE_LBP_POINTS = int(
+    os.environ.get("TEXTURE_LBP_POINTS", "8")
+)
+
+# Challenge-response settings
+CHALLENGE_RESPONSE_TIMEOUT_SECONDS = float(
+    os.environ.get("CHALLENGE_RESPONSE_TIMEOUT_SECONDS", "10.0")
+)
+CHALLENGE_BLINK_EAR_THRESHOLD = float(
+    os.environ.get("CHALLENGE_BLINK_EAR_THRESHOLD", "0.21")
+)
+CHALLENGE_SMILE_MOUTH_THRESHOLD = float(
+    os.environ.get("CHALLENGE_SMILE_MOUTH_THRESHOLD", "0.3")
+)
+CHALLENGE_MOVE_MOTION_THRESHOLD = float(
+    os.environ.get("CHALLENGE_MOVE_MOTION_THRESHOLD", "8.0")
+)
+
+# ---------------------------------------------------------------------------
+# Vector Search (Face Matching Acceleration)
+# ---------------------------------------------------------------------------
+ENABLE_VECTOR_SEARCH = os.environ.get("ENABLE_VECTOR_SEARCH", "1") == "1"
+VECTOR_SEARCH_BACKEND = os.environ.get(
+    "VECTOR_SEARCH_BACKEND", "faiss"
+)  # Options: "faiss", "mongodb_atlas", "hybrid"
+FAISS_INDEX_TYPE = os.environ.get(
+    "FAISS_INDEX_TYPE", "IVFFlat"
+)  # Options: "Flat", "IVFFlat", "HNSW"
+FAISS_INDEX_NLIST = int(os.environ.get("FAISS_INDEX_NLIST", "50"))
+FAISS_INDEX_NPROBE = int(os.environ.get("FAISS_INDEX_NPROBE", "10"))
+FAISS_INDEX_BATCH_SIZE = int(
+    os.environ.get("FAISS_INDEX_BATCH_SIZE", "100")
+)
+VECTOR_SEARCH_K = int(os.environ.get("VECTOR_SEARCH_K", "5"))
+VECTOR_SEARCH_INDEX_PATH = os.environ.get(
+    "VECTOR_SEARCH_INDEX_PATH",
+    None,  # Will be set to {BASE_DIR}/data/faiss_index.bin after BASE_DIR is defined
+)
+
+# ---------------------------------------------------------------------------
+# Dashboard Analytics
+# ---------------------------------------------------------------------------
+ENABLE_ANALYTICS = os.environ.get("ENABLE_ANALYTICS", "1") == "1"
+ANALYTICS_CACHE_SECONDS = float(
+    os.environ.get("ANALYTICS_CACHE_SECONDS", "300.0")
+)
+ANALYTICS_AGGREGATION_MAX_PIPELINE_LENGTH = int(
+    os.environ.get("ANALYTICS_AGGREGATION_MAX_PIPELINE_LENGTH", "50")
+)
+LATE_ARRIVAL_CUTOFF_TIME = os.environ.get(
+    "LATE_ARRIVAL_CUTOFF_TIME", "09:00:00"
+)  # Time after which arrival is marked as "late"
 
 
 # ---------------------------------------------------------------------------
@@ -560,5 +645,171 @@ PERF_USE_KCF_TRACKER = (
 )  # Opt-in to faster KCF tracker (less accurate than default CSRT)
 
 PERF_JPEG_QUALITY = int(
-    os.environ.get("PERF_JPEG_QUALITY", "80")
+    os.environ.get("PERF_JPEG_QUALITY", "60")  # Reduced from 80 for faster encoding
 )  # JPEG encode quality (0-100); lower = faster encode + smaller payload
+
+# PHASE 1: Reliability & Fault Tolerance
+# ---------------------------------------------------------------------------
+
+# Frame Timeout Detection
+CAMERA_FRAME_TIMEOUT_SECONDS = float(
+    os.environ.get("CAMERA_FRAME_TIMEOUT_SECONDS", "5.0")
+)  # Force reconnect if no frame received for this duration
+CAMERA_FRAME_TIMEOUT_CHECK_INTERVAL_SECONDS = float(
+    os.environ.get("CAMERA_FRAME_TIMEOUT_CHECK_INTERVAL_SECONDS", "1.0")
+)  # How often to check for frame timeouts
+
+# Frame Queue Overflow & Dropping
+FRAME_QUEUE_MAX_DEPTH = int(
+    os.environ.get("FRAME_QUEUE_MAX_DEPTH", "50")
+)  # Drop frames if pipeline queue depth exceeds this
+FRAME_DROP_ENABLED = os.environ.get("FRAME_DROP_ENABLED", "1") == "1"  # Enable frame dropping on overload
+
+# Graceful Degradation Under Load
+GRACEFUL_DEGRADATION_ENABLED = os.environ.get(
+    "GRACEFUL_DEGRADATION_ENABLED", "1"
+) == "1"  # Enable auto-throttling when CPU/memory high
+GRACEFUL_DEGRADATION_CPU_THRESHOLD = float(
+    os.environ.get("GRACEFUL_DEGRADATION_CPU_THRESHOLD", "80.0")
+)  # Disable expensive ops if CPU > this %
+GRACEFUL_DEGRADATION_MEMORY_THRESHOLD = float(
+    os.environ.get("GRACEFUL_DEGRADATION_MEMORY_THRESHOLD", "85.0")
+)  # Disable expensive ops if memory > this %
+GRACEFUL_DEGRADATION_DETECTION_INTERVAL_MAX = int(
+    os.environ.get("GRACEFUL_DEGRADATION_DETECTION_INTERVAL_MAX", "15")
+)  # Max detection interval during degradation
+GRACEFUL_DEGRADATION_DISABLE_ANTISPOOF = os.environ.get(
+    "GRACEFUL_DEGRADATION_DISABLE_ANTISPOOF", "1"
+) == "1"  # Skip anti-spoof when CPU high
+
+# ---------------------------------------------------------------------------
+# PHASE 2: Metrics & Observability
+# ---------------------------------------------------------------------------
+
+# Slow Frame Logging
+SLOW_FRAME_THRESHOLD_MS = float(
+    os.environ.get("SLOW_FRAME_THRESHOLD_MS", "200.0")
+)  # Threshold for frame processing warning (lowered to encourage optimization)  # Log warning if frame processing exceeds this (milliseconds)
+
+# ---------------------------------------------------------------------------
+# PHASE 3: Recognition Confidence & False Positive Control
+# ---------------------------------------------------------------------------
+
+# Top-2 Similarity Margin (already configured as RECOGNITION_MIN_DISTANCE_GAP = 0.08)
+# Explicitly set margin for top-2 check (higher = stricter, rejects more ambiguous matches)
+RECOGNITION_TOP2_SIMILARITY_MARGIN = float(
+    os.environ.get("RECOGNITION_TOP2_SIMILARITY_MARGIN", "0.05")
+)  # Margin between top match and 2nd-best (cosine similarity)
+
+# Composed Confidence Score Weights
+COMPOSED_CONFIDENCE_RECOGNITION_WEIGHT = float(
+    os.environ.get("COMPOSED_CONFIDENCE_RECOGNITION_WEIGHT", "0.5")
+)  # Weight of recognition score in final confidence
+COMPOSED_CONFIDENCE_LIVENESS_WEIGHT = float(
+    os.environ.get("COMPOSED_CONFIDENCE_LIVENESS_WEIGHT", "0.3")
+)  # Weight of liveness score in final confidence
+COMPOSED_CONFIDENCE_CONSISTENCY_WEIGHT = float(
+    os.environ.get("COMPOSED_CONFIDENCE_CONSISTENCY_WEIGHT", "0.2")
+)  # Weight of frame consistency score in final confidence
+
+# ---------------------------------------------------------------------------
+# Configuration Validation
+# ---------------------------------------------------------------------------
+
+def validate_configuration():
+    """
+    Validate critical configuration parameters for consistency and valid ranges.
+    
+    Raises:
+        ValueError: If any configuration parameter is invalid
+        
+    Returns:
+        dict: Validation results with any warnings
+    """
+    warnings = []
+    errors = []
+    
+    # Phase 1: Reliability checks
+    if CAMERA_FRAME_TIMEOUT_SECONDS < 1.0 or CAMERA_FRAME_TIMEOUT_SECONDS > 30.0:
+        errors.append(
+            f"CAMERA_FRAME_TIMEOUT_SECONDS must be 1.0-30.0, got {CAMERA_FRAME_TIMEOUT_SECONDS}"
+        )
+    
+    if FRAME_QUEUE_MAX_DEPTH < 10 or FRAME_QUEUE_MAX_DEPTH > 500:
+        errors.append(f"FRAME_QUEUE_MAX_DEPTH must be 10-500, got {FRAME_QUEUE_MAX_DEPTH}")
+    
+    if GRACEFUL_DEGRADATION_CPU_THRESHOLD < 50 or GRACEFUL_DEGRADATION_CPU_THRESHOLD > 95:
+        errors.append(
+            f"GRACEFUL_DEGRADATION_CPU_THRESHOLD must be 50-95, got {GRACEFUL_DEGRADATION_CPU_THRESHOLD}"
+        )
+    
+    if GRACEFUL_DEGRADATION_MEMORY_THRESHOLD < 60 or GRACEFUL_DEGRADATION_MEMORY_THRESHOLD > 95:
+        errors.append(
+            f"GRACEFUL_DEGRADATION_MEMORY_THRESHOLD must be 60-95, got {GRACEFUL_DEGRADATION_MEMORY_THRESHOLD}"
+        )
+    
+    # Phase 2: Metrics checks
+    if SLOW_FRAME_THRESHOLD_MS < 50 or SLOW_FRAME_THRESHOLD_MS > 500:
+        warnings.append(
+            f"SLOW_FRAME_THRESHOLD_MS is {SLOW_FRAME_THRESHOLD_MS}ms; "
+            "recommend 33ms for 60 FPS or 100ms for 30 FPS"
+        )
+    
+    # Phase 3: Confidence checks
+    if RECOGNITION_TOP2_SIMILARITY_MARGIN < 0.01 or RECOGNITION_TOP2_SIMILARITY_MARGIN > 0.20:
+        errors.append(
+            f"RECOGNITION_TOP2_SIMILARITY_MARGIN must be 0.01-0.20, got {RECOGNITION_TOP2_SIMILARITY_MARGIN}"
+        )
+    
+    # Validate composed confidence weights sum to > 0
+    total_weight = (
+        COMPOSED_CONFIDENCE_RECOGNITION_WEIGHT
+        + COMPOSED_CONFIDENCE_LIVENESS_WEIGHT
+        + COMPOSED_CONFIDENCE_CONSISTENCY_WEIGHT
+    )
+    if total_weight <= 0:
+        errors.append(
+            f"Composed confidence weights must sum > 0, got {total_weight}. "
+            f"Recognition={COMPOSED_CONFIDENCE_RECOGNITION_WEIGHT}, "
+            f"Liveness={COMPOSED_CONFIDENCE_LIVENESS_WEIGHT}, "
+            f"Consistency={COMPOSED_CONFIDENCE_CONSISTENCY_WEIGHT}"
+        )
+    
+    if any(w < 0 for w in [
+        COMPOSED_CONFIDENCE_RECOGNITION_WEIGHT,
+        COMPOSED_CONFIDENCE_LIVENESS_WEIGHT,
+        COMPOSED_CONFIDENCE_CONSISTENCY_WEIGHT,
+    ]):
+        errors.append("Composed confidence weights cannot be negative")
+    
+    # Raise errors if any found
+    if errors:
+        error_msg = "Configuration validation failed:\n" + "\n".join(f"  ✗ {e}" for e in errors)
+        raise ValueError(error_msg)
+    
+    return {
+        "status": "ok",
+        "warnings": warnings,
+        "validated_parameters": 10,
+    }
+
+
+# Run validation on module load
+try:
+    _config_validation = validate_configuration()
+except ValueError as e:
+    import logging
+    logging.warning("Configuration validation warning: %s", str(e))
+
+
+# ---------------------------------------------------------------------------
+# Post-Initialization Config Setup
+# ---------------------------------------------------------------------------
+# Set VECTOR_SEARCH_INDEX_PATH if not explicitly configured
+if VECTOR_SEARCH_INDEX_PATH is None:
+    VECTOR_SEARCH_INDEX_PATH = os.path.join(BASE_DIR, "data", "faiss_index.bin")
+
+# Ensure data directory exists
+_data_dir = os.path.dirname(VECTOR_SEARCH_INDEX_PATH)
+if not os.path.exists(_data_dir):
+    os.makedirs(_data_dir, exist_ok=True)

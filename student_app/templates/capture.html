@@ -12,6 +12,13 @@
             <video id="cam" autoplay playsinline class="video-feed-img"></video>
         </div>
 
+        <!-- PHASE 4: Angle guidance display -->
+        <div id="angleGuidance" style="text-align:center; padding: 12px; background: var(--color-bg-muted); border-radius: 8px; margin-bottom: 16px; display: none;">
+            <div style="font-size: 14px; color: var(--color-text-muted); margin-bottom: 8px;">Angle Guidance</div>
+            <div id="angleMessage" style="font-size: 16px; font-weight: 500; color: var(--color-primary);">Face front</div>
+            <div id="angleHint" style="font-size: 12px; color: var(--color-text-muted); margin-top: 4px;">Change angles as instructed</div>
+        </div>
+
         <div class="flex items-center gap-3 mb-4" style="flex-wrap:wrap">
             <button id="startBtn" type="button" class="btn btn-primary">
                 <span class="material-symbols-outlined">videocam</span> Start Camera
@@ -26,6 +33,12 @@
         <div id="errorBox" class="alert alert-error hidden"></div>
         <div id="okBox" class="alert alert-success hidden"></div>
 
+        <!-- PHASE 4: Validation feedback display -->
+        <div id="validationFeedback" class="hidden" style="margin-top: 16px;">
+            <div style="font-weight: 500; margin-bottom: 12px; color: var(--color-text);">Image Quality Results</div>
+            <div id="imageFeedbackList" style="display: flex; flex-direction: column; gap: 8px;"></div>
+        </div>
+
         <div id="thumbs" class="preview-grid preview-grid--4 mt-5"></div>
     {% endcall %}
 
@@ -33,8 +46,9 @@
         <ul style="list-style:disc;padding-left:var(--space-5);font-size:var(--font-size-sm);color:var(--color-text-muted);display:flex;flex-direction:column;gap:var(--space-2)">
             <li>Keep one face in frame.</li>
             <li>Use balanced lighting.</li>
-            <li>Capture front, left, right, slight up/down angles.</li>
+            <li><strong>Capture different angles:</strong> front, left (≈30°), right (≈30°), and slight up/down.</li>
             <li>Avoid blur and heavy backlight.</li>
+            <li>Face should be clear and at least 80×80 pixels.</li>
         </ul>
     {% endcall %}
 </div>
@@ -53,13 +67,46 @@
     const thumbs = document.getElementById("thumbs");
     const errorBox = document.getElementById("errorBox");
     const okBox = document.getElementById("okBox");
+    const angleGuidance = document.getElementById("angleGuidance");
+    const angleMessage = document.getElementById("angleMessage");
+    const angleHint = document.getElementById("angleHint");
+    const validationFeedback = document.getElementById("validationFeedback");
+    const imageFeedbackList = document.getElementById("imageFeedbackList");
 
     let stream = null;
     const frames = [];
 
+    // PHASE 4: Angle guidance suggestions based on frame count
+    const angleSequence = [
+        { position: "Front", hint: "Look straight at camera" },
+        { position: "Left", hint: "Turn head ~30° to the left" },
+        { position: "Right", hint: "Turn head ~30° to the right" },
+        { position: "Slight up/down", hint: "Tilt head up or down slightly" },
+        { position: "Any angle", hint: "Capture from any different angle" },
+    ];
+
+    function getAngleGuidance(frameIndex) {
+        if (frameIndex < angleSequence.length) {
+            return angleSequence[frameIndex];
+        }
+        return angleSequence[angleSequence.length - 1];
+    }
+
+    function updateAngleGuidance() {
+        if (frames.length < maxImages) {
+            const guidance = getAngleGuidance(frames.length);
+            angleMessage.textContent = guidance.position;
+            angleHint.textContent = guidance.hint;
+            angleGuidance.style.display = "block";
+        } else {
+            angleGuidance.style.display = "none";
+        }
+    }
+
     function showError(msg) {
         errorBox.textContent = msg;
         errorBox.classList.remove("hidden");
+        validationFeedback.classList.add("hidden");
     }
 
     function clearError() {
@@ -72,10 +119,95 @@
         okBox.classList.remove("hidden");
     }
 
+    function displayValidationFeedback(response) {
+        """PHASE 4: Display detailed validation feedback from server."""
+        imageFeedbackList.innerHTML = "";
+        validationFeedback.classList.remove("hidden");
+
+        const imageResults = response.image_results || [];
+        imageResults.forEach((result) => {
+            const feedbackItem = document.createElement("div");
+            feedbackItem.style.cssText = `
+                padding: 12px;
+                background: ${result.status.includes("Good") ? "var(--color-bg-success)" : "var(--color-bg-error)"};
+                border-radius: 6px;
+                display: flex;
+                gap: 8px;
+                align-items: center;
+            `;
+            
+            const icon = document.createElement("span");
+            icon.style.cssText = `
+                font-size: 20px;
+                color: ${result.status.includes("Good") ? "var(--color-success)" : "var(--color-error)"};
+            `;
+            icon.textContent = result.status.includes("Good") ? "✓" : "✗";
+            
+            const text = document.createElement("div");
+            text.style.cssText = "font-size: 13px; flex: 1;";
+            text.innerHTML = `<strong>Frame ${result.index + 1}:</strong> ${result.message}`;
+            
+            feedbackItem.appendChild(icon);
+            feedbackItem.appendChild(text);
+            imageFeedbackList.appendChild(feedbackItem);
+        });
+
+        // Display angle diversity feedback
+        const angleFeedback = response.angle_diversity || {};
+        if (!angleFeedback.valid) {
+            const angleItem = document.createElement("div");
+            angleItem.style.cssText = `
+                padding: 12px;
+                background: var(--color-bg-warning);
+                border-radius: 6px;
+                display: flex;
+                gap: 8px;
+                align-items: center;
+            `;
+            
+            const icon = document.createElement("span");
+            icon.style.cssText = "font-size: 20px; color: var(--color-warning);";
+            icon.textContent = "⚠";
+            
+            const text = document.createElement("div");
+            text.style.cssText = "font-size: 13px; flex: 1;";
+            text.innerHTML = `<strong>Angle Diversity:</strong> ${angleFeedback.message}`;
+            
+            angleItem.appendChild(icon);
+            angleItem.appendChild(text);
+            imageFeedbackList.appendChild(angleItem);
+        }
+
+        if (response.duplicate_detected) {
+            const dupItem = document.createElement("div");
+            dupItem.style.cssText = `
+                padding: 12px;
+                background: var(--color-bg-error);
+                border-radius: 6px;
+                display: flex;
+                gap: 8px;
+                align-items: center;
+            `;
+            
+            const icon = document.createElement("span");
+            icon.style.cssText = "font-size: 20px; color: var(--color-error);";
+            icon.textContent = "✗";
+            
+            const text = document.createElement("div");
+            text.style.cssText = "font-size: 13px; flex: 1;";
+            text.innerHTML = `<strong>Duplicate Detection:</strong> ${response.duplicate_detected}`;
+            
+            dupItem.appendChild(icon);
+            dupItem.appendChild(text);
+            imageFeedbackList.appendChild(dupItem);
+        }
+    }
+
     function updateButtons() {
         counter.textContent = `${frames.length} frame(s) captured`;
         snapBtn.disabled = !stream || frames.length >= maxImages;
         submitBtn.disabled = frames.length < minImages;
+        updateAngleGuidance();
     }
 
     startBtn.addEventListener("click", async () => {
@@ -129,7 +261,11 @@
             });
             const payload = await res.json();
             if (!res.ok) {
-                throw new Error(payload.error || "Capture verification failed.");
+                // PHASE 4: Display validation feedback on error
+                displayValidationFeedback(payload);
+                showError(payload.error || "Capture verification failed.");
+                okBox.classList.add("hidden");
+                return;
             }
             const score = typeof payload.score === "number" ? payload.score.toFixed(1) : "0.0";
             showOk(`Capture submitted. Status: ${payload.status}. Score: ${score}%`);

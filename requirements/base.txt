@@ -35,6 +35,7 @@ dnspython>=2.4,<3.0
 # DevOps / utilities
 gunicorn>=21.0,<24.0
 python-dotenv>=1.0,<2.0
+psutil>=5.9,<6.0  # System monitoring (CPU/memory for graceful degradation)
 
 # Miscellaneous
 bcrypt>=4.1,<5.0
@@ -42,3 +43,7 @@ email-validator>=2.0,<3.0
 Markdown>=3.5,<4.0
 apscheduler>=3.10,<4.0
 PyJWT>=2.8,<3.0
+
+# Analytics and Vector Search (Advanced Features)
+plotly>=5.14,<6.0  # Interactive dashboard charts
+faiss-cpu>=1.7,<2.0  # Vector search for face matching (CPU version)

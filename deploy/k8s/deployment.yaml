@@ -1,0 +1,193 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: attendance-system
+  labels:
+    name: attendance-system
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: attendance-admin
+  namespace: attendance-system
+  labels:
+    app: attendance
+    component: admin
+    phase: 7
+  annotations:
+    description: "AutoAttendance Admin Application - Phase 7 Production Deployment"
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: attendance
+      component: admin
+  template:
+    metadata:
+      labels:
+        app: attendance
+        component: admin
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "5000"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: attendance-admin
+      terminationGracePeriodSeconds: 30
+      
+      # Security context
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      
+      containers:
+      - name: admin
+        image: attendance-admin:latest
+        imagePullPolicy: IfNotPresent
+        
+        # Security context for container
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: false
+        
+        # Port
+        ports:
+        - name: http
+          containerPort: 5000
+          protocol: TCP
+        
+        # Environment from ConfigMap and Secrets
+        envFrom:
+        - configMapRef:
+            name: attendance-config
+        - secretRef:
+            name: attendance-secrets
+        
+        # Resource requests and limits
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2000m
+            memory: 2Gi
+        
+        # Startup probe: Allow 30 seconds for app to start
+        # totalFailureThreshold = initialDelaySeconds + (failureThreshold * periodSeconds)
+        # = 5 + (6 * 5) = 35 seconds
+        startupProbe:
+          httpGet:
+            path: /api/health
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 6
+          successThreshold: 1
+        
+        # Liveness probe: Restart if unhealthy for 30 seconds
+        # Checks every 10 seconds; fail after 3 consecutive failures = 30 seconds
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+          successThreshold: 1
+        
+        # Readiness probe: Remove from service if not ready
+        # Check every 5 seconds; fail after 2 consecutive failures = 10 seconds
+        readinessProbe:
+          httpGet:
+            path: /api/readiness
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 2
+          successThreshold: 1
+        
+        # Volume mounts
+        volumeMounts:
+        - name: logs
+          mountPath: /app/logs
+          readOnly: false
+        - name: tmp
+          mountPath: /tmp
+          readOnly: false
+      
+      # Volumes
+      volumes:
+      - name: logs
+        emptyDir:
+          sizeLimit: 500Mi
+      - name: tmp
+        emptyDir:
+          sizeLimit: 1Gi
+      
+      # Node affinity for reliability
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/os
+                operator: In
+                values:
+                - linux
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: attendance-admin
+  namespace: attendance-system
+  labels:
+    app: attendance
+    component: admin
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: attendance-admin
+  namespace: attendance-system
+  labels:
+    app: attendance
+    component: admin
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["pods/log"]
+  verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: attendance-admin
+  namespace: attendance-system
+  labels:
+    app: attendance
+    component: admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: attendance-admin
+subjects:
+- kind: ServiceAccount
+  name: attendance-admin
+  namespace: attendance-system

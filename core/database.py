@@ -264,6 +264,29 @@ def ensure_indexes():
         [("last_activity_at", ASCENDING)],
         name="idx_attendance_sessions_last_activity",
     )
+    
+    # PHASE 5: Security logs indexes
+    db.security_logs.create_index(
+        [("timestamp", ASCENDING)],
+        name="idx_security_logs_timestamp",
+    )
+    db.security_logs.create_index(
+        [("type", ASCENDING), ("timestamp", ASCENDING)],
+        name="idx_security_logs_type_timestamp",
+    )
+    db.security_logs.create_index(
+        [("student_id", ASCENDING), ("timestamp", ASCENDING)],
+        name="idx_security_logs_student_timestamp",
+    )
+    db.security_logs.create_index(
+        [("camera_id", ASCENDING), ("timestamp", ASCENDING)],
+        name="idx_security_logs_camera_timestamp",
+    )
+    db.security_logs.create_index(
+        [("severity", ASCENDING), ("timestamp", ASCENDING)],
+        name="idx_security_logs_severity_timestamp",
+    )
+    
     logger.info("Database indexes ensured.")
 
 
@@ -906,8 +929,13 @@ def mark_attendance(
     student_id: bson.ObjectId,
     confidence: float,
     session_id: bson.ObjectId | str | None = None,
+    liveness_score: float | None = None,
+    consistency_score: float | None = None,
+    composed_confidence: float | None = None,
 ) -> bool:
     """Mark attendance for *student_id* today.
+    
+    PHASE 3: Supports composed confidence scoring with liveness and consistency metrics.
 
     Returns True if a new record was inserted, False if already present.
     
@@ -943,11 +971,19 @@ def mark_attendance(
             "status": "Present",
             "confidence_score": round(confidence, 4),
         }
+        # PHASE 3: Add optional liveness and consistency scores
+        if liveness_score is not None:
+            doc["liveness_score"] = round(float(liveness_score), 4)
+        if consistency_score is not None:
+            doc["consistency_score"] = round(float(consistency_score), 4)
+        if composed_confidence is not None:
+            doc["composed_confidence"] = round(float(composed_confidence), 4)
         if normalized_session_id is not None:
             doc["session_id"] = normalized_session_id
         db.attendance.insert_one(doc)
         logger.info(
-            "Attendance marked for student %s on %s.", student_id, date
+            "Attendance marked for student %s on %s (confidence=%.4f, composed=%.4f).",
+            student_id, date, confidence, composed_confidence or confidence
         )
         return True
     except DuplicateKeyError:

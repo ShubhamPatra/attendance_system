@@ -27,9 +27,12 @@ import time
 
 import cv2
 import numpy as np
+import psutil
 
 import core.config as config
 import core.database as database
+import core.metrics as metrics
+from core.security_logs import get_security_logger, get_anomaly_detector  # PHASE 5
 from vision.overlay import draw_track_overlay
 from core.performance import tracker
 from vision.pipeline import FaceTrack, centroid_distance, detect_and_associate_detailed, detect_motion, iou
@@ -81,6 +84,27 @@ def _ppe_detection_module():
         import vision.ppe_detection as _mod
         _lazy_ppe_detection = _mod
     return _lazy_ppe_detection
+
+
+# -- Advanced anti-spoofing modules (lazy-loaded) --
+_lazy_texture_analyzer = None
+_lazy_challenge_response = None
+
+
+def _texture_analyzer_module():
+    global _lazy_texture_analyzer
+    if _lazy_texture_analyzer is None:
+        import vision.texture_analyzer as _mod
+        _lazy_texture_analyzer = _mod
+    return _lazy_texture_analyzer
+
+
+def _challenge_response_module():
+    global _lazy_challenge_response
+    if _lazy_challenge_response is None:
+        import vision.challenge_response as _mod
+        _lazy_challenge_response = _mod
+    return _lazy_challenge_response
 
 
 def _encoding_cache():
@@ -254,6 +278,12 @@ class Camera:
         self._last_reconnect_time = time.time()
         self._reconnect_backoff_delay = config.CAMERA_RECONNECT_INITIAL_DELAY_SECONDS
 
+        # PHASE 1: Reliability tracking
+        self._last_frame_timestamp = time.monotonic()  # For timeout detection
+        self._frame_drop_count = 0  # Track dropped frames
+        self._system_load_state = "normal"  # "normal" or "degraded"
+        self._last_load_check_time = time.monotonic()
+
         # Latest attendance events (for UI overlay / SSE -- consumed on read)
         self._events: collections.deque[dict] = collections.deque(
             maxlen=config.EVENT_BUFFER_MAX,
@@ -335,6 +365,97 @@ class Camera:
             )[:overflow]
             for tid, _ in oldest:
                 self._track_identity_cache.pop(tid, None)
+
+    # -- PHASE 1: Reliability & Fault Tolerance helpers --
+
+    def _get_system_load(self) -> tuple[float, float]:
+        """Return current CPU % and memory % usage.
+        
+        Returns (cpu_percent, memory_percent).
+        On error, returns (0.0, 0.0) to avoid disabling pipeline.
+        """
+        try:
+            # Use interval=0 to avoid blocking (uses cached value from OS)
+            # Short intervals like 0.01 give unreliable, spiky measurements
+            cpu_percent = psutil.cpu_percent(interval=0)
+            memory_info = psutil.virtual_memory()
+            memory_percent = memory_info.percent
+            return cpu_percent, memory_percent
+        except Exception as exc:
+            logger.debug("Failed to get system load: %s", exc)
+            return 0.0, 0.0
+
+    def _update_load_state(self) -> None:
+        """Update system load state (normal vs degraded).
+        
+        Sets self._system_load_state to "normal" or "degraded".
+        Logs state changes.
+        """
+        if not config.GRACEFUL_DEGRADATION_ENABLED:
+            self._system_load_state = "normal"
+            return
+
+        now = time.monotonic()
+        if now - self._last_load_check_time < 1.0:
+            return  # Check at most once per second
+
+        self._last_load_check_time = now
+        cpu_percent, memory_percent = self._get_system_load()
+
+        new_state = "normal"
+        if cpu_percent > config.GRACEFUL_DEGRADATION_CPU_THRESHOLD:
+            new_state = "degraded"
+            reason = f"CPU {cpu_percent:.1f}% > {config.GRACEFUL_DEGRADATION_CPU_THRESHOLD}%"
+        elif memory_percent > config.GRACEFUL_DEGRADATION_MEMORY_THRESHOLD:
+            new_state = "degraded"
+            reason = f"Memory {memory_percent:.1f}% > {config.GRACEFUL_DEGRADATION_MEMORY_THRESHOLD}%"
+
+        if new_state != self._system_load_state:
+            self._system_load_state = new_state
+            if new_state == "degraded":
+                logger.warning(
+                    "Camera %d: System load degradation detected (%s); "
+                    "disabling expensive operations.",
+                    self._source,
+                    reason,
+                )
+                _emit_event("system_degradation", {
+                    "camera_id": self._source,
+                    "reason": reason,
+                    "cpu_percent": cpu_percent,
+                    "memory_percent": memory_percent,
+                })
+            else:
+                logger.info(
+                    "Camera %d: System load normalized; re-enabling all operations.",
+                    self._source,
+                )
+
+    def _should_drop_frame(self) -> bool:
+        """PHASE 1: Check if frame should be dropped due to queue depth.
+        
+        Returns True if current event buffer depth exceeds threshold.
+        """
+        if not config.FRAME_DROP_ENABLED:
+            return False
+
+        with self._events_lock:
+            current_depth = len(self._events)
+
+        if current_depth > config.FRAME_QUEUE_MAX_DEPTH:
+            self._frame_drop_count += 1
+            if self._frame_drop_count % 10 == 0:  # Log every 10 drops
+                logger.warning(
+                    "Camera %d: Dropping frame (queue depth=%d > max=%d, "
+                    "total_drops=%d)",
+                    self._source,
+                    current_depth,
+                    config.FRAME_QUEUE_MAX_DEPTH,
+                    self._frame_drop_count,
+                )
+            return True
+
+        return False
 
     def _record_stage_time(self, stage_name: str, start_time: float) -> None:
         tracker.record_stage_time(stage_name, time.perf_counter() - start_time)
@@ -545,17 +666,45 @@ class Camera:
         logger.info("Camera %d stopped.", self._source)
 
     def _capture_loop(self):
-        """Capture frames from camera with exponential backoff on read failures."""
+        """Capture frames from camera with exponential backoff on read failures.
+        
+        PHASE 1: Implements frame timeout detection. If no frame is received
+        within CAMERA_FRAME_TIMEOUT_SECONDS, forces a reconnection attempt.
+        """
         while self._running:
             ok, frame = self._cap.read()
             if ok:
                 # Reset backoff on successful read
                 self._reconnect_attempts = 0
                 self._reconnect_backoff_delay = config.CAMERA_RECONNECT_INITIAL_DELAY_SECONDS
+                self._last_frame_timestamp = time.monotonic()
                 with self._lock:
                     self._frame = frame
                     self._frame_fresh = True
             else:
+                # PHASE 1: Check for frame timeout
+                now = time.monotonic()
+                time_since_last_frame = now - self._last_frame_timestamp
+                if time_since_last_frame > config.CAMERA_FRAME_TIMEOUT_SECONDS:
+                    logger.warning(
+                        "Camera %d: Frame timeout (%.1f seconds > %.1f second threshold); "
+                        "forcing reconnect.",
+                        self._source,
+                        time_since_last_frame,
+                        config.CAMERA_FRAME_TIMEOUT_SECONDS,
+                    )
+                    self._cap.release()
+                    time.sleep(0.5)
+                    self._cap = cv2.VideoCapture(self._source)
+                    self._last_frame_timestamp = now
+                    self._reconnect_attempts = 0
+                    self._reconnect_backoff_delay = config.CAMERA_RECONNECT_INITIAL_DELAY_SECONDS
+                    _emit_event("camera_reconnect", {
+                        "camera_id": self._source,
+                        "reason": "frame_timeout",
+                        "timeout_seconds": config.CAMERA_FRAME_TIMEOUT_SECONDS,
+                    })
+                
                 # Handle read failure with exponential backoff
                 self._reconnect_attempts += 1
                 if self._reconnect_attempts == 1:
@@ -871,6 +1020,46 @@ class Camera:
             trk.verification_started_at = now
             return "uncertain", conf
 
+        # -- Advanced anti-spoofing: texture and challenge response integration --
+        texture_score = 0.0
+        challenge_score = 0.0
+        
+        if config.ENABLE_ADVANCED_LIVENESS and face_crop.size > 0:
+            # Texture analysis: detect flat surfaces (screens, printed photos)
+            if config.ENABLE_TEXTURE_ANALYSIS:
+                try:
+                    ta = _texture_analyzer_module().TextureAnalyzer()
+                    lbp_hist, flatness = ta.analyze_texture(face_crop)
+                    texture_score = 1.0 - flatness  # Invert: high flatness = low score
+                except Exception as exc:
+                    if config.DEBUG_MODE:
+                        logger.debug("Texture analysis failed: %s", exc)
+                    texture_score = 0.5  # Neutral default
+            
+            # Challenge response: blink, smile, move detection
+            if config.ENABLE_CHALLENGE_RESPONSE and getattr(trk, "landmarks_5", None) is not None:
+                try:
+                    cr = _challenge_response_module().ChallengeResponse()
+                    # Check if challenge is active and needs validation
+                    if hasattr(trk, "challenge_state") and trk.challenge_state:
+                        challenge_response = cr.validate_response(
+                            landmarks=trk.landmarks_5,
+                            motion_history=trk.motion_history,
+                            frame=face_crop,
+                            challenge_type=trk.challenge_state.get("type", "blink"),
+                        )
+                        challenge_score = challenge_response.get("confidence", 0.0)
+                except Exception as exc:
+                    if config.DEBUG_MODE:
+                        logger.debug("Challenge response validation failed: %s", exc)
+                    challenge_score = 0.0
+        
+        # Compute motion score for fusion (normalized pixel motion to [0, 1])
+        motion_score = min(1.0, motion_px / max(1.0, config.LIVENESS_FACE_MOTION_MIN_PIXELS))
+        
+        # Compute blink score for fusion
+        blink_score = 1.0 if getattr(trk, "blink_count", 0) > 0 else 0.0
+
         # Check spoof hold temporal override
         if now < trk.spoof_hold_until:
             state = "spoof"
@@ -902,9 +1091,30 @@ class Camera:
         else:
             state, score = self._decide_liveness_from_history(trk)
 
+        # -- Apply advanced liveness fusion if enabled --
+        if config.ENABLE_ADVANCED_LIVENESS and state != "spoof":
+            try:
+                from vision.anti_spoofing import fuse_liveness_signals
+                fused_score = fuse_liveness_signals(
+                    cnn_score=conf,
+                    blink_score=blink_score,
+                    motion_score=motion_score,
+                    texture_score=texture_score,
+                    challenge_score=challenge_score,
+                )
+                if config.DEBUG_MODE:
+                    logger.debug(
+                        "Liveness fusion: CNN=%.3f blink=%.3f motion=%.3f texture=%.3f "
+                        "challenge=%.3f fused=%.3f",
+                        conf, blink_score, motion_score, texture_score, 
+                        challenge_score, fused_score,
+                    )
+                score = fused_score
+            except Exception as exc:
+                if config.DEBUG_MODE:
+                    logger.debug("Liveness fusion failed, using original score: %s", exc)
+
         if state == "uncertain" and config.LIVENESS_WEIGHTED_DECISION_ENABLED:
-            blink_score = 1.0 if getattr(trk, "blink_count", 0) > 0 else 0.0
-            motion_score = min(1.0, motion_px / max(1.0, config.LIVENESS_FACE_MOTION_MIN_PIXELS))
             screen_penalty = 0.25 if analysis.get("screen_suspicious") and self._screen_heuristics_allowed(trk) else 0.0
             weighted = self._weighted_liveness_score(conf, blink_score, motion_score, screen_penalty)
             if weighted >= config.LIVENESS_WEIGHTED_ACCEPT_THRESHOLD and conf >= config.LIVENESS_STRICT_THRESHOLD:
@@ -1040,6 +1250,17 @@ class Camera:
                 tracker.record_liveness_event("spoof_true")
                 tracker.record_liveness_event("spoof_detected")
                 tracker.record_recognition(False, False)
+                # PHASE 5: Log security event for spoof detection
+                try:
+                    security_logger = get_security_logger()
+                    security_logger.log_spoof_attempt(
+                        camera_id=self._camera_id if hasattr(self, '_camera_id') else None,
+                        student_id=trk.identity[0] if trk.identity else None,
+                        liveness_score=score,
+                        reason=f"Spoof detected: label={label}, confidence={conf:.4f}",
+                    )
+                except Exception as e:
+                    logger.debug("Failed to log spoof attempt: %s", e)
                 self._push_event({
                     "name": "Unknown",
                     "status": "spoof_detected",
@@ -1055,6 +1276,17 @@ class Camera:
         if prev_state != "uncertain":
             tracker.record_liveness_event("spoof_uncertain")
             tracker.record_liveness_event("liveness_uncertain")
+            # PHASE 5: Log security event for liveness uncertainty
+            if state == "uncertain" and score < config.LIVENESS_CONFIDENCE_THRESHOLD:
+                try:
+                    security_logger = get_security_logger()
+                    security_logger.log_liveness_uncertain(
+                        camera_id=self._camera_id if hasattr(self, '_camera_id') else None,
+                        student_id=trk.identity[0] if trk.identity else None,
+                        liveness_score=score,
+                    )
+                except Exception as e:
+                    logger.debug("Failed to log liveness uncertainty: %s", e)
 
     def _evaluate_track_ppe(
         self,
@@ -1337,6 +1569,27 @@ class Camera:
 
             second_hits = ranked[1][1] if len(ranked) > 1 else 0
             if best_hits == second_hits and len(ranked) > 1:
+                # PHASE 5: Log security event for multi-identity detection
+                try:
+                    security_logger = get_security_logger()
+                    candidates_to_log = [
+                        {
+                            "student_id": ranked[0][0],
+                            "name": names.get(ranked[0][0], "Unknown"),
+                            "confidence": max(confidence_buckets.get(ranked[0][0], [0.0])),
+                        },
+                        {
+                            "student_id": ranked[1][0],
+                            "name": names.get(ranked[1][0], "Unknown"),
+                            "confidence": max(confidence_buckets.get(ranked[1][0], [0.0])),
+                        },
+                    ]
+                    security_logger.log_multi_identity(
+                        camera_id=self._camera_id if hasattr(self, '_camera_id') else None,
+                        candidates=candidates_to_log,
+                    )
+                except Exception as e:
+                    logger.debug("Failed to log multi-identity detection: %s", e)
                 trk.is_unknown = True
                 trk.state = "liveness_pending"
                 trk.quality_reason = (
@@ -1465,7 +1718,10 @@ class Camera:
         ppe_state: str = "none",
         ppe_confidence: float = 0.0,
     ):
-        """Apply cooldown check, mark attendance, and perform incremental learning."""
+        """Apply cooldown check, mark attendance, and perform incremental learning.
+        
+        PHASE 3: Computes composed confidence score from recognition, liveness, and consistency.
+        """
         now = time.monotonic()
         with self._seen_lock:
             last_seen = self._seen.get(student_id, 0)
@@ -1490,6 +1746,46 @@ class Camera:
                     "section": student_doc.get("section", ""),
                 }
 
+        # PHASE 3: Compute frame consistency score
+        # Based on how many frames in the prediction buffer match this student
+        consistency_score = 0.0
+        if track and hasattr(track, 'identity_prediction_buffer'):
+            buffer_size = len(track.identity_prediction_buffer)
+            if buffer_size > 0:
+                # Count how many predictions match this student
+                matching_predictions = sum(
+                    1 for pred in track.identity_prediction_buffer
+                    if pred.get("student_id") == student_id
+                )
+                # Consistency = fraction of recent predictions that match
+                consistency_score = float(matching_predictions) / float(buffer_size)
+
+        # PHASE 3: Compute composed confidence score
+        # Combines: recognition score + liveness score + consistency score
+        recognition_weight = config.COMPOSED_CONFIDENCE_RECOGNITION_WEIGHT
+        liveness_weight = config.COMPOSED_CONFIDENCE_LIVENESS_WEIGHT
+        consistency_weight = config.COMPOSED_CONFIDENCE_CONSISTENCY_WEIGHT
+        total_weight = recognition_weight + liveness_weight + consistency_weight
+
+        if total_weight > 0:
+            composed_confidence = (
+                (recognition_weight * confidence) +
+                (liveness_weight * liveness_conf) +
+                (consistency_weight * consistency_score)
+            ) / total_weight
+        else:
+            composed_confidence = confidence
+
+        logger.debug(
+            "Composed confidence for %s: recognition=%.4f(%.2f%) + "
+            "liveness=%.4f(%.2f%) + consistency=%.4f(%.2f%) = %.4f",
+            name,
+            confidence, recognition_weight * 100 / total_weight,
+            liveness_conf, liveness_weight * 100 / total_weight,
+            consistency_score, consistency_weight * 100 / total_weight,
+            composed_confidence,
+        )
+
         active_session = self._get_active_session_for_camera()
         if active_session is None:
             with self._seen_lock:
@@ -1513,6 +1809,9 @@ class Camera:
                 student_id,
                 confidence,
                 session_id=session_id,
+                liveness_score=liveness_conf,  # PHASE 3
+                consistency_score=consistency_score,  # PHASE 3
+                composed_confidence=composed_confidence,  # PHASE 3
             )
             if marked and session_id is not None:
                 database.touch_attendance_session(session_id)
@@ -1539,6 +1838,8 @@ class Camera:
             "status": "marked",
             "confidence": round(confidence, 4),
             "liveness_confidence": round(liveness_conf, 4),
+            "composed_confidence": round(composed_confidence, 4),  # PHASE 3
+            "consistency_score": round(consistency_score, 4),  # PHASE 3
             "ppe_state": ppe_state,
             "ppe_confidence": round(float(ppe_confidence), 4),
             "attendance_marked": marked,
@@ -1550,8 +1851,8 @@ class Camera:
         if marked:
             logger.info(
                 "Attendance marked: student=%s confidence=%.4f "
-                "liveness_confidence=%.4f",
-                name, confidence, liveness_conf,
+                "liveness_confidence=%.4f composed_confidence=%.4f consistency=%.4f",
+                name, confidence, liveness_conf, composed_confidence, consistency_score,
             )
 
         if (
@@ -1597,7 +1898,15 @@ class Camera:
                 )
 
     def process_frame(self) -> bytes | None:
-        """Grab latest frame, update trackers, detect new faces, and return JPEG."""
+        """Grab latest frame, update trackers, detect new faces, and return JPEG.
+        
+        PHASE 1: Implements frame dropping on queue overflow and graceful
+        degradation under high CPU/memory load.
+        """
+        # PHASE 1: Check if frame should be dropped due to queue depth
+        if self._should_drop_frame():
+            return self.get_latest_jpeg()
+
         if not self._process_lock.acquire(blocking=False):
             return self.get_latest_jpeg()
 
@@ -1628,6 +1937,9 @@ class Camera:
                     if float(entry.get("expires_at", 0.0)) > time.monotonic()
                 }
 
+            # PHASE 1: Update system load state
+            self._update_load_state()
+
             surviving: list[FaceTrack] = []
             for trk in self._tracks:
                 trk.update(frame)
@@ -1647,7 +1959,14 @@ class Camera:
             else:
                 motion, self._prev_gray = detect_motion(self._prev_gray, frame)
 
+            # PHASE 1: Adjust detection interval based on load state
             dynamic_interval = self._effective_detection_interval(motion)
+            if self._system_load_state == "degraded":
+                dynamic_interval = min(
+                    dynamic_interval + 2,
+                    config.GRACEFUL_DEGRADATION_DETECTION_INTERVAL_MAX,
+                )
+
             if self._frame_count % dynamic_interval == 0:
                 detection_start = time.perf_counter()
                 run_detection = motion or (
@@ -1732,6 +2051,10 @@ class Camera:
                             % max(1, config.PERF_RECOGNITION_INTERVAL) == 0
                         )
 
+                        # PHASE 1: Skip anti-spoof during degradation if configured
+                        if self._system_load_state == "degraded" and config.GRACEFUL_DEGRADATION_DISABLE_ANTISPOOF:
+                            run_antispoof = False
+
                         raw_box = self._to_raw_bbox(trk.bbox, sx, sy)
 
                         if run_antispoof:
@@ -1813,6 +2136,32 @@ class Camera:
             tracker.record_frame_time(elapsed)
             self._process_frame_times.append(elapsed)
 
+            # PHASE 2: Record metrics for this frame
+            elapsed_ms = elapsed * 1000.0
+            metrics.record_frame_time(self._source, elapsed_ms)
+
+            # PHASE 2: Update queue depth metric
+            with self._events_lock:
+                queue_depth = len(self._events)
+            metrics.set_queue_depth(self._source, queue_depth)
+
+            # PHASE 2: Slow frame logging - if frame took too long
+            if elapsed_ms > (config.SLOW_FRAME_THRESHOLD_MS if hasattr(config, 'SLOW_FRAME_THRESHOLD_MS') else 100.0):
+                # Get pipeline stage times from performance tracker
+                perf_metrics = tracker.metrics()
+                logger.warning(
+                    "Slow frame detected on camera %d: total=%.1f ms > threshold; "
+                    "detection=%.1f ms, recognition=%.1f ms, liveness=%.1f ms, "
+                    "queue_depth=%d, tracks=%d",
+                    self._source,
+                    elapsed_ms,
+                    perf_metrics.get("stage_latency_ms", {}).get("detection", 0),
+                    perf_metrics.get("stage_latency_ms", {}).get("recognition", 0),
+                    perf_metrics.get("stage_latency_ms", {}).get("liveness", 0),
+                    queue_depth,
+                    len(self._tracks),
+                )
+
             if self._frame_count % 30 == 0:
                 _emit_event("metrics_update", tracker.metrics())
 
@@ -1831,7 +2180,10 @@ class Camera:
             return self._last_jpeg
 
     def diagnostics(self) -> dict:
-        """Return runtime diagnostics for this camera instance."""
+        """Return runtime diagnostics for this camera instance.
+        
+        PHASE 1: Includes frame drop count and system load state.
+        """
         with self._lock:
             frame_shape = self._frame.shape[:2] if self._frame is not None else None
         return {
@@ -1840,6 +2192,8 @@ class Camera:
             "frame_shape": frame_shape,
             "frame_count": self._frame_count,
             "active_tracks": len(self._tracks),
+            "frame_drops": self._frame_drop_count,  # PHASE 1
+            "system_load_state": self._system_load_state,  # PHASE 1
             "tracks": [
                 {
                     "track_id": trk.track_id,

@@ -68,6 +68,23 @@ DEPLOY_ENV=local
 WORKERS=2
 ```
 
+### Advanced Configuration
+
+For comprehensive configuration of reliability, metrics, confidence scoring, enrollment quality, security logging, and other advanced parameters, see **[Configuration Guide](docs/CONFIG_GUIDE.md)**.
+
+This guide covers:
+- Phase 1: Reliability hardening (frame timeouts, graceful degradation)
+- Phase 2: Metrics and observability
+- Phase 3: Recognition confidence and false positive control
+- Phase 4: Enrollment quality control
+- Phase 5: Anti-cheat logging and analytics
+- Phase 7: Kubernetes health probes
+- Environment-specific tuning (dev/staging/production)
+- Performance optimization recommendations
+- Troubleshooting common configuration issues
+
+All parameters support environment variable overrides for containerized deployments.
+
 ## ✅ Verification
 
 Verify the installation was successful:

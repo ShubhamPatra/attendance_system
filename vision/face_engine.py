@@ -381,6 +381,10 @@ class EncodingCache:
         self._student_prototypes: np.ndarray | None = None  # (S, D)
         self._prototype_student_idx: np.ndarray | None = None  # (S,) -> student index
         self._embedding_dim: int = config.EMBEDDING_DIM
+        
+        # FAISS index for vector search (optional, loaded on-demand)
+        self._faiss_index = None
+        self._faiss_available = False
 
     def _rebuild_flat(self):
         """Rebuild the flattened encoding matrix from per-student lists.
@@ -501,6 +505,58 @@ class EncodingCache:
             "Encoding cache loaded: %d students, dim=%d.",
             len(rows), self._embedding_dim,
         )
+        
+        # Try to load FAISS index if available
+        if config.ENABLE_VECTOR_SEARCH:
+            self._try_load_faiss_index()
+
+    def _try_load_faiss_index(self) -> None:
+        """Try to load FAISS index from disk; silent no-op if unavailable."""
+        if not config.ENABLE_VECTOR_SEARCH:
+            return
+        
+        try:
+            from vision.embedding_search import get_global_index
+            index = get_global_index()
+            if index and index.is_available():
+                self._faiss_index = index
+                self._faiss_available = True
+                logger.info("FAISS index loaded for vector search")
+            else:
+                self._faiss_available = False
+        except Exception as exc:
+            if config.DEBUG_MODE:
+                logger.debug("Could not load FAISS index: %s", exc)
+            self._faiss_available = False
+
+    def search_with_faiss(self, query_embedding: np.ndarray, k: int = 5) -> list[int] | None:
+        """Use FAISS index to retrieve top-k student candidates.
+        
+        Returns list of student indices, or None if FAISS unavailable.
+        """
+        if not self._faiss_available or self._faiss_index is None:
+            return None
+        
+        try:
+            results = self._faiss_index.search(query_embedding, k=k)
+            if not results:
+                return None
+            
+            # Extract student indices from results
+            student_indices = set()
+            for student_id, distance, confidence in results:
+                try:
+                    idx = self._ids.index(student_id)
+                    student_indices.add(idx)
+                except ValueError:
+                    pass
+            
+            return list(student_indices) if student_indices else None
+        except Exception as exc:
+            if config.DEBUG_MODE:
+                logger.debug("FAISS search failed: %s", exc)
+            return None
+
 
     def refresh(self):
         """Alias for load — call after new registration."""
@@ -727,31 +783,46 @@ def recognize_face(
         and stage1_idx is not None
         and len(stage1_prototypes) > 0
     ):
-        stage1_sims = stage1_prototypes @ query
-        top_k = max(1, int(config.RECOGNITION_STAGE1_TOP_K))
-        min_similarity = float(config.RECOGNITION_STAGE1_MIN_SIMILARITY)
-        margin = max(0.0, float(config.RECOGNITION_STAGE1_MARGIN))
-
-        ranked = np.argsort(stage1_sims)[::-1]
-        if len(ranked) > 0:
-            best_stage1 = float(stage1_sims[ranked[0]])
-            dynamic_floor = max(min_similarity, best_stage1 - margin)
+        # Try FAISS first if enabled
+        faiss_candidates = None
+        if config.ENABLE_VECTOR_SEARCH:
+            faiss_candidates = encoding_cache.search_with_faiss(query, k=max(1, int(config.RECOGNITION_STAGE1_TOP_K)))
+        
+        if faiss_candidates:
+            # Use FAISS results
+            candidate_student_indices.update(faiss_candidates)
+            if config.DEBUG_MODE:
+                logger.debug(
+                    "recognize_face: FAISS stage1 selected %d candidates",
+                    len(candidate_student_indices),
+                )
         else:
-            dynamic_floor = min_similarity
+            # Fallback to prototype-based stage1
+            stage1_sims = stage1_prototypes @ query
+            top_k = max(1, int(config.RECOGNITION_STAGE1_TOP_K))
+            min_similarity = float(config.RECOGNITION_STAGE1_MIN_SIMILARITY)
+            margin = max(0.0, float(config.RECOGNITION_STAGE1_MARGIN))
 
-        for proto_pos in ranked[:top_k]:
-            sim = float(stage1_sims[proto_pos])
-            if sim < dynamic_floor:
-                continue
-            candidate_student_indices.add(int(stage1_idx[proto_pos]))
+            ranked = np.argsort(stage1_sims)[::-1]
+            if len(ranked) > 0:
+                best_stage1 = float(stage1_sims[ranked[0]])
+                dynamic_floor = max(min_similarity, best_stage1 - margin)
+            else:
+                dynamic_floor = min_similarity
 
-        logger.debug(
-            "recognize_face stage1: top_k=%d selected=%d total_students=%d dynamic_floor=%.4f",
-            top_k,
-            len(candidate_student_indices),
-            num_students,
-            dynamic_floor,
-        )
+            for proto_pos in ranked[:top_k]:
+                sim = float(stage1_sims[proto_pos])
+                if sim < dynamic_floor:
+                    continue
+                candidate_student_indices.add(int(stage1_idx[proto_pos]))
+
+            logger.debug(
+                "recognize_face stage1: top_k=%d selected=%d total_students=%d dynamic_floor=%.4f",
+                top_k,
+                len(candidate_student_indices),
+                num_students,
+                dynamic_floor,
+            )
 
     use_candidate_filter = (
         config.RECOGNITION_TWO_STAGE_ENABLED

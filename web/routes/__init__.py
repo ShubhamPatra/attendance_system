@@ -70,5 +70,3 @@ register_analytics_routes(bp)
 
 
 # ── API endpoints ─────────────────────────────────────────────────────────
-
-

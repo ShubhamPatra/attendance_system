@@ -1,0 +1,531 @@
+{% extends "base.html" %}
+
+{% block title %}Analytics Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid dashboard-container">
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <h1 class="dashboard-title">📊 Attendance Analytics Dashboard</h1>
+            <div class="date-range-selector">
+                <label>Select Time Period:</label>
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-sm btn-outline-primary" data-days="7">7 Days</button>
+                    <button type="button" class="btn btn-sm btn-outline-primary" data-days="14">14 Days</button>
+                    <button type="button" class="btn btn-sm btn-outline-primary" data-days="30">30 Days</button>
+                    <button type="button" class="btn btn-sm btn-outline-primary" data-days="90">90 Days</button>
+                </div>
+                <span class="last-updated">Last Updated: <span id="update-time">--:--</span></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- KPI Cards Row -->
+    <div class="row mb-4" id="kpi-cards-container">
+        <div class="col-md-2 col-sm-6 mb-3">
+            <div class="kpi-card">
+                <div class="kpi-icon">👥</div>
+                <div class="kpi-value" id="kpi-total-students">--</div>
+                <div class="kpi-label">Total Students</div>
+            </div>
+        </div>
+        <div class="col-md-2 col-sm-6 mb-3">
+            <div class="kpi-card">
+                <div class="kpi-icon">✅</div>
+                <div class="kpi-value" id="kpi-present-today">--</div>
+                <div class="kpi-label">Present Today</div>
+            </div>
+        </div>
+        <div class="col-md-2 col-sm-6 mb-3">
+            <div class="kpi-card">
+                <div class="kpi-icon">⏰</div>
+                <div class="kpi-value" id="kpi-late-count">--</div>
+                <div class="kpi-label">Late Today</div>
+            </div>
+        </div>
+        <div class="col-md-2 col-sm-6 mb-3">
+            <div class="kpi-card">
+                <div class="kpi-icon">❌</div>
+                <div class="kpi-value" id="kpi-absent-count">--</div>
+                <div class="kpi-label">Absent Today</div>
+            </div>
+        </div>
+        <div class="col-md-2 col-sm-6 mb-3">
+            <div class="kpi-card">
+                <div class="kpi-icon">📈</div>
+                <div class="kpi-value" id="kpi-avg-attendance">--</div>
+                <div class="kpi-label">Avg Attendance %</div>
+            </div>
+        </div>
+        <div class="col-md-2 col-sm-6 mb-3">
+            <div class="kpi-card">
+                <div class="kpi-icon">🎯</div>
+                <div class="kpi-value" id="kpi-on-time">--</div>
+                <div class="kpi-label">On-Time %</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row 1: Attendance Trend -->
+    <div class="row mb-4">
+        <div class="col-lg-12">
+            <div class="chart-card">
+                <h3 class="chart-title">📅 Attendance Trend</h3>
+                <div id="attendance-trend-chart" style="height: 400px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row 2: Late Statistics -->
+    <div class="row mb-4">
+        <div class="col-lg-6">
+            <div class="chart-card">
+                <h3 class="chart-title">⏰ Late Arrivals Trend</h3>
+                <div id="late-trend-chart" style="height: 350px;"></div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="chart-card">
+                <h3 class="chart-title">🔝 Top 5 Late Students</h3>
+                <div id="top-late-students-chart" style="height: 350px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row 3: Heatmap & Course Breakdown -->
+    <div class="row mb-4">
+        <div class="col-lg-12">
+            <div class="chart-card">
+                <h3 class="chart-title">🗓️ 90-Day Attendance Heatmap</h3>
+                <div id="heatmap-chart" style="height: 300px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-lg-12">
+            <div class="chart-card">
+                <h3 class="chart-title">📚 Course-wise Attendance Breakdown</h3>
+                <div id="course-breakdown-chart" style="height: 400px;"></div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<style>
+    .dashboard-container {
+        padding: 20px;
+        background-color: #f8f9fa;
+        min-height: 100vh;
+    }
+
+    .dashboard-title {
+        font-size: 2.5rem;
+        font-weight: bold;
+        color: #2c3e50;
+        margin-bottom: 10px;
+    }
+
+    .date-range-selector {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        margin-bottom: 20px;
+        padding: 15px;
+        background-color: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .date-range-selector label {
+        font-weight: bold;
+        color: #2c3e50;
+        margin: 0;
+    }
+
+    .date-range-selector .btn-group {
+        display: flex;
+        gap: 5px;
+    }
+
+    .last-updated {
+        margin-left: auto;
+        color: #7f8c8d;
+        font-size: 0.9rem;
+    }
+
+    /* KPI Cards */
+    .kpi-card {
+        background: white;
+        border-radius: 8px;
+        padding: 20px;
+        text-align: center;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .kpi-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .kpi-icon {
+        font-size: 2rem;
+        margin-bottom: 10px;
+    }
+
+    .kpi-value {
+        font-size: 1.8rem;
+        font-weight: bold;
+        color: #2c3e50;
+        margin: 10px 0;
+    }
+
+    .kpi-label {
+        font-size: 0.9rem;
+        color: #7f8c8d;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    /* Chart Cards */
+    .chart-card {
+        background: white;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+    }
+
+    .chart-title {
+        font-size: 1.3rem;
+        font-weight: bold;
+        color: #2c3e50;
+        margin-bottom: 20px;
+        padding-bottom: 10px;
+        border-bottom: 2px solid #ecf0f1;
+    }
+
+    /* Loading spinner */
+    .loading {
+        display: none;
+        text-align: center;
+        padding: 20px;
+        color: #7f8c8d;
+    }
+
+    .loading.active {
+        display: block;
+    }
+
+    .spinner {
+        border: 4px solid #ecf0f1;
+        border-top: 4px solid #3498db;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+        margin: 0 auto;
+    }
+
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        .dashboard-title {
+            font-size: 1.8rem;
+        }
+
+        .date-range-selector {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .date-range-selector .btn-group {
+            width: 100%;
+            flex-wrap: wrap;
+        }
+
+        .last-updated {
+            margin-left: 0;
+            margin-top: 10px;
+        }
+
+        .kpi-card {
+            margin-bottom: 10px;
+        }
+    }
+</style>
+
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<script>
+    // Global state
+    let currentDays = 30;
+    const updateInterval = 5 * 60 * 1000; // 5 minutes
+
+    // Update time display
+    function updateTimeDisplay() {
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString('en-US', { 
+            hour: '2-digit', 
+            minute: '2-digit', 
+            second: '2-digit' 
+        });
+        document.getElementById('update-time').textContent = timeStr;
+    }
+
+    // Fetch data from API
+    async function fetchAnalyticsData() {
+        try {
+            // Fetch all data in parallel
+            const [overview, trend, lateStats, heatmap, courseBreakdown] = await Promise.all([
+                fetch(`/api/analytics/overview?days=${currentDays}`).then(r => r.json()),
+                fetch(`/api/analytics/attendance-trend?days=${currentDays}`).then(r => r.json()),
+                fetch(`/api/analytics/late-stats?days=${currentDays}`).then(r => r.json()),
+                fetch(`/api/analytics/heatmap-v2?days=90`).then(r => r.json()),
+                fetch(`/api/analytics/course-breakdown?days=${currentDays}`).then(r => r.json()),
+            ]);
+
+            return { overview, trend, lateStats, heatmap, courseBreakdown };
+        } catch (error) {
+            console.error('Failed to fetch analytics data:', error);
+            return null;
+        }
+    }
+
+    // Update KPI cards
+    function updateKPICards(data) {
+        if (!data.success) return;
+        
+        const d = data.data;
+        document.getElementById('kpi-total-students').textContent = d.total_students;
+        document.getElementById('kpi-present-today').textContent = d.present_today;
+        document.getElementById('kpi-late-count').textContent = d.late_count;
+        document.getElementById('kpi-absent-count').textContent = d.absent_count;
+        document.getElementById('kpi-avg-attendance').textContent = d.avg_attendance_percent.toFixed(1) + '%';
+        document.getElementById('kpi-on-time').textContent = d.on_time_percent.toFixed(1) + '%';
+    }
+
+    // Plot attendance trend (line chart with 3 traces: present, late, absent)
+    function plotAttendanceTrend(data) {
+        if (!data.success) return;
+
+        const records = data.data;
+        const dates = records.map(r => r.date);
+        const present = records.map(r => r.present);
+        const late = records.map(r => r.late);
+        const absent = records.map(r => r.absent);
+        const percent = records.map(r => r.present_percent);
+
+        const trace1 = {
+            x: dates,
+            y: present,
+            name: 'Present',
+            type: 'scatter',
+            mode: 'lines+markers',
+            line: { color: '#27ae60', width: 2 },
+            fill: 'tonexty',
+        };
+
+        const trace2 = {
+            x: dates,
+            y: late,
+            name: 'Late',
+            type: 'scatter',
+            mode: 'lines+markers',
+            line: { color: '#f39c12', width: 2 },
+        };
+
+        const layout = {
+            title: 'Daily Attendance: Present, Late, and Absent',
+            xaxis: { title: 'Date' },
+            yaxis: { title: 'Count' },
+            hovermode: 'x unified',
+            margin: { l: 60, r: 30, t: 40, b: 60 },
+        };
+
+        Plotly.newPlot('attendance-trend-chart', [trace1, trace2], layout, { responsive: true });
+    }
+
+    // Plot late statistics (bar chart)
+    function plotLateStats(data) {
+        if (!data.success) return;
+
+        const dailyTrend = data.data.daily_trend || [];
+        const dates = dailyTrend.map(d => d.date);
+        const lateCount = dailyTrend.map(d => d.late_count);
+        const onTimeCount = dailyTrend.map(d => d.on_time_count);
+
+        const trace1 = {
+            x: dates,
+            y: lateCount,
+            name: 'Late',
+            type: 'bar',
+            marker: { color: '#e74c3c' },
+        };
+
+        const trace2 = {
+            x: dates,
+            y: onTimeCount,
+            name: 'On-Time',
+            type: 'bar',
+            marker: { color: '#27ae60' },
+        };
+
+        const layout = {
+            title: 'Late vs On-Time Arrivals',
+            xaxis: { title: 'Date' },
+            yaxis: { title: 'Count' },
+            barmode: 'stack',
+            hovermode: 'x unified',
+            margin: { l: 60, r: 30, t: 40, b: 60 },
+        };
+
+        Plotly.newPlot('late-trend-chart', [trace1, trace2], layout, { responsive: true });
+    }
+
+    // Plot top late students (horizontal bar chart)
+    function plotTopLateStudents(data) {
+        if (!data.success) return;
+
+        const students = (data.data.top_late_students || []).slice(0, 5);
+        
+        if (students.length === 0) {
+            document.getElementById('top-late-students-chart').innerHTML = '<p>No late arrivals</p>';
+            return;
+        }
+
+        const names = students.map(s => s.name || s.reg_no);
+        const counts = students.map(s => s.late_count);
+
+        const trace = {
+            y: names,
+            x: counts,
+            name: 'Late Count',
+            type: 'bar',
+            orientation: 'h',
+            marker: { color: '#e74c3c' },
+        };
+
+        const layout = {
+            title: 'Top 5 Students with Most Late Arrivals',
+            xaxis: { title: 'Count' },
+            yaxis: { title: 'Student' },
+            margin: { l: 150, r: 30, t: 40, b: 60 },
+        };
+
+        Plotly.newPlot('top-late-students-chart', [trace], layout, { responsive: true });
+    }
+
+    // Plot heatmap
+    function plotHeatmap(data) {
+        if (!data.success) return;
+
+        const records = data.data;
+        const dates = records.map(r => r.date);
+        const percents = records.map(r => r.attendance_percent);
+
+        const trace = {
+            x: dates,
+            y: ['Attendance %'],
+            z: [percents],
+            type: 'heatmap',
+            colorscale: 'RdYlGn',
+            zmin: 0,
+            zmax: 100,
+        };
+
+        const layout = {
+            title: '90-Day Attendance Heatmap (%)',
+            xaxis: { title: 'Date' },
+            margin: { l: 60, r: 30, t: 40, b: 100 },
+        };
+
+        Plotly.newPlot('heatmap-chart', [trace], layout, { responsive: true });
+    }
+
+    // Plot course breakdown
+    function plotCourseBreakdown(data) {
+        if (!data.success) return;
+
+        const courses = data.data;
+        const courseNames = courses.map(c => c.course);
+        const present = courses.map(c => c.present);
+        const absent = courses.map(c => c.absent);
+
+        const trace1 = {
+            x: courseNames,
+            y: present,
+            name: 'Present',
+            type: 'bar',
+            marker: { color: '#27ae60' },
+        };
+
+        const trace2 = {
+            x: courseNames,
+            y: absent,
+            name: 'Absent',
+            type: 'bar',
+            marker: { color: '#e74c3c' },
+        };
+
+        const layout = {
+            title: 'Attendance by Course/Section',
+            xaxis: { title: 'Course/Section' },
+            yaxis: { title: 'Count' },
+            barmode: 'stack',
+            hovermode: 'x unified',
+            margin: { l: 60, r: 30, t: 40, b: 100 },
+        };
+
+        Plotly.newPlot('course-breakdown-chart', [trace1, trace2], layout, { responsive: true });
+    }
+
+    // Refresh all dashboards
+    async function refreshDashboard() {
+        updateTimeDisplay();
+
+        const analyticsData = await fetchAnalyticsData();
+        if (!analyticsData) {
+            console.error('Failed to fetch analytics data');
+            return;
+        }
+
+        updateKPICards(analyticsData.overview);
+        plotAttendanceTrend(analyticsData.trend);
+        plotLateStats(analyticsData.lateStats);
+        plotTopLateStudents(analyticsData.lateStats);
+        plotHeatmap(analyticsData.heatmap);
+        plotCourseBreakdown(analyticsData.courseBreakdown);
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+        // Initial load
+        refreshDashboard();
+
+        // Setup auto-refresh
+        setInterval(refreshDashboard, updateInterval);
+
+        // Setup date range buttons
+        document.querySelectorAll('.date-range-selector .btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                currentDays = parseInt(btn.dataset.days);
+                document.querySelectorAll('.date-range-selector .btn').forEach(b => {
+                    b.classList.remove('active');
+                });
+                btn.classList.add('active');
+                refreshDashboard();
+            });
+        });
+
+        // Set initial active button
+        document.querySelector('.date-range-selector [data-days="30"]').classList.add('active');
+    });
+</script>
+
+{% endblock %}

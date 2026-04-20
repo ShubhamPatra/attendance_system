@@ -242,6 +242,21 @@ def create_app() -> Flask:
 
     # Register blueprint
     app.register_blueprint(main_bp)
+    
+    # PHASE 2 & 5: Register metrics and anomaly routes
+    try:
+        from web.metrics_routes import register_metrics_routes
+        register_metrics_routes(app)
+        logger.info("Metrics routes registered")
+    except Exception as e:
+        logger.warning("Failed to register metrics routes: %s", e)
+    
+    try:
+        from web.anomaly_routes import register_analytics_routes
+        register_analytics_routes(app)
+        logger.info("Analytics routes registered")
+    except Exception as e:
+        logger.warning("Failed to register analytics routes: %s", e)
 
     # Initialize API documentation after route registration so all
     # endpoints are visible in generated specs.

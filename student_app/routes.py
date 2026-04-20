@@ -5,6 +5,8 @@ from __future__ import annotations
 import base64
 import os
 import uuid
+import cv2
+import numpy as np
 from functools import wraps
 
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
@@ -18,6 +20,7 @@ import core.database as core_db
 from . import database
 from .auth import StudentUser, authenticate_student
 from .verification import evaluate_student_samples
+from .enrollment_validator import EnrollmentValidator  # PHASE 4
 
 logger = setup_logging()
 
@@ -55,6 +58,27 @@ def _decode_capture(value: str) -> bytes:
     if "," in value:
         value = value.split(",", 1)[1]
     return base64.b64decode(value)
+
+
+def _decode_capture_to_image(value: str) -> np.ndarray:
+    """Decode base64 frame to BGR image for validation.
+    
+    PHASE 4: Used for enrollment image validation before saving.
+    
+    Args:
+        value: Base64-encoded image data (with or without data URL prefix)
+    
+    Returns:
+        BGR numpy array, or None if decoding fails
+    """
+    try:
+        raw_bytes = _decode_capture(value)
+        nparr = np.frombuffer(raw_bytes, np.uint8)
+        image_bgr = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        return image_bgr
+    except Exception as e:
+        logger.debug("Failed to decode capture to image: %s", e)
+        return None
 
 
 def _save_capture_frame(reg_no: str, frame_bytes: bytes, index: int) -> str:
@@ -363,6 +387,7 @@ def capture():
 @bp.route("/api/capture", methods=["POST"])
 @login_required
 def api_capture():
+    """Process student face enrollment with multi-angle validation (PHASE 4)."""
     payload = request.get_json(silent=True) or {}
     reg_no = _resolve_registration_number()
     if not reg_no:
@@ -377,6 +402,70 @@ def api_capture():
     if len(frames) > config.STUDENT_MAX_CAPTURE_IMAGES:
         return jsonify({"error": f"No more than {config.STUDENT_MAX_CAPTURE_IMAGES} frames are allowed."}), 400
 
+    # PHASE 4: Decode frames and validate before saving
+    images_bgr: list[np.ndarray] = []
+    decode_errors: list[str] = []
+    
+    for index, frame in enumerate(frames, 1):
+        try:
+            image_bgr = _decode_capture_to_image(str(frame))
+            if image_bgr is None:
+                decode_errors.append(f"Frame {index}: Could not decode image data")
+                continue
+            images_bgr.append(image_bgr)
+        except Exception as e:
+            logger.debug("Failed to decode frame %d: %s", index, e)
+            decode_errors.append(f"Frame {index}: Invalid base64 encoding")
+    
+    if decode_errors:
+        return jsonify({
+            "success": False,
+            "error": "Some frames could not be decoded",
+            "details": decode_errors,
+        }), 400
+    
+    # PHASE 4: Validate enrollment images with EnrollmentValidator
+    student_id = core_db.get_student_by_reg_no(reg_no)
+    if student_id and "_id" in student_id:
+        student_id = student_id["_id"]
+    
+    validator_result = EnrollmentValidator.validate_multi_angle_enrollment(
+        images_bgr,
+        student_id=student_id,
+    )
+    
+    if not validator_result.get("valid"):
+        # Return detailed validation feedback for UI guidance
+        error_msg = validator_result.get("error", "Enrollment validation failed")
+        image_feedback = []
+        for img_result in validator_result.get("image_results", []):
+            if img_result.get("valid"):
+                image_feedback.append({
+                    "index": img_result.get("index"),
+                    "status": "✓ Good",
+                    "message": "Image quality acceptable",
+                })
+            else:
+                image_feedback.append({
+                    "index": img_result.get("index"),
+                    "status": "✗ Failed",
+                    "message": img_result.get("error", "Image validation failed"),
+                })
+        
+        angle_info = validator_result.get("angle_diversity", {})
+        
+        return jsonify({
+            "success": False,
+            "error": error_msg,
+            "image_results": image_feedback,
+            "angle_diversity": {
+                "valid": angle_info.get("valid"),
+                "message": angle_info.get("error") or "Angle diversity is sufficient",
+            },
+            "duplicate_detected": validator_result.get("duplicate_detected"),
+        }), 400
+    
+    # Validation passed - save frames and proceed with verification
     sample_paths: list[str] = []
     for index, frame in enumerate(frames, 1):
         try:
@@ -393,7 +482,10 @@ def api_capture():
     result = evaluate_student_samples(sample_paths, registration_number=reg_no)
     database.save_verification_result(reg_no, result, sample_paths)
 
-    return jsonify(result.to_dict())
+    return jsonify({
+        **result.to_dict(),
+        "enrollment_validated": True,  # PHASE 4: Indicate quality validation passed
+    })
 
 
 @bp.route("/attendance")

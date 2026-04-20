@@ -4,12 +4,13 @@
 
 1. [Local Development Setup](#local-development-setup)
 2. [Docker Deployment](#docker-deployment)
-3. [Environment Configuration](#environment-configuration)
-4. [Production Setup](#production-setup)
-5. [Scaling & Performance Tuning](#scaling--performance-tuning)
-6. [Monitoring & Logging](#monitoring--logging)
-7. [Backup & Disaster Recovery](#backup--disaster-recovery)
-8. [Troubleshooting](#troubleshooting)
+3. [Kubernetes Deployment (Phase 7)](#kubernetes-deployment-phase-7)
+4. [Environment Configuration](#environment-configuration)
+5. [Production Setup](#production-setup)
+6. [Scaling & Performance Tuning](#scaling--performance-tuning)
+7. [Monitoring & Logging](#monitoring--logging)
+8. [Backup & Disaster Recovery](#backup--disaster-recovery)
+9. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -241,6 +242,84 @@ services:
       - student-web
     restart: unless-stopped
 ```
+
+---
+
+## Kubernetes Deployment (Phase 7)
+
+### Overview
+
+Phase 7 provides production-ready Kubernetes deployment with:
+- Health probes (startup, liveness, readiness)
+- Horizontal Pod Autoscaling (HPA)
+- Network policies and security
+- RBAC configuration
+- Ingress with TLS support
+
+**For comprehensive guide, see [KUBERNETES_DEPLOYMENT.md](KUBERNETES_DEPLOYMENT.md)**
+
+### Quick Start
+
+```bash
+# 1. Create namespace
+kubectl create namespace attendance-system
+
+# 2. Create secrets (edit with actual values)
+kubectl create secret generic attendance-secrets \
+  -n attendance-system \
+  --from-literal=MONGO_URI='mongodb+srv://user:pass@cluster.mongodb.net' \
+  --from-literal=SECRET_KEY='your-secure-key'
+
+# 3. Apply configurations
+kubectl apply -f deploy/k8s/configmap.yaml
+kubectl apply -f deploy/k8s/deployment.yaml
+kubectl apply -f deploy/k8s/service.yaml
+
+# 4. Verify deployment
+kubectl get pods -n attendance-system
+kubectl logs -f -n attendance-system deployment/attendance-admin
+```
+
+### Health Probes
+
+Three health checks ensure reliability:
+
+| Probe | Endpoint | Interval | Purpose |
+|-------|----------|----------|---------|
+| **Startup** | `/api/health` | 5s | Gives app 35s to initialize |
+| **Liveness** | `/api/health` | 10s | Restarts if unhealthy 30s+ |
+| **Readiness** | `/api/readiness` | 5s | Removes from service if not ready |
+
+### Scaling
+
+- **Min replicas**: 2
+- **Max replicas**: 5
+- **Scale triggers**: CPU >70%, Memory >80%
+- **Auto-scale disabled**: Set `maxReplicas: <minReplicas>` in HPA
+
+### Configuration
+
+Edit `deploy/k8s/configmap.yaml` and `deploy/k8s/deployment.yaml`:
+- Update MongoDB connection string
+- Update domain in Ingress rules
+- Adjust resource requests/limits for your load
+- Configure TLS certificates
+
+### Troubleshooting
+
+```bash
+# Check pod status
+kubectl describe pod -n attendance-system <pod-name>
+
+# View app logs
+kubectl logs -f -n attendance-system deployment/attendance-admin
+
+# Test health endpoints (port-forward)
+kubectl port-forward -n attendance-system svc/attendance-admin 8080:80
+curl http://localhost:8080/api/health
+```
+
+**See [KUBERNETES_DEPLOYMENT.md](KUBERNETES_DEPLOYMENT.md) for detailed troubleshooting.**
 
 ---
 
