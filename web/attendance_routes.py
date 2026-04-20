@@ -32,7 +32,7 @@ def register_attendance_routes(bp):
         }
 
     @bp.route("/api/attendance/sessions", methods=["POST"])
-    # @require_roles("admin", "teacher")  # DISABLED: Auth removed for local testing
+    @require_roles("admin", "teacher")  # Configurable via AUTH_REQUIRED env var
     def api_attendance_session_start():
         from web import routes as routes_module
         attendance_dao, session_dao, student_dao = _build_daos(routes_module.database)
@@ -68,7 +68,7 @@ def register_attendance_routes(bp):
             return routes_module._api_error(f"Database unavailable: {exc}", 503)
 
     @bp.route("/api/attendance/sessions/<session_id>/end", methods=["POST"])
-    # @require_roles("admin", "teacher")  # DISABLED: Auth removed for local testing
+    @require_roles("admin", "teacher")  # Configurable via AUTH_REQUIRED env var
     def api_attendance_session_end(session_id: str):
         from web import routes as routes_module
         attendance_dao, session_dao, student_dao = _build_daos(routes_module.database)
@@ -88,7 +88,7 @@ def register_attendance_routes(bp):
         return jsonify({"ended": True, "session": _session_payload(session)})
 
     @bp.route("/api/attendance/sessions/active", methods=["GET"])
-    # @require_roles("admin", "teacher")  # DISABLED: Auth removed for local testing
+    @require_roles("admin", "teacher")  # Configurable via AUTH_REQUIRED env var
     def api_attendance_session_active():
         from web import routes as routes_module
         attendance_dao, session_dao, student_dao = _build_daos(routes_module.database)
@@ -111,7 +111,7 @@ def register_attendance_routes(bp):
         return jsonify({"active": session is not None, "session": _session_payload(session)})
 
     @bp.route("/api/attendance/bulk", methods=["POST"])
-    # @require_roles("admin", "teacher")  # DISABLED: Auth removed for local testing
+    @require_roles("admin", "teacher")  # Configurable via AUTH_REQUIRED env var
     def api_attendance_bulk():
         from web import routes as routes_module
         attendance_dao, session_dao, student_dao = _build_daos(routes_module.database)
@@ -163,7 +163,7 @@ def register_attendance_routes(bp):
         return jsonify(result)
 
     @bp.route("/api/attendance", methods=["GET"])
-    # @require_roles("admin", "teacher")  # DISABLED: Auth removed for local testing
+    @require_roles("admin", "teacher")  # Configurable via AUTH_REQUIRED env var
     def api_attendance_list():
         from web import routes as routes_module
         attendance_dao, session_dao, student_dao = _build_daos(routes_module.database)
@@ -197,7 +197,7 @@ def register_attendance_routes(bp):
         return jsonify(records)
 
     @bp.route("/api/attendance", methods=["POST"])
-    # @require_roles("admin", "teacher")  # DISABLED: Auth removed for local testing
+    @require_roles("admin", "teacher")  # Configurable via AUTH_REQUIRED env var
     def api_attendance_mark():
         from web import routes as routes_module
         attendance_dao, session_dao, student_dao = _build_daos(routes_module.database)

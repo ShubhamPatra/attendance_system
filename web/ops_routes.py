@@ -9,7 +9,7 @@ from web.decorators import require_roles
 
 def register_ops_routes(bp):
     @bp.route("/api/metrics")
-    # @require_roles("admin", "teacher")  # DISABLED: Auth removed for local testing
+    @require_roles("admin", "teacher")  # Configurable via AUTH_REQUIRED env var
     def api_metrics():
         from web import routes as routes_module
         from vision.face_engine import get_embedding_backend_name
@@ -21,7 +21,7 @@ def register_ops_routes(bp):
         return jsonify(payload)
 
     @bp.route("/api/events")
-    # @require_roles("admin", "teacher")  # DISABLED: Auth removed for local testing
+    @require_roles("admin", "teacher")  # Configurable via AUTH_REQUIRED env var
     def api_events():
         from camera.camera import get_camera_if_running
 
@@ -31,7 +31,7 @@ def register_ops_routes(bp):
         return jsonify(cam.pop_events())
 
     @bp.route("/api/logs")
-    # @require_roles("admin")  # DISABLED: Auth removed for local testing
+    @require_roles("admin")  # Configurable via AUTH_REQUIRED env var
     def api_logs():
         from camera.camera import get_camera_if_running
 
@@ -41,7 +41,7 @@ def register_ops_routes(bp):
         return jsonify(cam.get_log_buffer())
 
     @bp.route("/api/debug/diagnostics")
-    # @require_roles("admin")  # DISABLED: Auth removed for local testing
+    @require_roles("admin")  # Configurable via AUTH_REQUIRED env var
     def api_debug_diagnostics():
         from web import routes as routes_module
 
@@ -62,7 +62,7 @@ def register_ops_routes(bp):
         return jsonify(payload)
 
     @bp.route("/api/task/<task_id>")
-    # @require_roles("admin", "teacher")  # DISABLED: Auth removed for local testing
+    @require_roles("admin", "teacher")  # Configurable via AUTH_REQUIRED env var
     def api_task_status(task_id):
         if not re.fullmatch(r"[0-9a-fA-F-]{8,64}", task_id):
             return jsonify({"error": "Invalid task id format."}), 400
@@ -83,7 +83,7 @@ def register_ops_routes(bp):
             return jsonify({"error": "Task backend is unavailable."}), 503
 
     @bp.route("/api/cameras")
-    # @require_roles("admin", "teacher")  # DISABLED: Auth removed for local testing
+    @require_roles("admin", "teacher")  # Configurable via AUTH_REQUIRED env var
     def api_cameras():
         from camera.camera import get_camera_diagnostics
 

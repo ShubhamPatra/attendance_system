@@ -1,0 +1,150 @@
+<svg viewBox="0 0 1400 1000" xmlns="http://www.w3.org/2000/svg">
+  <!-- Title -->
+  <text x="700" y="30" font-size="28" font-weight="bold" text-anchor="middle" fill="#1a1a1a">
+    Multi-Layer Liveness Verification Framework
+  </text>
+  
+  <!-- Input box -->
+  <rect x="550" y="60" width="300" height="70" fill="#E8F4F8" stroke="#0088CC" stroke-width="2" rx="5"/>
+  <text x="700" y="90" font-size="14" font-weight="bold" text-anchor="middle" fill="#0088CC">Captured Face (5 Frames)</text>
+  <text x="700" y="110" font-size="12" text-anchor="middle" fill="#666">Baseline liveness score</text>
+  
+  <!-- Arrow down -->
+  <line x1="700" y1="130" x2="700" y2="160" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+  
+  <!-- Layer 1: Silent-Face CNN (40% weight) -->
+  <rect x="100" y="160" width="280" height="100" fill="#F3E5F5" stroke="#9C27B0" stroke-width="2" rx="5"/>
+  <text x="240" y="185" font-size="13" font-weight="bold" text-anchor="middle" fill="#9C27B0">Layer 1: Silent-Face CNN</text>
+  <text x="240" y="205" font-size="11" text-anchor="middle" fill="#666">3-class classifier (spoof/real/other)</text>
+  <text x="240" y="225" font-size="11" text-anchor="middle" fill="#666">Standalone accuracy: 86%</text>
+  <text x="240" y="245" font-size="12" font-weight="bold" text-anchor="middle" fill="#9C27B0">Weight: 40%</text>
+  
+  <!-- Layer 2: Blink Detection (25% weight) -->
+  <rect x="450" y="160" width="280" height="100" fill="#FCE4EC" stroke="#E91E63" stroke-width="2" rx="5"/>
+  <text x="590" y="185" font-size="13" font-weight="bold" text-anchor="middle" fill="#E91E63">Layer 2: Blink Detection</text>
+  <text x="590" y="205" font-size="11" text-anchor="middle" fill="#666">Eye Aspect Ratio (EAR)</text>
+  <text x="590" y="225" font-size="11" text-anchor="middle" fill="#666">Standalone accuracy: 72%</text>
+  <text x="590" y="245" font-size="12" font-weight="bold" text-anchor="middle" fill="#E91E63">Weight: 25%</text>
+  
+  <!-- Layer 3: Motion Detection (20% weight) -->
+  <rect x="800" y="160" width="280" height="100" fill="#E0F2F1" stroke="#009688" stroke-width="2" rx="5"/>
+  <text x="940" y="185" font-size="13" font-weight="bold" text-anchor="middle" fill="#009688">Layer 3: Motion Detection</text>
+  <text x="940" y="205" font-size="11" text-anchor="middle" fill="#666">Optical flow head motion</text>
+  <text x="940" y="225" font-size="11" text-anchor="middle" fill="#666">Standalone accuracy: 81%</text>
+  <text x="940" y="245" font-size="12" font-weight="bold" text-anchor="middle" fill="#009688">Weight: 20%</text>
+  
+  <!-- Layer 4: Frame Heuristics (15% weight) -->
+  <rect x="1150" y="160" width="250" height="100" fill="#FFF4E6" stroke="#FF9800" stroke-width="2" rx="5"/>
+  <text x="1275" y="185" font-size="13" font-weight="bold" text-anchor="middle" fill="#FF9800">Layer 4: Heuristics</text>
+  <text x="1275" y="205" font-size="11" text-anchor="middle" fill="#666">Contrast/brightness/texture</text>
+  <text x="1275" y="225" font-size="11" text-anchor="middle" fill="#666">Standalone accuracy: 65%</text>
+  <text x="1275" y="245" font-size="12" font-weight="bold" text-anchor="middle" fill="#FF9800">Weight: 15%</text>
+  
+  <!-- Arrows down from each layer -->
+  <line x1="240" y1="260" x2="240" y2="300" stroke="#9C27B0" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <line x1="590" y1="260" x2="590" y2="300" stroke="#E91E63" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <line x1="940" y1="260" x2="940" y2="300" stroke="#009688" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <line x1="1275" y1="260" x2="1275" y2="300" stroke="#FF9800" stroke-width="2" marker-end="url(#arrowhead)"/>
+  
+  <!-- Score boxes -->
+  <rect x="175" y="300" width="130" height="60" fill="#F3E5F5" stroke="#9C27B0" stroke-width="1" rx="3"/>
+  <text x="240" y="320" font-size="11" font-weight="bold" text-anchor="middle" fill="#9C27B0">CNN Score</text>
+  <text x="240" y="338" font-size="13" font-weight="bold" text-anchor="middle" fill="#9C27B0">0.85</text>
+  <text x="240" y="353" font-size="10" text-anchor="middle" fill="#666">(avg 5 frames)</text>
+  
+  <rect x="525" y="300" width="130" height="60" fill="#FCE4EC" stroke="#E91E63" stroke-width="1" rx="3"/>
+  <text x="590" y="320" font-size="11" font-weight="bold" text-anchor="middle" fill="#E91E63">Blink Score</text>
+  <text x="590" y="338" font-size="13" font-weight="bold" text-anchor="middle" fill="#E91E63">0.60</text>
+  <text x="590" y="353" font-size="10" text-anchor="middle" fill="#666">(2/5 blinks)</text>
+  
+  <rect x="875" y="300" width="130" height="60" fill="#E0F2F1" stroke="#009688" stroke-width="1" rx="3"/>
+  <text x="940" y="320" font-size="11" font-weight="bold" text-anchor="middle" fill="#009688">Motion Score</text>
+  <text x="940" y="338" font-size="13" font-weight="bold" text-anchor="middle" fill="#009688">0.75</text>
+  <text x="940" y="353" font-size="10" text-anchor="middle" fill="#666">(optical flow)</text>
+  
+  <rect x="1210" y="300" width="130" height="60" fill="#FFF4E6" stroke="#FF9800" stroke-width="1" rx="3"/>
+  <text x="1275" y="320" font-size="11" font-weight="bold" text-anchor="middle" fill="#FF9800">Heuristic Score</text>
+  <text x="1275" y="338" font-size="13" font-weight="bold" text-anchor="middle" fill="#FF9800">0.70</text>
+  <text x="1275" y="353" font-size="10" text-anchor="middle" fill="#666">(high contrast)</text>
+  
+  <!-- Arrows to aggregation -->
+  <line x1="240" y1="360" x2="350" y2="410" stroke="#9C27B0" stroke-width="2"/>
+  <line x1="590" y1="360" x2="500" y2="410" stroke="#E91E63" stroke-width="2"/>
+  <line x1="940" y1="360" x2="850" y2="410" stroke="#009688" stroke-width="2"/>
+  <line x1="1275" y1="360" x2="1000" y2="410" stroke="#FF9800" stroke-width="2"/>
+  
+  <!-- Aggregation box -->
+  <rect x="550" y="410" width="300" height="120" fill="#FFFDE7" stroke="#FBC02D" stroke-width="2" rx="5"/>
+  <text x="700" y="435" font-size="13" font-weight="bold" text-anchor="middle" fill="#F57F17">Weighted Aggregation</text>
+  <text x="700" y="458" font-size="11" text-anchor="middle" fill="#333">Score = 0.40×0.85 + 0.25×0.60</text>
+  <text x="700" y="475" font-size="11" text-anchor="middle" fill="#333">        + 0.20×0.75 + 0.15×0.70</text>
+  <text x="700" y="492" font-size="11" text-anchor="middle" fill="#333">Score = 0.75</text>
+  <text x="700" y="512" font-size="12" font-weight="bold" text-anchor="middle" fill="#F57F17">(Threshold: 0.50)</text>
+  
+  <!-- Arrow to decision -->
+  <line x1="700" y1="530" x2="700" y2="560" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+  
+  <!-- Decision diamond -->
+  <polygon points="700,560 800,620 700,680 600,620" fill="#E8F5E9" stroke="#4CAF50" stroke-width="2"/>
+  <text x="700" y="625" font-size="12" font-weight="bold" text-anchor="middle" fill="#4CAF50">Score > 0.50?</text>
+  
+  <!-- Yes path -->
+  <line x1="800" y1="620" x2="950" y2="620" stroke="#4CAF50" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <text x="875" y="610" font-size="11" font-weight="bold" fill="#4CAF50">YES</text>
+  
+  <!-- No path -->
+  <line x1="600" y1="620" x2="450" y2="620" stroke="#D32F2F" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <text x="525" y="610" font-size="11" font-weight="bold" fill="#D32F2F">NO</text>
+  
+  <!-- Accept box (right) -->
+  <rect x="950" y="580" width="200" height="80" fill="#C8E6C9" stroke="#2E7D32" stroke-width="2" rx="5"/>
+  <text x="1050" y="610" font-size="13" font-weight="bold" text-anchor="middle" fill="#1B5E20">GENUINE FACE</text>
+  <text x="1050" y="632" font-size="12" text-anchor="middle" fill="#2E7D32">Mark Attendance</text>
+  <text x="1050" y="650" font-size="11" text-anchor="middle" fill="#666">Confidence: 0.75</text>
+  
+  <!-- Reject box (left) -->
+  <rect x="250" y="580" width="200" height="80" fill="#FFCDD2" stroke="#B71C1C" stroke-width="2" rx="5"/>
+  <text x="350" y="610" font-size="13" font-weight="bold" text-anchor="middle" fill="#B71C1C">SPOOFING</text>
+  <text x="350" y="632" font-size="12" text-anchor="middle" fill="#D32F2F">Detected or Uncertain</text>
+  <text x="350" y="650" font-size="11" text-anchor="middle" fill="#666">Request Retry</text>
+  
+  <!-- Confidence thresholds by context -->
+  <rect x="50" y="750" width="1300" height="220" fill="#F5F5F5" stroke="#999" stroke-width="1" rx="3"/>
+  <text x="60" y="775" font-size="14" font-weight="bold" fill="#333">Adaptive Thresholds by Context</text>
+  
+  <rect x="70" y="800" width="280" height="80" fill="#FCE4EC" stroke="#E91E63" stroke-width="1" rx="3"/>
+  <text x="210" y="825" font-size="12" font-weight="bold" text-anchor="middle" fill="#E91E63">Enrollment Context</text>
+  <text x="210" y="850" font-size="11" text-anchor="middle" fill="#333">Threshold: 0.65</text>
+  <text x="210" y="868" font-size="11" text-anchor="middle" fill="#666">(Strict - require genuine)</text>
+  
+  <rect x="400" y="800" width="280" height="80" fill="#E0F2F1" stroke="#009688" stroke-width="1" rx="3"/>
+  <text x="540" y="825" font-size="12" font-weight="bold" text-anchor="middle" fill="#009688">Daily Attendance</text>
+  <text x="540" y="850" font-size="11" text-anchor="middle" fill="#333">Threshold: 0.50</text>
+  <text x="540" y="868" font-size="11" text-anchor="middle" fill="#666">(Balanced - default)</text>
+  
+  <rect x="730" y="800" width="280" height="80" fill="#F3E5F5" stroke="#9C27B0" stroke-width="1" rx="3"/>
+  <text x="870" y="825" font-size="12" font-weight="bold" text-anchor="middle" fill="#9C27B0">Make-Up Attendance</text>
+  <text x="870" y="850" font-size="11" text-anchor="middle" fill="#333">Threshold: 0.45</text>
+  <text x="870" y="868" font-size="11" text-anchor="middle" fill="#666">(Lenient - catch-up)</text>
+  
+  <rect x="1060" y="800" width="280" height="80" fill="#FFF4E6" stroke="#FF9800" stroke-width="1" rx="3"/>
+  <text x="1200" y="825" font-size="12" font-weight="bold" text-anchor="middle" fill="#FF9800">Emergency Context</text>
+  <text x="1200" y="850" font-size="11" text-anchor="middle" fill="#333">Threshold: 0.35</text>
+  <text x="1200" y="868" font-size="11" text-anchor="middle" fill="#666">(Very lenient - rapid)</text>
+  
+  <!-- Attack detection examples -->
+  <rect x="50" y="410" width="450" height="130" fill="#FCE4EC" stroke="#E91E63" stroke-width="1" rx="3"/>
+  <text x="60" y="430" font-size="12" font-weight="bold" fill="#E91E63">Example: Print Attack (2D Paper)</text>
+  <text x="65" y="453" font-size="11" fill="#333">CNN Score: 0.42 (spoof detected)</text>
+  <text x="65" y="472" font-size="11" fill="#333">Blink: 0.0 (no blink possible)</text>
+  <text x="65" y="491" font-size="11" fill="#333">Motion: 0.0 (2D image, no depth)</text>
+  <text x="65" y="510" font-size="11" fill="#333">Heuristics: 0.80 (flat appearance)</text>
+  <text x="65" y="529" font-size="12" font-weight="bold" fill="#C62828">Result: 0.32 → REJECTED (0.50 threshold)</text>
+  
+  <!-- Arrow markers -->
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
+      <polygon points="0 0, 10 5, 0 10" fill="#333"/>
+    </marker>
+  </defs>
+</svg>

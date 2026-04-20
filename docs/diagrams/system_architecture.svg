@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 800">
+  <!-- System Architecture Diagram -->
+  <defs>
+    <style>
+      .layer-box { fill: #e8f4f8; stroke: #0066cc; stroke-width: 2; }
+      .layer-label { font-size: 20px; font-weight: bold; fill: #003366; }
+      .component { fill: #ffffff; stroke: #333; stroke-width: 1.5; }
+      .component-label { font-size: 14px; fill: #333; }
+      .arrow { stroke: #666; stroke-width: 2; fill: none; marker-end: url(#arrowhead); }
+      .header { font-size: 28px; font-weight: bold; fill: #003366; }
+    </style>
+    <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" fill="#666" />
+    </marker>
+  </defs>
+  
+  <text x="500" y="40" text-anchor="middle" class="header">AutoAttendance: Layered System Architecture</text>
+  
+  <!-- Layer 1: Client Layer -->
+  <rect x="50" y="80" width="900" height="100" class="layer-box" />
+  <text x="70" y="110" class="layer-label">Layer 1: Client Layer (Web UI)</text>
+  <rect x="80" y="130" width="200" height="40" class="component" />
+  <text x="180" y="160" text-anchor="middle" class="component-label">Admin Portal (Port 5000)</text>
+  <rect x="310" y="130" width="200" height="40" class="component" />
+  <text x="410" y="160" text-anchor="middle" class="component-label">Student Portal (Port 5001)</text>
+  <rect x="540" y="130" width="200" height="40" class="component" />
+  <text x="640" y="160" text-anchor="middle" class="component-label">Live Camera Feed</text>
+  <rect x="770" y="130" width="160" height="40" class="component" />
+  <text x="850" y="160" text-anchor="middle" class="component-label">Reports & Analytics</text>
+  
+  <!-- Arrow down -->
+  <path d="M 500 180 L 500 210" class="arrow" />
+  
+  <!-- Layer 2: Web & Routes -->
+  <rect x="50" y="210" width="900" height="100" class="layer-box" />
+  <text x="70" y="240" class="layer-label">Layer 2: Web & Routes (Flask)</text>
+  <rect x="80" y="260" width="150" height="40" class="component" />
+  <text x="155" y="290" text-anchor="middle" class="component-label">REST APIs</text>
+  <rect x="250" y="260" width="150" height="40" class="component" />
+  <text x="325" y="290" text-anchor="middle" class="component-label">SocketIO Events</text>
+  <rect x="420" y="260" width="150" height="40" class="component" />
+  <text x="495" y="290" text-anchor="middle" class="component-label">Flask Blueprints</text>
+  <rect x="590" y="260" width="150" height="40" class="component" />
+  <text x="665" y="290" text-anchor="middle" class="component-label">RBAC Decorators</text>
+  <rect x="760" y="260" width="150" height="40" class="component" />
+  <text x="835" y="290" text-anchor="middle" class="component-label">Request Validation</text>
+  
+  <!-- Arrow down -->
+  <path d="M 500 300 L 500 330" class="arrow" />
+  
+  <!-- Layer 3: Vision & ML -->
+  <rect x="50" y="330" width="900" height="120" class="layer-box" />
+  <text x="70" y="360" class="layer-label">Layer 3: Vision & ML Pipeline</text>
+  <rect x="80" y="370" width="120" height="40" class="component" />
+  <text x="140" y="400" text-anchor="middle" class="component-label">Motion Detection</text>
+  <rect x="220" y="370" width="120" height="40" class="component" />
+  <text x="280" y="400" text-anchor="middle" class="component-label">YuNet Detector</text>
+  <rect x="360" y="370" width="120" height="40" class="component" />
+  <text x="420" y="400" text-anchor="middle" class="component-label">Alignment</text>
+  <rect x="500" y="370" width="120" height="40" class="component" />
+  <text x="560" y="400" text-anchor="middle" class="component-label">ArcFace Embedding</text>
+  <rect x="640" y="370" width="120" height="40" class="component" />
+  <text x="700" y="400" text-anchor="middle" class="component-label">Recognition</text>
+  <rect x="780" y="370" width="150" height="40" class="component" />
+  <text x="857" y="400" text-anchor="middle" class="component-label">Anti-Spoofing Check</text>
+  
+  <rect x="80" y="420" width="250" height="40" class="component" />
+  <text x="205" y="450" text-anchor="middle" class="component-label">CSRT Tracker (Temporal Voting)</text>
+  <rect x="350" y="420" width="250" height="40" class="component" />
+  <text x="475" y="450" text-anchor="middle" class="component-label">Quality Gate (Blur, Brightness, Size)</text>
+  <rect x="620" y="420" width="310" height="40" class="component" />
+  <text x="775" y="450" text-anchor="middle" class="component-label">Multi-Frame Voting (≥3 of 5 frames confirm)</text>
+  
+  <!-- Arrow down -->
+  <path d="M 500 450 L 500 480" class="arrow" />
+  
+  <!-- Layer 4: Core Services -->
+  <rect x="50" y="480" width="900" height="100" class="layer-box" />
+  <text x="70" y="510" class="layer-label">Layer 4: Core Services</text>
+  <rect x="80" y="530" width="140" height="40" class="component" />
+  <text x="150" y="560" text-anchor="middle" class="component-label">Database Layer</text>
+  <rect x="240" y="530" width="140" height="40" class="component" />
+  <text x="310" y="560" text-anchor="middle" class="component-label">Auth & JWT</text>
+  <rect x="400" y="530" width="140" height="40" class="component" />
+  <text x="470" y="560" text-anchor="middle" class="component-label">Configuration</text>
+  <rect x="560" y="530" width="140" height="40" class="component" />
+  <text x="630" y="560" text-anchor="middle" class="component-label">Security Logs</text>
+  <rect x="720" y="530" width="180" height="40" class="component" />
+  <text x="810" y="560" text-anchor="middle" class="component-label">Circuit Breaker (Resilience)</text>
+  
+  <!-- Arrow down -->
+  <path d="M 500 570 L 500 600" class="arrow" />
+  
+  <!-- Layer 5: Persistence -->
+  <rect x="50" y="600" width="900" height="100" class="layer-box" />
+  <text x="70" y="630" class="layer-label">Layer 5: Persistence (MongoDB)</text>
+  <rect x="80" y="650" width="100" height="40" class="component" />
+  <text x="130" y="680" text-anchor="middle" class="component-label">Students</text>
+  <rect x="210" y="650" width="100" height="40" class="component" />
+  <text x="260" y="680" text-anchor="middle" class="component-label">Attendance</text>
+  <rect x="340" y="650" width="100" height="40" class="component" />
+  <text x="390" y="680" text-anchor="middle" class="component-label">Sessions</text>
+  <rect x="470" y="650" width="100" height="40" class="component" />
+  <text x="520" y="680" text-anchor="middle" class="component-label">Courses</text>
+  <rect x="600" y="650" width="100" height="40" class="component" />
+  <text x="650" y="680" text-anchor="middle" class="component-label">Users</text>
+  <rect x="730" y="650" width="150" height="40" class="component" />
+  <text x="807" y="680" text-anchor="middle" class="component-label">Security Logs</text>
+  
+  <!-- Legend -->
+  <text x="50" y="780" class="component-label" font-weight="bold">Data Flow: Requests flow downward through layers, responses flow upward</text>
+</svg>

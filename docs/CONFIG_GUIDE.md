@@ -12,6 +12,42 @@ Phase Coverage: 1-7
 """
 
 # ============================================================================
+# AUTHENTICATION CONFIGURATION
+# ============================================================================
+
+## AUTH_REQUIRED Environment Variable
+## Goal: Control authentication enforcement via configuration (not code)
+
+AUTH_REQUIRED = "true"
+    Type: string (boolean: "true"/"false", "yes"/"no", "1"/"0")
+    Default: "true" (authentication enabled - PRODUCTION SAFE)
+    Purpose: Enable/disable authentication and role-based access control
+    
+    When enabled (AUTH_REQUIRED=true):
+    - All protected routes require valid authentication
+    - Users must log in with valid credentials
+    - Role-based access control is enforced
+    - Recommended for all production deployments
+    
+    When disabled (AUTH_REQUIRED=false):
+    - All protected routes are accessible without authentication
+    - Useful for local development and testing
+    - SECURITY WARNING: Never use in production environments
+    - Application startup will log a warning when disabled
+    
+    Example - Local Development:
+        export AUTH_REQUIRED=false
+        python run.py
+    
+    Example - Production:
+        export AUTH_REQUIRED=true
+        python run.py
+    
+    Environment: AUTH_REQUIRED
+    Impact: Controls access to /dashboard, /admin/*, /api/*, and all protected routes
+    Recommendation: Always "true" for production; false only for local dev/testing
+
+# ============================================================================
 # CONFIGURATION REFERENCE
 # ============================================================================
 

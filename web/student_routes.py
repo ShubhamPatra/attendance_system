@@ -18,7 +18,7 @@ logger = setup_logging()
 
 def register_student_routes(bp):
     @bp.route("/api/at_risk")
-    # @require_roles("admin", "teacher")  # DISABLED: Auth removed for local testing
+    @require_roles("admin", "teacher")  # Configurable via AUTH_REQUIRED env var
     def api_at_risk():
         from web import routes as routes_module
 
@@ -30,7 +30,7 @@ def register_student_routes(bp):
         return jsonify(data)
 
     @bp.route("/api/students", methods=["GET"])
-    # @require_roles("admin", "teacher")  # DISABLED: Auth removed for local testing
+    @require_roles("admin", "teacher")  # Configurable via AUTH_REQUIRED env var
     def api_students_list():
         from web import routes as routes_module
 
@@ -43,7 +43,7 @@ def register_student_routes(bp):
         return jsonify(students)
 
     @bp.route("/api/admin/students/pending", methods=["GET"])
-    # @require_roles("admin")  # DISABLED: Auth removed for local testing
+    @require_roles("admin")  # Configurable via AUTH_REQUIRED env var
     def api_admin_students_pending():
         from web import routes as routes_module
 
@@ -53,7 +53,7 @@ def register_student_routes(bp):
         return jsonify(students)
 
     @bp.route("/api/students", methods=["POST"])
-    # @require_roles("admin", "teacher")  # DISABLED: Auth removed for local testing
+    @require_roles("admin", "teacher")  # Configurable via AUTH_REQUIRED env var
     def api_students_create():
         from web import routes as routes_module
 
@@ -146,7 +146,7 @@ def register_student_routes(bp):
         ), 201
 
     @bp.route("/api/students/<reg_no>", methods=["GET"])
-    # @require_roles("admin", "teacher")  # DISABLED: Auth removed for local testing
+    @require_roles("admin", "teacher")  # Configurable via AUTH_REQUIRED env var
     def api_student_detail(reg_no):
         from web import routes as routes_module
 
@@ -162,7 +162,7 @@ def register_student_routes(bp):
         return jsonify(student)
 
     @bp.route("/api/students/<reg_no>", methods=["DELETE"])
-    # @require_roles("admin")  # DISABLED: Auth removed for local testing
+    @require_roles("admin")  # Configurable via AUTH_REQUIRED env var
     def api_student_delete(reg_no):
         from web import routes as routes_module
 
@@ -174,7 +174,7 @@ def register_student_routes(bp):
         return jsonify({"deleted": True, "registration_number": reg_no})
 
     @bp.route("/admin/students")
-    # @require_roles("admin")  # DISABLED: Auth removed for local testing
+    @require_roles("admin")  # Configurable via AUTH_REQUIRED env var
     def admin_students():
         from web import routes as routes_module
 
@@ -184,12 +184,12 @@ def register_student_routes(bp):
         return render_template("admin_students.html", students=students)
 
     @bp.route("/api/admin/students", methods=["GET"])
-    # @require_roles("admin")  # DISABLED: Auth removed for local testing
+    @require_roles("admin")  # Configurable via AUTH_REQUIRED env var
     def api_admin_students_list():
         return api_students_list()
 
     @bp.route("/api/admin/students/<reg_no>", methods=["PATCH"])
-    # @require_roles("admin")  # DISABLED: Auth removed for local testing
+    @require_roles("admin")  # Configurable via AUTH_REQUIRED env var
     def api_admin_students_update(reg_no):
         from web import routes as routes_module
 
@@ -215,7 +215,7 @@ def register_student_routes(bp):
         return jsonify({"updated": True, "registration_number": reg_no, "changes": updates})
 
     @bp.route("/api/admin/students/<reg_no>/recompute", methods=["POST"])
-    # @require_roles("admin")  # DISABLED: Auth removed for local testing
+    @require_roles("admin")  # Configurable via AUTH_REQUIRED env var
     def api_admin_students_recompute(reg_no):
         from web import routes as routes_module
 
@@ -280,7 +280,7 @@ def register_student_routes(bp):
         return jsonify({"updated": True, "registration_number": reg_no, "encodings_count": len(encodings)})
 
     @bp.route("/api/admin/students/<reg_no>/approve", methods=["POST"])
-    # @require_roles("admin")  # DISABLED: Auth removed for local testing
+    @require_roles("admin")  # Configurable via AUTH_REQUIRED env var
     def api_admin_students_approve(reg_no):
         from web import routes as routes_module
         from student_app.verification import evaluate_student_samples
@@ -312,7 +312,7 @@ def register_student_routes(bp):
         return jsonify({"approved": True, "registration_number": reg_no, "score": result.score})
 
     @bp.route("/api/admin/students/<reg_no>/reject", methods=["POST"])
-    # @require_roles("admin")  # DISABLED: Auth removed for local testing
+    @require_roles("admin")  # Configurable via AUTH_REQUIRED env var
     def api_admin_students_reject(reg_no):
         from web import routes as routes_module
 

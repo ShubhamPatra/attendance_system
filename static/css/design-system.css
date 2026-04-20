@@ -34,18 +34,18 @@ body {
 
 :root {
   /* Colors - Primary Palette (Stitch Academic Editorial) */
-  --primary: #233343;
-  --primary-container: #3a4a5a;
+  --primary: #334155;
+  --primary-container: #475569;
   --on-primary: #ffffff;
-  --primary-fixed: #d3e4f8;
-  --primary-fixed-dim: #b7c8dc;
+  --primary-fixed: #e2e8f0;
+  --primary-fixed-dim: #cbd5e1;
 
   /* Colors - Secondary Palette */
-  --secondary: #585f6c;
-  --secondary-container: #dce2f3;
+  --secondary: #64748b;
+  --secondary-container: #f1f5f9;
   --on-secondary: #ffffff;
-  --secondary-fixed: #dce2f3;
-  --secondary-fixed-dim: #c0c7d6;
+  --secondary-fixed: #f8fafc;
+  --secondary-fixed-dim: #e2e8f0;
 
   /* Colors - Tertiary Palette (Burnt Ochre - Use Sparingly for Alerts) */
   --tertiary: #562300;

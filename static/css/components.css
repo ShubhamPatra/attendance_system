@@ -9,9 +9,10 @@
 
 .card {
   background-color: var(--surface-container-lowest);
-  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
   padding: var(--spacing-lg);
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
   transition: all var(--transition-base);
   display: flex;
   flex-direction: column;
@@ -20,8 +21,8 @@
 }
 
 .card:hover {
-  box-shadow: var(--shadow-md);
-  transform: translateY(-2px);
+  box-shadow: none;
+  border-color: var(--color-border-focus);
 }
 
 .card-compact {
@@ -35,13 +36,13 @@
 /* Stat cards */
 .stat-card {
   background-color: var(--surface-container-lowest);
-  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
   padding: var(--spacing-lg);
   display: flex;
   flex-direction: column;
   gap: var(--spacing-sm);
-  box-shadow: var(--shadow-sm);
-  border-left: 4px solid var(--primary);
+  box-shadow: none;
   transition: all var(--transition-base);
   justify-content: flex-start;
   align-items: flex-start;
@@ -50,24 +51,15 @@
 }
 
 .stat-card:hover {
-  box-shadow: var(--shadow-md);
-  transform: translateY(-2px);
+  box-shadow: none;
+  border-color: var(--color-border-focus);
 }
 
-.stat-card.secondary {
-  border-left-color: var(--secondary);
-}
-
-.stat-card.success {
-  border-left-color: var(--success);
-}
-
-.stat-card.warning {
-  border-left-color: var(--warning);
-}
-
+.stat-card.secondary,
+.stat-card.success,
+.stat-card.warning,
 .stat-card.error {
-  border-left-color: var(--error);
+  border-left-color: inherit;
 }
 
 .stat-label {
@@ -105,17 +97,20 @@
 /* Content section */
 .content-section {
   background-color: var(--surface-container-lowest);
-  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
   padding: var(--spacing-lg);
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
 }
 
 .content-section-title {
   font-family: var(--font-headline);
-  font-size: var(--font-size-title-lg);
-  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-title-md);
+  font-weight: 500;
   color: var(--on-surface);
-  margin: 0 0 var(--spacing-lg) 0;
+  margin: 0 0 var(--spacing-md) 0;
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: var(--spacing-sm);
 }
 
 /* ============================================================================
@@ -144,21 +139,22 @@ button {
 /* Primary button */
 .button-primary,
 .btn-primary {
-  background: linear-gradient(135deg, var(--primary), var(--primary-container));
+  background: var(--primary);
   color: var(--on-primary);
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
+  font-weight: 500;
 }
 
 .button-primary:hover,
 .btn-primary:hover {
-  box-shadow: var(--shadow-md);
-  transform: translateY(-1px);
+  background: var(--primary-container);
+  transform: translateY(0);
 }
 
 .button-primary:active,
 .btn-primary:active {
   transform: translateY(0);
-  box-shadow: var(--shadow-xs);
+  background: var(--primary);
 }
 
 .button-primary:disabled,
@@ -362,29 +358,45 @@ table {
   table-layout: auto;
 }
 
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-body-md);
+  table-layout: auto;
+}
+
 thead {
-  background-color: var(--surface-container-high);  /* Stitch: use container-high for headers */
+  background-color: var(--surface-container-low);
+  border-bottom: 1px solid var(--color-border);
 }
 
 th {
   padding: var(--spacing-md) var(--spacing-lg);
   text-align: left;
-  font-weight: var(--font-weight-bold);
-  color: var(--on-surface-variant);
-  font-size: var(--font-size-label-md);
+  font-weight: 500;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-body-sm);
   text-transform: uppercase;
-  letter-spacing: var(--letter-spacing-wide);
-  border-bottom: none;  /* No borders per Stitch */
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--color-border);
 }
 
 tbody tr {
   background-color: var(--surface-container-lowest);
-  border-bottom: none;  /* No borders - use tonal shifts only */
+  border-bottom: 1px solid var(--color-border);
   transition: all var(--transition-fast);
 }
 
+tbody tr:last-child {
+  border-bottom: none;
+}
+
 tbody tr:hover {
-  background-color: var(--surface-container-low);  /* Stitch: hover is container-low */
+  background-color: var(--surface-container-low);
 }
 
 td {
@@ -394,17 +406,7 @@ td {
 }
 
 td:first-child {
-  border-left: 4px solid var(--primary);
-  padding-left: calc(var(--spacing-lg) - 4px);
-}
-
-td:first-child.secondary {
-  border-left-color: var(--secondary);
-}
-
-td:first-child.tertiary {
-  border-left-color: var(--tertiary);
-}
+  border-left: none
 
 /* Table row with accent bar */
 .table-row-accent {

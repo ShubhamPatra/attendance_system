@@ -257,6 +257,15 @@ SPOOF_HOLD_SECONDS = float(
 TRACK_STATE_PENDING_SECONDS = float(
     os.environ.get("TRACK_STATE_PENDING_SECONDS", str(LIVENESS_DECISION_DELAY_SECONDS))
 )
+
+# ---------------------------------------------------------------------------
+# Benchmark & Evaluation Flags (for ablation studies)
+# ---------------------------------------------------------------------------
+# When enabled (set to "1"), disables corresponding components for ablation testing
+DISABLE_ANTISPOOFING = os.environ.get("DISABLE_ANTISPOOFING", "0") == "1"
+DISABLE_BLINK_DETECTION = os.environ.get("DISABLE_BLINK_DETECTION", "0") == "1"
+DISABLE_MOTION_DETECTION = os.environ.get("DISABLE_MOTION_DETECTION", "0") == "1"
+
 ANTI_SPOOF_PAD_RATIO_BASE = float(
     os.environ.get("ANTI_SPOOF_PAD_RATIO_BASE", "0.12")
 )

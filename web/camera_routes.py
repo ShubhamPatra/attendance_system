@@ -12,7 +12,7 @@ import core.database as database
 
 def register_camera_routes(bp):
     @bp.route("/attendance")
-    # @require_roles("admin", "teacher")  # DISABLED: Auth removed for local testing
+    @require_roles("admin", "teacher")  # Configurable via AUTH_REQUIRED env var
     def attendance():
         # Ensure an active attendance session exists for camera 0
         try:
@@ -32,7 +32,7 @@ def register_camera_routes(bp):
         return render_template("attendance.html", video_feed_url=url_for("main.video_feed"))
 
     @bp.route("/api/attendance/start-session", methods=["POST"])
-    # @require_roles("admin", "teacher")  # DISABLED: Auth removed for local testing
+    @require_roles("admin", "teacher")  # Configurable via AUTH_REQUIRED env var
     def start_attendance_session():
         """API endpoint to start a new attendance session."""
         try:
@@ -65,7 +65,7 @@ def register_camera_routes(bp):
             }), 500
 
     @bp.route("/video_feed")
-    # @require_roles("admin", "teacher")  # DISABLED: Auth removed for local testing
+    @require_roles("admin", "teacher")  # Configurable via AUTH_REQUIRED env var
     def video_feed():
         from web import routes as routes_module
 

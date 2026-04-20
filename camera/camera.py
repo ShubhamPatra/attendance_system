@@ -2094,17 +2094,6 @@ class Camera:
             for trk in self._tracks:
                 draw_track_overlay(frame, trk, self._seen, self._seen_lock)
 
-            status_text = f"Tracks: {len(self._tracks)}  FPS: {tracker.metrics().get('fps', 0):.1f}"
-            cv2.putText(
-                frame,
-                status_text,
-                (10, 20),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.5,
-                (255, 255, 0),
-                1,
-            )
-
             if config.DEBUG_MODE:
                 debug_lines = [
                     f"Frame: {self._frame_count}",

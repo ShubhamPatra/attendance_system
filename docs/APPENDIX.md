@@ -348,8 +348,9 @@ python core/profiling.py  # Generates profiling.html
 # Bootstrap admin user
 python scripts/bootstrap_admin.py
 
-# Seed demo data (for testing)
-python scripts/seed_demo_data.py
+# Seed demo data (for testing - development only)
+# ⚠️ WARNING: Script creates test data; use only in dev environments
+python scripts/dev_only/seed_demo_data.py
 
 # Clear database (WARNING: destructive)
 python scripts/clear_db.py

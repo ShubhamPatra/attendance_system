@@ -208,6 +208,10 @@ def check_liveness(
         - label: 1 = real face, 0 = spoof/no face, -1 = error
         - confidence: float in [0, 1]
     """
+    # Benchmark flag: disable all anti-spoofing (ablation study)
+    if config.DISABLE_ANTISPOOFING:
+        return 1, 1.0
+    
     if not _is_ready:
         # Graceful degradation: mark all faces as real
         return 1, 1.0
@@ -388,6 +392,12 @@ def fuse_liveness_signals(
     Returns:
         float: Fused liveness score [0.0-1.0]
     """
+    # Benchmark flags: disable component signals (ablation study)
+    if config.DISABLE_BLINK_DETECTION:
+        blink_score = 0.5  # Neutral signal
+    if config.DISABLE_MOTION_DETECTION:
+        motion_score = 0.5  # Neutral signal
+    
     if weights is None:
         # Default weights from config
         weights = {

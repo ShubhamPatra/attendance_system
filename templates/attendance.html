@@ -3,59 +3,49 @@
 {% block page_title %}Live Attendance{% endblock %}
 
 {% block content %}
-<div>
+<div class="page-container">
   <!-- Page Header -->
   <div class="page-header mb-6">
-    <h1 style="font-size:1.75rem; font-weight:700; letter-spacing:-0.02em; color:var(--on-surface,var(--color-text)); margin:0;">Live Attendance</h1>
-    <p class="page-header-desc" style="margin-top:0.25rem;">Camera-based face recognition attendance capture.</p>
+    <h1 class="font-headline font-semibold text-2xl text-on-surface m-0">Live Attendance</h1>
+    <p class="text-muted mt-1">Camera-based face recognition attendance capture.</p>
   </div>
 
-  <!-- Video Feed — Medium Sized -->
-  <div class="video-container mb-6" style="aspect-ratio:16/9; min-height:320px; max-width:920px; margin:0 auto;">
-    {% if video_feed_url %}
-    <img src="{{ video_feed_url }}" alt="Live Camera Feed" class="video-feed-img">
-    {% else %}
-    <div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:#0f172a; color:#475569;">
-      <div style="text-align:center;">
-        <span class="material-symbols-outlined" style="font-size:3rem; opacity:0.4;">videocam_off</span>
-        <p style="margin-top:0.5rem; font-size:var(--font-size-sm); opacity:0.5;">No camera feed active</p>
+  <!-- Video Feed + Stats Layout -->
+  <div class="grid gap-4 mb-6" style="grid-template-columns: 1fr 200px;">
+    <!-- Video Feed — Full Width -->
+    <div class="video-container border rounded-md overflow-hidden bg-surface-container-low">
+      {% if video_feed_url %}
+      <img src="{{ video_feed_url }}" alt="Live Camera Feed" class="w-full h-full object-cover">
+      {% else %}
+      <div class="flex flex-col items-center justify-center w-full h-full text-muted opacity-60">
+        <span class="material-symbols-outlined text-5xl mb-2">videocam_off</span>
+        <p class="text-sm">No camera feed active</p>
       </div>
+      {% endif %}
+
+      <!-- Video Overlay -->
+      <div class="video-overlay"></div>
     </div>
-    {% endif %}
 
-    <!-- Video Overlay -->
-    <div class="video-overlay"></div>
-
-    <!-- Scan Frame -->
-    <div class="scan-frame">
-      <div class="scan-box">
-        <span class="scan-corner scan-corner--tl"></span>
-        <span class="scan-corner scan-corner--tr"></span>
-        <span class="scan-corner scan-corner--bl"></span>
-        <span class="scan-corner scan-corner--br"></span>
-        <div class="scan-line"></div>
+    <!-- Session Stats Sidebar -->
+    <div class="flex flex-col gap-3">
+      <div class="stat-card text-center p-3">
+        <span class="font-headline font-bold text-xl" id="enrolledCount">—</span>
+        <p class="text-xs text-muted mt-1">Enrolled</p>
       </div>
-    </div>
-  </div>
-
-  <!-- Session Stats Row -->
-  <div class="grid grid-3 gap-3 mb-6">
-    <div class="stat-card" style="text-align:center; padding:var(--space-4);">
-      <span class="stat-card-value" style="font-size:1.5rem;" id="enrolledCount">—</span>
-      <p class="text-xs text-muted" style="margin-top:0.25rem;">Enrolled</p>
-    </div>
-    <div class="stat-card" style="text-align:center; padding:var(--space-4);">
-      <span class="stat-card-value" style="font-size:1.5rem; color:var(--color-success,#16a34a);" id="presentCount">0</span>
-      <p class="text-xs text-muted" style="margin-top:0.25rem;">Present</p>
-    </div>
-    <div class="stat-card" style="text-align:center; padding:var(--space-4);">
-      <span class="stat-card-value" style="font-size:1.5rem;" id="markedCount">0</span>
-      <p class="text-xs text-muted" style="margin-top:0.25rem;">Marked</p>
+      <div class="stat-card text-center p-3">
+        <span class="font-headline font-bold text-xl text-success" id="presentCount">0</span>
+        <p class="text-xs text-muted mt-1">Present</p>
+      </div>
+      <div class="stat-card text-center p-3">
+        <span class="font-headline font-bold text-xl" id="markedCount">0</span>
+        <p class="text-xs text-muted mt-1">Marked</p>
+      </div>
     </div>
   </div>
 
   <!-- Bottom Grid: Logs + Student Info -->
-  <div class="two-col two-col--sidebar" style="align-items:start;">
+  <div class="two-col two-col--sidebar items-start">
     <!-- LEFT: Recent Attendance Events Table -->
     <div class="panel">
       <div class="panel-header">
@@ -86,61 +76,61 @@
     <div class="flex flex-col gap-5">
       <!-- Student Details (shown when detected) -->
       <div class="card card-body" id="studentDetailsPanel" style="display:none;">
-        <div class="info-card-center">
-          <div class="info-icon-circle info-icon-circle--success">
-            <span class="material-symbols-outlined">verified</span>
+        <div class="info-card-center flex flex-col items-center">
+          <div class="info-icon-circle text-success mb-3">
+            <span class="material-symbols-outlined text-4xl">verified</span>
           </div>
-          <h3 id="sdName" style="margin:0;">-</h3>
+          <h3 id="sdName" class="font-headline font-semibold text-lg m-0">-</h3>
           <p class="text-sm text-muted mt-1" id="sdRegNo">-</p>
         </div>
-        <div class="grid grid-2 gap-3 mt-4">
-          <div class="info-detail-row">
-            <div class="info-detail-icon info-detail-icon--primary">
-              <span class="material-symbols-outlined" style="font-size:16px;">school</span>
+        <div class="grid grid-2 gap-3 mt-4 text-sm">
+          <div class="info-detail-row flex items-center gap-2">
+            <div class="text-primary">
+              <span class="material-symbols-outlined text-base">school</span>
             </div>
             <div>
-              <p class="info-detail-label">Section</p>
-              <p class="info-detail-value" id="sdSection">-</p>
+              <p class="text-xs text-muted m-0">Section</p>
+              <p class="font-medium m-0" id="sdSection">-</p>
             </div>
           </div>
-          <div class="info-detail-row">
-            <div class="info-detail-icon info-detail-icon--success">
-              <span class="material-symbols-outlined" style="font-size:16px;">percent</span>
+          <div class="info-detail-row flex items-center gap-2">
+            <div class="text-success">
+              <span class="material-symbols-outlined text-base">percent</span>
             </div>
             <div>
-              <p class="info-detail-label">Confidence</p>
-              <p class="info-detail-value" id="sdConfidence">-</p>
+              <p class="text-xs text-muted m-0">Confidence</p>
+              <p class="font-medium m-0" id="sdConfidence">-</p>
             </div>
           </div>
         </div>
-        <div class="mt-4" style="text-align:center;">
+        <div class="mt-4 text-center">
           <span class="badge badge-success" id="sdAttendanceBadge">Verified</span>
         </div>
       </div>
 
       <!-- How It Works (shown by default) -->
       <div class="card card-body" id="howItWorksPanel">
-        <h3 style="font-size:var(--font-size-md); font-weight:600; margin:0 0 var(--space-4) 0;">How It Works</h3>
+        <h3 class="font-headline font-semibold text-base m-0 mb-4">How It Works</h3>
         <div class="flex flex-col gap-4">
           <div class="flex items-start gap-3">
-            <div style="min-width:1.75rem; width:1.75rem; height:1.75rem; border-radius:50%; background:var(--color-primary,#1e3a8a); color:white; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:0.75rem; flex-shrink:0;">1</div>
+            <div class="step-circle bg-primary text-white font-bold text-xs flex items-center justify-center shrink-0 w-7 h-7 rounded-full">1</div>
             <div>
-              <p class="text-sm font-semibold" style="margin:0;">Look at the camera</p>
-              <p class="text-xs text-muted" style="margin:0.125rem 0 0 0;">Position yourself directly in front of the camera</p>
+              <p class="text-sm font-semibold m-0">Look at the camera</p>
+              <p class="text-xs text-muted mt-1">Position yourself directly in front of the camera</p>
             </div>
           </div>
           <div class="flex items-start gap-3">
-            <div style="min-width:1.75rem; width:1.75rem; height:1.75rem; border-radius:50%; background:var(--color-secondary,#2563eb); color:white; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:0.75rem; flex-shrink:0;">2</div>
+            <div class="step-circle bg-primary text-white font-bold text-xs flex items-center justify-center shrink-0 w-7 h-7 rounded-full">2</div>
             <div>
-              <p class="text-sm font-semibold" style="margin:0;">Verify liveness</p>
-              <p class="text-xs text-muted" style="margin:0.125rem 0 0 0;">The system confirms you are a real person</p>
+              <p class="text-sm font-semibold m-0">Verify liveness</p>
+              <p class="text-xs text-muted mt-1">The system confirms you are a real person</p>
             </div>
           </div>
           <div class="flex items-start gap-3">
-            <div style="min-width:1.75rem; width:1.75rem; height:1.75rem; border-radius:50%; background:var(--color-primary,#1e3a8a); color:white; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:0.75rem; flex-shrink:0;">3</div>
+            <div class="step-circle bg-primary text-white font-bold text-xs flex items-center justify-center shrink-0 w-7 h-7 rounded-full">3</div>
             <div>
-              <p class="text-sm font-semibold" style="margin:0;">Attendance recorded</p>
-              <p class="text-xs text-muted" style="margin:0.125rem 0 0 0;">Your attendance is automatically marked</p>
+              <p class="text-sm font-semibold m-0">Attendance recorded</p>
+              <p class="text-xs text-muted mt-1">Your attendance is automatically marked</p>
             </div>
           </div>
         </div>

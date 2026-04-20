@@ -306,6 +306,11 @@ def create_app() -> Flask:
         release_camera()
         _cleanup_uploads(logger)
 
+    # Log authentication status
+    from core.auth_config import get_auth_status_message
+    auth_status = get_auth_status_message()
+    logger.warning(auth_status) if "DISABLED" in auth_status else logger.info(auth_status)
+
     logger.info("Application initialised.")
     return app
 

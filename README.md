@@ -516,9 +516,10 @@ attendance_system/
 │  ├─ bootstrap_admin.py              # Create admin user
 │  ├─ download_models.py              # Fetch YuNet + Anti-Spoof models
 │  ├─ verify_versions.py              # Verify installation
-│  ├─ seed_demo_data.py               # Populate demo students
 │  ├─ calibrate_liveness_threshold.py # Tune liveness sensitivity
-│  └─ migrate_encodings.py            # dlib → ArcFace migration
+│  ├─ migrate_encodings.py            # dlib → ArcFace migration
+│  └─ dev-only/                       # Development-only scripts
+│     └─ seed_demo_data.py            # ⚠️ Development only: Populate demo students
 ├─ templates/                         # Shared HTML templates
 │  ├─ base.html                       # Base layout
 │  ├─ attendance.html                 # Attendance view

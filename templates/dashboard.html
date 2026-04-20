@@ -6,8 +6,8 @@
 <div>
   <!-- Page Header -->
   <div class="page-header mb-8">
-    <h1 style="font-size:1.75rem; font-weight:700; letter-spacing:-0.02em; color:var(--on-surface); margin:0;">Dashboard Overview</h1>
-    <p class="page-header-desc" style="margin-top:0.25rem;">Real-time overview of attendance metrics and recent activity.</p>
+    <h1 class="font-headline font-semibold m-0 text-on-surface text-2xl">Dashboard Overview</h1>
+    <p class="text-muted mt-1">Real-time overview of attendance metrics and recent activity.</p>
   </div>
 
   <!-- Stat Cards Row -->
@@ -21,20 +21,20 @@
       <div class="stat-card-footer">
         <span class="stat-card-value">{{ total_students }}</span>
       </div>
-      <p class="text-xs text-muted" style="margin-top:0.25rem;">Enrolled in system</p>
+      <p class="text-xs text-muted mt-1">Enrolled in system</p>
     </div>
 
     <!-- Present Today -->
-    <div class="stat-card" style="border-left:3px solid var(--color-success, #16a34a);">
+    <div class="stat-card success">
       <div class="stat-card-top">
         <span class="stat-card-label">Present Today</span>
         <span class="material-symbols-outlined stat-card-icon stat-card-icon--success">check_circle</span>
       </div>
       <div class="stat-card-footer">
         <span class="stat-card-value">{{ today_count }}</span>
-        <span class="badge badge-success" style="font-size:0.625rem;">Live</span>
+        <span class="badge badge-success text-xs">Live</span>
       </div>
-      <p class="text-xs text-muted" style="margin-top:0.25rem;">Current session</p>
+      <p class="text-xs text-muted mt-1">Current session</p>
     </div>
 
     <!-- Attendance Rate -->
@@ -46,7 +46,7 @@
       <div class="stat-card-footer">
         <span class="stat-card-value">{{ attendance_pct }}%</span>
       </div>
-      <p class="text-xs text-muted" style="margin-top:0.25rem;">Global rate</p>
+      <p class="text-xs text-muted mt-1">Global rate</p>
     </div>
   </div>
 
@@ -61,10 +61,10 @@
         </div>
       </div>
       <div class="panel-body">
-        <div id="trendChart" style="height:240px; display:flex; align-items:flex-end; justify-content:space-around; gap:0.75rem; padding:1rem 0;">
-          <p class="text-sm text-muted" style="margin:auto;">Loading trend data...</p>
+        <div id="trendChart" class="flex items-end justify-around gap-3 py-4" style="height: 240px;">
+          <p class="text-sm text-muted m-auto">Loading trend data...</p>
         </div>
-        <div id="trendLabels" style="display:none; justify-content:space-around; font-size:var(--font-size-xs); color:var(--color-text-muted);"></div>
+        <div id="trendLabels" class="flex justify-around text-xs text-muted" style="display:none;"></div>
       </div>
     </div>
 
@@ -124,7 +124,7 @@
   <div class="panel">
     <div class="panel-header">
       <div class="panel-header-left">
-        <span class="material-symbols-outlined" style="color:var(--color-error,#dc2626);">warning</span>
+        <span class="material-symbols-outlined text-error">warning</span>
         <h3>At Risk Students</h3>
       </div>
       <span class="badge badge-error" id="atRiskCount"></span>
@@ -202,7 +202,7 @@
         var chart = document.getElementById('trendChart');
         var labels = document.getElementById('trendLabels');
         if (!data || !data.length) {
-          chart.innerHTML = '<p class="text-sm text-muted" style="margin:auto;">No trend data available.</p>';
+          chart.innerHTML = '<p class="text-sm text-muted m-auto">No trend data available.</p>';
           return;
         }
         var maxCount = Math.max.apply(null, data.map(function(d) { return d.count || 0; }));
@@ -213,7 +213,8 @@
         data.forEach(function(d) {
           var pct = ((d.count || 0) / maxCount) * 100;
           var bar = document.createElement('div');
-          bar.style.cssText = 'flex:1; height:' + Math.max(pct, 2) + '%; background:linear-gradient(180deg, var(--color-primary,#1e3a8a) 0%, var(--color-secondary,#2563eb) 100%); border-radius:var(--radius-md); min-width:20px; transition:height 0.5s ease;';
+          bar.className = 'bg-primary rounded-md transition-all duration-500 ease-out';
+          bar.style.cssText = 'flex:1; height:' + Math.max(pct, 2) + '%; min-width:20px;';
           bar.title = d.date + ': ' + (d.count || 0) + ' present';
           chart.appendChild(bar);
           var lbl = document.createElement('span');
@@ -224,7 +225,7 @@
         });
       })
       .catch(function() {
-        document.getElementById('trendChart').innerHTML = '<p class="text-sm text-muted" style="margin:auto;">Failed to load trend data.</p>';
+        document.getElementById('trendChart').innerHTML = '<p class="text-sm text-muted m-auto">Failed to load trend data.</p>';
       });
 
     // Load initial metrics from API

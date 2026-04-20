@@ -355,20 +355,37 @@ db.attendance.getIndexes()
 
 ## First Attendance Capture
 
-### Step 1: Seed Demo Data
+### Step 1: Seed Demo Data (Development Only)
+
+⚠️ **WARNING**: This script creates test/demo data. Use only in development environments.
 
 ```bash
-python scripts/seed_demo_data.py
+# Navigate to the development-only scripts folder
+cd scripts/dev-only
+
+# Run the seed script
+python seed_demo_data.py
+
+# Or from project root:
+python scripts/dev_only/seed_demo_data.py
 
 # This creates:
-# - 5 test students (with pre-generated embeddings)
-# - 1 test course (CS101)
-# - 1 test attendance session
+# - 3 test students (DEMO-001, DEMO-002, DEMO-003)
+# - 1 test admin user (admin / admin1234)
+# - Random attendance records (~65% present)
 # 
 # Output:
-# Created 5 students: CS21001–CS21005
-# Created course: CS101
-# Enrollment complete
+# ✅ Demo data seeded successfully.
+# 📝 Test Students Created:
+#    - DEMO-001: Alice Khan
+#    - DEMO-002: Bilal Ahmed
+#    - DEMO-003: Sara Iqbal
+#
+# 🔐 Demo Admin Account:
+#    - Username: admin
+#    - Password: admin1234
+#
+# ⚠️ Remember: This is TEST DATA ONLY - DO NOT USE IN PRODUCTION
 ```
 
 ### Step 2: Start Admin App

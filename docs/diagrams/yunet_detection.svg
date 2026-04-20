@@ -1,0 +1,151 @@
+<svg viewBox="0 0 1400 1100" xmlns="http://www.w3.org/2000/svg">
+  <!-- Title -->
+  <text x="700" y="35" font-size="28" font-weight="bold" text-anchor="middle" fill="#1a1a1a">
+    YuNet: Anchor-Free Face Detection Architecture
+  </text>
+  
+  <!-- Input -->
+  <rect x="580" y="60" width="240" height="70" fill="#E3F2FD" stroke="#1976D2" stroke-width="2" rx="5"/>
+  <text x="700" y="92" font-size="13" font-weight="bold" text-anchor="middle" fill="#1976D2">Input: Video Frame</text>
+  <text x="700" y="113" font-size="12" text-anchor="middle" fill="#666">640×480, various scales</text>
+  
+  <!-- Arrow -->
+  <line x1="700" y1="130" x2="700" y2="160" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+  
+  <!-- Backbone -->
+  <rect x="520" y="160" width="360" height="100" fill="#F3E5F5" stroke="#9C27B0" stroke-width="2" rx="5"/>
+  <text x="700" y="190" font-size="13" font-weight="bold" text-anchor="middle" fill="#9C27B0">Backbone: Depthwise-Separable Convolutions</text>
+  <text x="700" y="213" font-size="11" text-anchor="middle" fill="#333">DW Conv reduces ops by 26× vs standard Conv</text>
+  <text x="700" y="233" font-size="11" text-anchor="middle" fill="#333">Stride=2,4: Progressive downsampling</text>
+  <text x="700" y="253" font-size="10" text-anchor="middle" fill="#666">Output: 160×120, 80×60 feature maps</text>
+  
+  <!-- Arrow -->
+  <line x1="700" y1="260" x2="700" y2="290" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+  
+  <!-- FPN -->
+  <rect x="500" y="290" width="400" height="100" fill="#E0F2F1" stroke="#009688" stroke-width="2" rx="5"/>
+  <text x="700" y="320" font-size="13" font-weight="bold" text-anchor="middle" fill="#009688">Feature Pyramid Network (FPN)</text>
+  <text x="700" y="343" font-size="11" text-anchor="middle" fill="#333">Lateral connections: 160×120 & 80×60 merged</text>
+  <text x="700" y="363" font-size="11" text-anchor="middle" fill="#333">Multi-scale context: detects faces of all sizes</text>
+  <text x="700" y="383" font-size="10" text-anchor="middle" fill="#666">Output: 2 FPN levels</text>
+  
+  <!-- Arrow -->
+  <line x1="700" y1="390" x2="700" y2="420" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+  
+  <!-- Anchor-Free Detection Head -->
+  <rect x="450" y="420" width="500" height="120" fill="#FCE4EC" stroke="#E91E63" stroke-width="2" rx="5"/>
+  <text x="700" y="450" font-size="13" font-weight="bold" text-anchor="middle" fill="#E91E63">Anchor-Free Detection Head (No Pre-defined Anchors)</text>
+  <text x="700" y="473" font-size="11" text-anchor="middle" fill="#333">Predicts at every pixel: class confidence + bbox offset</text>
+  <text x="700" y="493" font-size="11" text-anchor="middle" fill="#333">Bbox: (cx, cy, w, h) - center + size directly</text>
+  <text x="700" y="513" font-size="11" text-anchor="middle" fill="#333">Keypoints: 5 landmarks (eyes, nose, mouth-corners)</text>
+  <text x="700" y="533" font-size="10" text-anchor="middle" fill="#666">~52K predictions per FPN level</text>
+  
+  <!-- Arrow -->
+  <line x1="700" y1="540" x2="700" y2="570" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+  
+  <!-- Confidence Filtering -->
+  <rect x="520" y="570" width="360" height="80" fill="#FFF4E6" stroke="#FF9800" stroke-width="2" rx="5"/>
+  <text x="700" y="600" font-size="13" font-weight="bold" text-anchor="middle" fill="#FF9800">Confidence Filtering</text>
+  <text x="700" y="623" font-size="11" text-anchor="middle" fill="#333">Threshold: 0.4 (face probability)</text>
+  <text x="700" y="643" font-size="11" text-anchor="middle" fill="#666">Filtered: ~80 candidates (from 52K)</text>
+  
+  <!-- Arrow -->
+  <line x1="700" y1="650" x2="700" y2="680" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+  
+  <!-- NMS Processing -->
+  <rect x="480" y="680" width="440" height="100" fill="#E8F5E9" stroke="#4CAF50" stroke-width="2" rx="5"/>
+  <text x="700" y="710" font-size="13" font-weight="bold" text-anchor="middle" fill="#4CAF50">Non-Maximum Suppression (NMS)</text>
+  <text x="700" y="733" font-size="11" text-anchor="middle" fill="#333">IoU threshold: 0.45 (remove overlapping)</text>
+  <text x="700" y="753" font-size="11" text-anchor="middle" fill="#333">Keeps highest confidence bbox</text>
+  <text x="700" y="773" font-size="11" text-anchor="middle" fill="#666">Output: ~10 final faces per frame</text>
+  
+  <!-- Arrow -->
+  <line x1="700" y1="780" x2="700" y2="810" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+  
+  <!-- Final output -->
+  <rect x="550" y="810" width="300" height="80" fill="#C8E6C9" stroke="#2E7D32" stroke-width="3" rx="5"/>
+  <text x="700" y="840" font-size="13" font-weight="bold" text-anchor="middle" fill="#1B5E20">Detections: Face Bboxes + Landmarks</text>
+  <text x="700" y="863" font-size="12" text-anchor="middle" fill="#2E7D32">Ready for alignment & embedding</text>
+  
+  <!-- Left side: Anchor-Free advantage -->
+  <rect x="50" y="160" width="380" height="280" fill="#FFFDE7" stroke="#FBC02D" stroke-width="2" rx="3"/>
+  <text x="240" y="185" font-size="12" font-weight="bold" text-anchor="middle" fill="#F57F17">Anchor-Free Advantages</text>
+  
+  <text x="60" y="215" font-size="11" fill="#333">✓ No pre-defined anchor boxes</text>
+  <text x="60" y="235" font-size="11" fill="#333">✓ Direct bbox regression</text>
+  <text x="60" y="255" font-size="11" fill="#333">✓ Simpler architecture</text>
+  <text x="60" y="275" font-size="11" fill="#333">✓ Better for varied face sizes</text>
+  <text x="60" y="295" font-size="11" fill="#333">✓ Model size: 230 KB</text>
+  <text x="60" y="315" font-size="11" fill="#333">✓ vs YOLO (6.3 MB, 27× larger)</text>
+  <text x="60" y="335" font-size="11" fill="#333">✓ vs RetinaFace (500 KB)</text>
+  <text x="60" y="355" font-size="11" fill="#333">✓ 30 FPS on CPU (real-time)</text>
+  <text x="60" y="375" font-size="11" fill="#333">✓ 98% accuracy on WIDER dataset</text>
+  <text x="60" y="395" font-size="11" fill="#333">✓ 5-point landmarks: eyes, nose,</text>
+  <text x="70" y="415" font-size="11" fill="#333">mouth corners</text>
+  <text x="60" y="435" font-size="10" font-style="italic" fill="#666">Used for 2D→3D face alignment</text>
+  
+  <!-- Right side: Architecture details -->
+  <rect x="970" y="160" width="380" height="400" fill="#F3E5F5" stroke="#9C27B0" stroke-width="2" rx="3"/>
+  <text x="1160" y="185" font-size="12" font-weight="bold" text-anchor="middle" fill="#9C27B0">Architecture Details</text>
+  
+  <text x="980" y="215" font-size="11" font-weight="bold" fill="#9C27B0">Depthwise-Separable Conv:</text>
+  <text x="985" y="235" font-size="10" fill="#333">DW: (5×5) filter per channel</text>
+  <text x="985" y="252" font-size="10" fill="#333">PW: 1×1 conv channel fusion</text>
+  <text x="985" y="269" font-size="10" fill="#333">Formula: Ops = (K×K + C_out) × H × W</text>
+  <text x="985" y="289" font-size="10" fill="#666">Savings vs Conv: (K×K) / (K×K + 1)</text>
+  
+  <text x="980" y="320" font-size="11" font-weight="bold" fill="#9C27B0">FPN Processing:</text>
+  <text x="985" y="340" font-size="10" fill="#333">Level P3: 160×120 features</text>
+  <text x="985" y="357" font-size="10" fill="#333">Level P4: 80×60 features</text>
+  <text x="985" y="374" font-size="10" fill="#333">Lateral fusion → refined features</text>
+  <text x="985" y="394" font-size="10" fill="#666">Detects small & large faces</text>
+  
+  <text x="980" y="425" font-size="11" font-weight="bold" fill="#9C27B0">Output Format:</text>
+  <text x="985" y="445" font-size="10" fill="#333">For each detection:</text>
+  <text x="985" y="462" font-size="10" fill="#333">[x1,y1,x2,y2,conf,l1x,l1y,...,l5y]</text>
+  <text x="985" y="479" font-size="10" fill="#333">where li = landmark i coordinates</text>
+  <text x="985" y="496" font-size="10" fill="#333">Used for face alignment pipeline</text>
+  
+  <text x="980" y="527" font-size="11" font-weight="bold" fill="#9C27B0">Performance:</text>
+  <text x="985" y="547" font-size="10" fill="#333">Detection latency: 33ms</text>
+  <text x="985" y="538" font-size="10" fill="#333">Throughput: 30 FPS</text>
+  
+  <!-- Bottom: Comparison with alternatives -->
+  <rect x="50" y="900" width="1300" height="180" fill="#FAFAFA" stroke="#999" stroke-width="1" rx="3"/>
+  <text x="70" y="925" font-size="13" font-weight="bold" fill="#333">Comparison with Alternatives</text>
+  
+  <rect x="70" y="945" width="300" height="120" fill="#E3F2FD" stroke="#1976D2" stroke-width="1" rx="3"/>
+  <text x="220" y="968" font-size="11" font-weight="bold" text-anchor="middle" fill="#1976D2">YuNet (Chosen)</text>
+  <text x="75" y="993" font-size="10" fill="#333">• Size: 230 KB</text>
+  <text x="75" y="1010" font-size="10" fill="#333">• Speed: 30 FPS (33ms)</text>
+  <text x="75" y="1027" font-size="10" fill="#333">• Accuracy: 98%</text>
+  <text x="75" y="1044" font-size="10" fill="#333">• Landmarks: 5-point ✓</text>
+  
+  <rect x="400" y="945" width="300" height="120" fill="#FCE4EC" stroke="#E91E63" stroke-width="1" rx="3"/>
+  <text x="550" y="968" font-size="11" font-weight="bold" text-anchor="middle" fill="#E91E63">YOLO v5</text>
+  <text x="405" y="993" font-size="10" fill="#333">• Size: 6.3 MB (27×)</text>
+  <text x="405" y="1010" font-size="10" fill="#333">• Speed: 8 FPS (123ms)</text>
+  <text x="405" y="1027" font-size="10" fill="#333">• Accuracy: 96%</text>
+  <text x="405" y="1044" font-size="10" fill="#333">• Multi-object detection</text>
+  
+  <rect x="730" y="945" width="300" height="120" fill="#E0F2F1" stroke="#009688" stroke-width="1" rx="3"/>
+  <text x="880" y="968" font-size="11" font-weight="bold" text-anchor="middle" fill="#009688">RetinaFace</text>
+  <text x="735" y="993" font-size="10" fill="#333">• Size: 500 KB (2.2×)</text>
+  <text x="735" y="1010" font-size="10" fill="#333">• Speed: 22 FPS (45ms)</text>
+  <text x="735" y="1027" font-size="10" fill="#333">• Accuracy: 98.5%</text>
+  <text x="735" y="1044" font-size="10" fill="#333">• 5-point landmarks ✓</text>
+  
+  <rect x="1060" y="945" width="270" height="120" fill="#FFF4E6" stroke="#FF9800" stroke-width="1" rx="3"/>
+  <text x="1195" y="968" font-size="11" font-weight="bold" text-anchor="middle" fill="#FF9800">MediaPipe</text>
+  <text x="1065" y="993" font-size="10" fill="#333">• Size: 5 MB</text>
+  <text x="1065" y="1010" font-size="10" fill="#333">• Speed: 25 FPS</text>
+  <text x="1065" y="1027" font-size="10" fill="#333">• Accuracy: 94%</text>
+  <text x="1065" y="1044" font-size="10" fill="#333">• Less accurate ✗</text>
+  
+  <!-- Arrow marker -->
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
+      <polygon points="0 0, 10 5, 0 10" fill="#333"/>
+    </marker>
+  </defs>
+</svg>

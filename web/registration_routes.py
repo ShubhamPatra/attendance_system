@@ -79,7 +79,7 @@ def _zip_matches_for_reg_no(zip_file: zipfile.ZipFile, reg_no: str) -> list[str]
 
 def register_registration_routes(bp):
     @bp.route("/register", methods=["GET", "POST"])
-    # @require_roles("admin", "teacher")  # DISABLED: Auth removed for local testing
+    @require_roles("admin", "teacher")  # Configurable via AUTH_REQUIRED env var
     def register():
         from web import routes as routes_module
 
@@ -223,7 +223,7 @@ def register_registration_routes(bp):
         return redirect(url_for("main.register"))
 
     @bp.route("/register/batch", methods=["GET", "POST"])
-    # @require_roles("admin", "teacher")  # DISABLED: Auth removed for local testing
+    @require_roles("admin", "teacher")  # Configurable via AUTH_REQUIRED env var
     def register_batch():
         from web import routes as routes_module
 
@@ -308,7 +308,7 @@ def register_registration_routes(bp):
         return render_template("batch_register.html", results=results)
 
     @bp.route("/api/register/capture", methods=["POST"])
-    # @require_roles("admin", "teacher")  # DISABLED: Auth removed for local testing
+    @require_roles("admin", "teacher")  # Configurable via AUTH_REQUIRED env var
     def api_register_capture():
         from web import routes as routes_module
 
@@ -347,6 +347,6 @@ def register_registration_routes(bp):
         return jsonify({"path": filename})
 
     @bp.route("/api/register/batch", methods=["POST"])
-    # @require_roles("admin", "teacher")  # DISABLED: Auth removed for local testing
+    @require_roles("admin", "teacher")  # Configurable via AUTH_REQUIRED env var
     def api_register_batch():
         return register_batch()

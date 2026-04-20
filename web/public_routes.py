@@ -12,12 +12,12 @@ def register_public_routes(bp):
         return render_template("index.html")
 
     @bp.route("/logs")
-    # @require_roles("admin", "teacher")  # DISABLED: Auth removed for local testing
+    @require_roles("admin", "teacher")  # Configurable via AUTH_REQUIRED env var
     def logs():
         return render_template("logs.html")
 
     @bp.route("/metrics")
-    # @require_roles("admin", "teacher")  # DISABLED: Auth removed for local testing
+    @require_roles("admin", "teacher")  # Configurable via AUTH_REQUIRED env var
     def metrics():
         from web import routes as routes_module
 
@@ -27,12 +27,12 @@ def register_public_routes(bp):
         return render_template("metrics.html", metrics=m, config=routes_module.config)
 
     @bp.route("/attendance_activity")
-    # @require_roles("admin", "teacher")  # DISABLED: Auth removed for local testing
+    @require_roles("admin", "teacher")  # Configurable via AUTH_REQUIRED env var
     def attendance_activity():
         return render_template("attendance_activity.html")
 
     @bp.route("/api/attendance_activity")
-    # @require_roles("admin", "teacher")  # DISABLED: Auth removed for local testing
+    @require_roles("admin", "teacher")  # Configurable via AUTH_REQUIRED env var
     def api_attendance_activity():
         from web import routes as routes_module
 
@@ -44,7 +44,7 @@ def register_public_routes(bp):
         return jsonify({"date": date, "hours": data})
 
     @bp.route("/heatmap")
-    # @require_roles("admin", "teacher")  # DISABLED: Auth removed for local testing
+    @require_roles("admin", "teacher")  # Configurable via AUTH_REQUIRED env var
     def heatmap():
         return render_template("heatmap.html")
 
@@ -54,7 +54,7 @@ def register_public_routes(bp):
         return redirect(f"{config.STUDENT_PORTAL_BASE_URL}/login")
 
     @bp.route("/api/heatmap")
-    # @require_roles("admin", "teacher")  # DISABLED: Auth removed for local testing
+    @require_roles("admin", "teacher")  # Configurable via AUTH_REQUIRED env var
     def api_heatmap():
         from web import routes as routes_module
 

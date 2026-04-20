@@ -13,8 +13,8 @@
   <div class="status-grid">
     <!-- Enrollment Status Section -->
     {% call panel_section('Enrollment Status', icon='verified_user', eyebrow='Account Overview') %}
-      <div class="flex items-start justify-between" style="flex-wrap:wrap;gap:var(--space-3)">
-        <span class="badge {% if verification_status == 'approved' %}badge-success{% elif verification_status == 'verified' %}badge-success{% else %}badge-warning{% endif %}" style="text-transform:uppercase;letter-spacing:0.05em">{{ verification_status }}</span>
+      <div class="flex items-start justify-between flex-wrap gap-3">
+        <span class="badge {% if verification_status == 'approved' %}badge-success{% elif verification_status == 'verified' %}badge-success{% else %}badge-warning{% endif %} uppercase tracking-wide">{{ verification_status }}</span>
       </div>
     {% endcall %}
 
@@ -27,16 +27,16 @@
         </p>
 
         <!-- Webcam Container -->
-        <div class="video-container mb-4" style="aspect-ratio:16/9">
+        <div class="video-container mb-4" class="aspect-video">
           <video id="webcam" autoplay playsinline class="video-feed-img" style="display:none;"></video>
-          <div id="webcam-placeholder" class="flex flex-column items-center justify-center" style="height:100%;gap:var(--space-4);color:var(--color-text-muted)">
-            <span class="material-symbols-outlined" style="font-size:3rem;opacity:0.5">camera_alt</span>
-            <p class="text-sm" style="margin:0">Click "Start Webcam" to begin</p>
+          <div id="webcam-placeholder" class="flex flex-col items-center justify-center h-full gap-4 text-muted">
+            <span class="material-symbols-outlined" class="text-5xl opacity-50">camera_alt</span>
+            <p class="text-sm" class="m-0">Click "Start Webcam" to begin</p>
           </div>
         </div>
 
         <!-- Button Group -->
-        <div class="flex items-center gap-3 mb-4" style="flex-wrap:wrap">
+        <div class="flex items-center flex-wrap gap-3 mb-4">
           <button id="startWebcamBtn" type="button" class="btn btn-primary">
             <span class="material-symbols-outlined">videocam</span> Start Camera
           </button>
@@ -52,7 +52,7 @@
         <div id="capturedFrames" class="preview-grid preview-grid--4 mb-5" style="display:none"></div>
 
         <!-- Submit Button -->
-        <button id="submitBtn" type="button" class="btn btn-primary btn-block" style="background:var(--color-text);border-color:var(--color-text);display:none">
+        <button id="submitBtn" type="button" class="btn btn-primary btn-block" class="bg-primary border-primary hidden">
           <span class="material-symbols-outlined">upload</span> Submit Photos
         </button>
 
@@ -62,7 +62,7 @@
 
       <!-- Capture Tips -->
       {% call panel_section('Capture Tips', icon='tips_and_updates', eyebrow='Guidance') %}
-        <ul style="list-style:disc;padding-left:var(--space-5);font-size:var(--font-size-sm);color:var(--color-text-muted);display:flex;flex-direction:column;gap:var(--space-2)">
+        <ul class="list-disc pl-5 text-sm text-muted flex flex-col gap-2">
           <li>Keep one face in frame</li>
           <li>Use balanced lighting</li>
           <li>Capture front, left, right, and slight up/down angles</li>
@@ -119,7 +119,7 @@
           <p class="text-sm text-muted mt-4" style="text-align:center"><a href="{{ url_for('student.attendance') }}">View all attendance records →</a></p>
           {% endif %}
         {% else %}
-          <p class="text-sm text-muted text-center" style="padding:var(--space-4);margin:0">No attendance records yet</p>
+          <p class="text-sm text-muted text-center" class="p-4 m-0">No attendance records yet</p>
         {% endif %}
       {% endcall %}
     {% endif %}

@@ -415,6 +415,40 @@ SECRET_KEY=$(cat /run/secrets/flask_secret)
 
 ## Production Setup
 
+### Security First: Authentication Configuration
+
+**⚠️ CRITICAL: Always enable authentication in production**
+
+The `AUTH_REQUIRED` environment variable controls whether authentication is enforced. This defaults to `true` (enabled), which is the secure production setting.
+
+#### For Production Deployments
+
+```bash
+# .env - Production settings
+AUTH_REQUIRED=true          # ✅ REQUIRED - Always true in production
+MONGO_URI=...               # Use MongoDB Atlas or secured cluster
+SECRET_KEY=<long-random-string>  # Use strong, random secret
+```
+
+**Verification**: Check application startup logs for:
+```
+✅ Authentication is ENABLED (production mode)
+```
+
+#### For Local Development Only
+
+```bash
+# .env - Development settings (never commit to production!)
+AUTH_REQUIRED=false         # ⚠️ DEVELOPMENT ONLY - Disables authentication
+```
+
+**Warning**: Check application startup logs for:
+```
+⚠️ Authentication is DISABLED (development mode only - set AUTH_REQUIRED=true for production)
+```
+
+Do not use `AUTH_REQUIRED=false` in production under any circumstances. All protected routes will be accessible without authentication.
+
 ### Recommended Architecture
 
 ```
