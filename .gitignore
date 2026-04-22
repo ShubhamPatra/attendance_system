@@ -67,3 +67,6 @@ reports/*.csv
 AutoAttend/AutoAttendance/reports/*.csv
 AutoAttend/AutoAttendance/venv/
 AutoAttend/AutoAttendance/uploads/students/
+
+# Project report template
+Project_Report_Template/

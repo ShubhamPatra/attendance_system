@@ -17,7 +17,7 @@
 **Symptom**:
 ```
 Traceback (most recent call last):
-  File "run_admin.py", line 1, in <module>
+  File "run.py", line 1, in <module>
     import cv2
 ModuleNotFoundError: No module named 'cv2'
 ```
@@ -105,10 +105,10 @@ kill -9 <PID>
 
 # Option 2: Use different port
 export FLASK_PORT=5555
-python run_admin.py
+python run.py
 
 # Option 3: Configuration
-FLASK_ENV=development FLASK_PORT=5555 python run_admin.py
+FLASK_ENV=development FLASK_PORT=5555 python run.py
 ```
 
 ---
@@ -302,7 +302,7 @@ sudo systemctl restart mongod
 
 # 4. Increase circuit breaker timeout (if needed)
 export CIRCUIT_BREAKER_TIMEOUT=120  # 2 minutes instead of 60
-python run_admin.py
+python run.py
 
 # 5. Check network connectivity
 ping cluster.mongodb.net  # For Atlas
@@ -363,7 +363,7 @@ gzip attendance_backup.json
 python scripts/benchmark_latency.py
 
 # 2. Check CPU usage
-top -p $(pgrep -f run_admin.py)
+top -p $(pgrep -f "python run.py")
 # Should be < 80% per core
 
 # 3. Check GPU (if available)
@@ -432,23 +432,6 @@ tracemalloc.stop()
 ---
 
 ## Deployment Issues
-
-### "Docker build fails: 'model files not found'"
-
-**Solution**:
-```bash
-# 1. Ensure models are downloaded before build
-python scripts/download_models.py
-
-# 2. Verify models exist
-ls models/face_detection_yunet_2023mar.onnx
-
-# 3. Build Docker image with models included
-docker build -t attendance:latest .
-
-# 4. Check if models copied to container
-docker run attendance:latest ls -la /app/models/
-```
 
 ### "Nginx 502 Bad Gateway after deployment"
 

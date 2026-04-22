@@ -246,7 +246,7 @@ def load_faiss_index(index_path):
 
 **Tier 2 (500-2000 students)**: Load-Balanced Cluster
 ```
-                 Nginx (Load Balancer)
+              Load Balancer (HAProxy/Nginx/Cloud LB)
                 /    |    \
           Flask-1  Flask-2  Flask-3 (Gunicorn, 4 workers each)
                 \    |    /
@@ -256,27 +256,7 @@ def load_faiss_index(index_path):
                  Redis Cache (Session storage)
 ```
 
-**Configuration**:
-```nginx
-# nginx.conf
-upstream flask_cluster {
-    least_conn;  # Route to least-connected backend
-    server localhost:5001 max_fails=3 fail_timeout=30s;
-    server localhost:5002 max_fails=3 fail_timeout=30s;
-    server localhost:5003 max_fails=3 fail_timeout=30s;
-}
-
-server {
-    listen 80;
-    server_name attendance.school.edu;
-    
-    location / {
-        proxy_pass http://flask_cluster;
-        proxy_set_header X-Forwarded-For $remote_addr;
-        proxy_read_timeout 10s;
-    }
-}
-```
+**Configuration**: Configure load balancer for least-connection routing across Flask instances.
 
 **Throughput**: 3 servers × 4 workers × 2.5 req/s = **30 req/s** (vs 10 req/s single)
 
@@ -638,18 +618,12 @@ Storage: 2KB per 512-D embedding
 ```
 
 **In-Transit Encryption**:
-```nginx
-# nginx.conf - HTTPS with TLS 1.3
-server {
-    listen 443 ssl http2;
-    ssl_protocols TLSv1.3;
-    ssl_certificate /etc/ssl/certs/attendance.crt;
-    ssl_certificate_key /etc/ssl/private/attendance.key;
-    
-    # Enforce HSTS (prevent downgrade attacks)
-    add_header Strict-Transport-Security "max-age=31536000" always;
-}
-```
+
+HTTPS configuration (TLS 1.3) at reverse proxy/load balancer:
+- Enable TLS 1.3 protocol
+- Use strong certificates (minimum 2048-bit RSA)
+- Enforce HSTS header: `Strict-Transport-Security: max-age=31536000`
+- Redirect all HTTP traffic to HTTPS
 
 ### Input Validation & Sanitization
 

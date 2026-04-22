@@ -136,7 +136,7 @@ Then:
 | **[FACE_DETECTION_COMPARISON.md](COMPARISONS/FACE_DETECTION_COMPARISON.md)** | YuNet vs YOLO vs RetinaFace | Technical | 30 min |
 | **[EMBEDDING_COMPARISON.md](COMPARISONS/EMBEDDING_COMPARISON.md)** | ArcFace vs FaceNet vs VGGFace2 | Technical | 30 min |
 | **[DATABASE_COMPARISON.md](COMPARISONS/DATABASE_COMPARISON.md)** | MongoDB vs PostgreSQL vs Redis | DevOps/Backend | 25 min |
-| **[DEPLOYMENT_COMPARISON.md](COMPARISONS/DEPLOYMENT_COMPARISON.md)** | Docker vs K8s vs Cloud | DevOps | 25 min |
+| **[DEPLOYMENT_COMPARISON.md](COMPARISONS/DEPLOYMENT_COMPARISON.md)** | Kubernetes vs Cloud vs On-Premise | DevOps | 25 min |
 
 ---
 

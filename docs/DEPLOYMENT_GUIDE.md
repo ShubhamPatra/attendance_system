@@ -90,7 +90,6 @@ python scripts/load_test.py --concurrent=50 --duration=60s
 │  YuNet, ArcFace, Liveness (all CPU)│
 │  MongoDB (single instance)          │
 │  Redis (in-memory cache)            │
-│  Nginx (reverse proxy)              │
 └─────────────────────────────────────┘
          ↓
     Clients (Web/Mobile)
@@ -101,7 +100,7 @@ python scripts/load_test.py --concurrent=50 --duration=60s
 1. **Install Dependencies**:
 ```bash
 sudo apt update
-sudo apt install -y python3.9 python3-pip mongodb redis-server nginx
+sudo apt install -y python3.9 python3-pip mongodb redis-server
 pip install -r requirements.txt
 ```
 
@@ -120,44 +119,7 @@ sudo systemctl start mongod
 sudo systemctl enable mongod
 ```
 
-3. **Configure Nginx**:
-```nginx
-# /etc/nginx/sites-available/attendance
-server {
-    listen 80;
-    server_name attendance.school.edu;
-    
-    # Redirect HTTP to HTTPS
-    return 301 https://$server_name$request_uri;
-}
-
-server {
-    listen 443 ssl http2;
-    server_name attendance.school.edu;
-    
-    ssl_certificate /etc/ssl/certs/attendance.crt;
-    ssl_certificate_key /etc/ssl/private/attendance.key;
-    ssl_protocols TLSv1.2 TLSv1.3;
-    
-    location / {
-        proxy_pass http://127.0.0.1:5000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-    
-    location /socket.io {
-        proxy_pass http://127.0.0.1:5000/socket.io;
-        proxy_http_version 1.1;
-        proxy_buffering off;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "Upgrade";
-    }
-}
-```
-
-4. **Start Application**:
+3. **Start Application**:
 ```bash
 # Create systemd service
 sudo tee /etc/systemd/system/attendance-app.service > /dev/null <<EOF
@@ -193,7 +155,7 @@ curl -H "Authorization: Bearer <token>" https://attendance.school.edu/api/health
 
 **Architecture**:
 ```
-                        Nginx Load Balancer
+                    Load Balancer (HAProxy/AWS ELB)
                     /          |          \
               Gunicorn-1   Gunicorn-2   Gunicorn-3
               (4 workers) (4 workers) (4 workers)
@@ -226,7 +188,7 @@ mongo
 # Output: All 3 nodes SECONDARY, Primary elected within 5 seconds
 ```
 
-2. **Nginx Load Balancing**:
+2. **Nginx Load Balancing** (Optional - if using Nginx):
 ```nginx
 upstream flask_cluster {
     least_conn;  # Route to least-connected server
@@ -252,7 +214,9 @@ server {
 }
 ```
 
-3. **Flask Configuration** (on each instance):
+**Note**: Alternatively, use a cloud load balancer (AWS ELB, GCP Load Balancer, Azure LB) instead of Nginx.
+
+2. **Flask Configuration** (on each instance):
 ```python
 # config.py
 class ProductionConfig:
@@ -653,63 +617,83 @@ CURRENT_VERSION=$(cat /opt/attendance/VERSION)
 
 echo "Deploying $NEW_VERSION (current: $CURRENT_VERSION)"
 
-# 1. Deploy to green environment (parallel to blue)
-docker pull attendance:$NEW_VERSION
-docker run -d --name=attendance-green \
-  -e MONGO_URI=$MONGO_URI \
-  -p 5001:5000 \
-  attendance:$NEW_VERSION
+# 1. Create new version directory
+mkdir -p /opt/attendance/v$NEW_VERSION
+cd /opt/attendance/v$NEW_VERSION
+git clone --branch $NEW_VERSION https://github.com/ShubhamPatra/attendance_system.git .
+pip install -r requirements.txt
 
-# 2. Health check green environment
-sleep 10
-HEALTH=$(curl -s http://localhost:5001/health | jq -r '.status')
+# 2. Create systemd service for green environment
+sudo tee /etc/systemd/system/attendance-app-green.service > /dev/null <<EOF
+[Unit]
+Description=AutoAttendance Flask Application (Green)
+After=mongod.service redis-server.service
+
+[Service]
+Type=notify
+User=www-data
+WorkingDirectory=/opt/attendance/v$NEW_VERSION
+ExecStart=gunicorn --workers=4 --bind=127.0.0.1:5001 --timeout=30 app:app
+Restart=on-failure
+RestartSec=10s
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# 3. Start green environment
+sudo systemctl daemon-reload
+sudo systemctl start attendance-app-green
+sleep 5
+
+# 4. Health check green environment
+HEALTH=$(curl -s http://localhost:5001/api/health | jq -r '.status')
 if [ "$HEALTH" != "healthy" ]; then
   echo "Green environment failed health check"
-  docker stop attendance-green
+  sudo systemctl stop attendance-app-green
   exit 1
 fi
 
-# 3. Load test green environment
-python scripts/load_test.py --target=http://localhost:5001 --concurrent=50
+# 5. Load test green environment
+python3 scripts/load_test.py --target=http://localhost:5001 --concurrent=50
 if [ $? -ne 0 ]; then
   echo "Load test failed on green environment"
-  docker stop attendance-green
+  sudo systemctl stop attendance-app-green
   exit 1
 fi
 
-# 4. Switch traffic to green (atomic)
-# Update Nginx config or load balancer
-nginx -s reload
+# 6. Switch traffic to green (update load balancer config or use systemd service alias)
+# If using systemd:
+sudo systemctl stop attendance-app  # Stop blue (old version)
+sudo systemctl start attendance-app-green  # Start green (new version)
+# Rename green to standard service
+sudo mv /etc/systemd/system/attendance-app-green.service /etc/systemd/system/attendance-app.service
 
-# 5. Monitor for errors (5 minutes)
+# 7. Monitor for errors (5 minutes)
 for i in {1..60}; do
-  ERROR_RATE=$(curl -s http://localhost:5001/metrics | grep http_errors | awk '{print $2}')
-  if [ $(echo "$ERROR_RATE > 0.01" | bc) -eq 1 ]; then
+  ERROR_RATE=$(curl -s http://localhost:5000/api/metrics | jq -r '.error_rate // 0')
+  if (( $(echo "$ERROR_RATE > 0.01" | bc -l) )); then
     echo "Error rate spike detected, rolling back"
-    nginx -s reload  # Revert to blue
+    # Rollback: restore old service and stop green
+    sudo systemctl stop attendance-app
     exit 1
   fi
   sleep 5
 done
 
-# 6. Decommission blue environment
-docker stop attendance-blue
-echo "$NEW_VERSION" > /opt/attendance/VERSION
+# 8. Update version file
+echo "$NEW_VERSION" | sudo tee /opt/attendance/VERSION
 echo "Deployment successful"
 ```
 
 **Rollback Procedure** (if issues detected):
 ```bash
 # Immediate rollback to previous version
-# 1. Traffic automatically reverts to blue (if monitoring detected error)
-# 2. All new requests go to blue (previous version)
-# 3. Green environment stopped
-# 4. Incident investigation starts
-
-# Manual rollback if automated rollback missed
-docker stop attendance-green
-nginx -s reload
-curl https://attendance.school.edu/health  # Verify blue is healthy
+sudo systemctl stop attendance-app
+cd /opt/attendance
+git checkout $PREVIOUS_VERSION
+sudo systemctl start attendance-app
+curl https://attendance.school.edu/api/health  # Verify health
 ```
 
 ---

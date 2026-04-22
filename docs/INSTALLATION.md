@@ -1,6 +1,6 @@
 # Installation Guide
 
-**AutoAttendance** supports Python 3.9+ across all major operating systems (Windows, macOS, Linux) and deployment methods (local development, Docker, Kubernetes).
+**AutoAttendance** supports Python 3.9+ across all major operating systems (Windows, macOS, Linux) and deployment methods (local development, Kubernetes).
 
 ## Quick Start
 
@@ -35,29 +35,6 @@ python scripts/verify_versions.py
 
 # Run locally
 python run.py
-```
-
-### Docker (CPU)
-
-```bash
-# Build and run with default settings (Python 3.12, CPU)
-docker compose up --build
-
-# Run with Python 3.11 instead
-PYTHON_VERSION=3.11 docker compose up --build
-
-# Run with Python 3.10 (for older systems)
-PYTHON_VERSION=3.10 docker compose up --build
-```
-
-### Docker (GPU - NVIDIA)
-
-```bash
-# Build with GPU support (requires NVIDIA Docker)
-INSTALL_GPU=1 docker compose up --build
-
-# Build with specific Python version and GPU
-PYTHON_VERSION=3.11 INSTALL_GPU=1 docker compose up --build
 ```
 
 ---
@@ -175,9 +152,6 @@ pip install -e .
 ```bash
 # Local
 pip install -e .
-
-# Docker
-docker compose up --build
 ```
 
 Includes CPU-optimized ONNX Runtime for inference.
@@ -210,12 +184,6 @@ pip install -e ".[gpu]"
 
 # Or directly:
 pip install onnxruntime-gpu>=1.17,<2.0 torch>=2.0,<3.0 torchvision>=0.15,<1.0 --index-url https://download.pytorch.org/whl/cu121
-```
-
-**Docker (requires NVIDIA Docker Runtime):**
-
-```bash
-INSTALL_GPU=1 docker compose up --build
 ```
 
 ### Option 4: Modular Installation
@@ -307,19 +275,6 @@ pip install torch torchvision torchaudio --index-url https://download.pytorch.or
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 ```
 
-### Issue: Docker Build Fails
-
-**Try with Python 3.11 instead of default 3.12:**
-```bash
-PYTHON_VERSION=3.11 docker compose up --build
-```
-
-**Check Docker resources:**
-```bash
-docker system prune      # Free up space
-docker compose logs -f   # Check error logs
-```
-
 ### Issue: `torch` and `numpy` Compatibility
 
 **The project pins `numpy>=1.24,<2.0` for insightface compatibility.**
@@ -339,8 +294,8 @@ python -c "import torch; print(torch.cuda.is_available())"
 
 If `False`:
 1. Check NVIDIA drivers: `nvidia-smi`
-2. Ensure NVIDIA Docker runtime: `docker run --rm --gpus all nvidia/cuda:12.1.1-runtime-ubuntu22.04 nvidia-smi`
-3. Use CPU variant instead: `INSTALL_GPU=0 docker compose up`
+2. Ensure CUDA is properly installed and PATH is set
+3. Use CPU variant: Set `ENABLE_GPU_PROVIDERS=0` before running
 
 ---
 
@@ -409,7 +364,7 @@ LIVENESS_CONFIDENCE_THRESHOLD=0.55
 1.  Verify installation: `python scripts/verify_versions.py`
 2. 📖 Review [README.md](../README.md) for usage
 3. 🔧 Configure [.env](./.env.example) file
-4. 🚀 Run: `python run.py` (local) or `docker compose up` (Docker)
+4. 🚀 Run: `python run.py` to start the application
 5. 🧪 Test: `pytest tests/ -v`
 
 ---

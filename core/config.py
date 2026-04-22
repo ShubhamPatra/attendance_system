@@ -345,6 +345,7 @@ ANTI_SPOOF_MODEL_DIR = os.environ.get(
     "ANTI_SPOOF_MODEL_DIR",
     os.path.join(BASE_DIR, "Silent-Face-Anti-Spoofing", "resources", "anti_spoof_models"),
 )
+
 UNKNOWN_FACES_DIR = os.path.join(BASE_DIR, "unknown_faces")
 UNKNOWN_FACE_COOLDOWN = 10         # Seconds between unknown-face snapshot saves
 
@@ -445,6 +446,100 @@ CHALLENGE_SMILE_MOUTH_THRESHOLD = float(
 )
 CHALLENGE_MOVE_MOTION_THRESHOLD = float(
     os.environ.get("CHALLENGE_MOVE_MOTION_THRESHOLD", "8.0")
+)
+
+# ---------------------------------------------------------------------------
+# Screen/Print Detection (FFT-based moire, flatness, reflection)
+# ---------------------------------------------------------------------------
+SCREEN_PRINT_DETECTOR_ENABLED = os.environ.get(
+    "SCREEN_PRINT_DETECTOR_ENABLED", "1"
+) == "1"
+
+SCREEN_DETECT_PERIODIC_ENERGY_RATIO = float(
+    os.environ.get("SCREEN_DETECT_PERIODIC_ENERGY_RATIO", "0.15")
+)  # High-freq energy threshold for moire detection
+
+SCREEN_DETECT_FLATNESS_THRESHOLD = float(
+    os.environ.get("SCREEN_DETECT_FLATNESS_THRESHOLD", "0.65")
+)  # Laplacian variance; >0.65 = likely screen/photo
+
+SCREEN_DETECT_REFLECTION_THRESHOLD = float(
+    os.environ.get("SCREEN_DETECT_REFLECTION_THRESHOLD", "0.10")
+)  # Bright spot ratio; LCD backlight detection
+
+SCREEN_SCORE_THRESHOLD_REJECT = float(
+    os.environ.get("SCREEN_SCORE_THRESHOLD_REJECT", "0.60")
+)  # Hard rule: screen_score > 0.60 → reject
+
+# ---------------------------------------------------------------------------
+# Temporal Consistency Detection (face stability & motion analysis)
+# ---------------------------------------------------------------------------
+TEMPORAL_CONSISTENCY_ENABLED = os.environ.get(
+    "TEMPORAL_CONSISTENCY_ENABLED", "1"
+) == "1"
+
+TEMPORAL_POSITION_STD_MIN = float(
+    os.environ.get("TEMPORAL_POSITION_STD_MIN", "0.5")
+)  # <0.5px std = too static
+
+TEMPORAL_LANDMARK_VARIANCE_MIN = float(
+    os.environ.get("TEMPORAL_LANDMARK_VARIANCE_MIN", "0.001")
+)  # <0.001 = frozen landmarks
+
+TEMPORAL_SCORE_THRESHOLD_REJECT = float(
+    os.environ.get("TEMPORAL_SCORE_THRESHOLD_REJECT", "0.30")
+)  # Hard rule: temporal_score < 0.30 → reject
+
+TEMPORAL_OSCILLATION_CHECK_ENABLED = os.environ.get(
+    "TEMPORAL_OSCILLATION_CHECK_ENABLED", "1"
+) == "1"  # Detect video loop/screen refresh
+
+# ---------------------------------------------------------------------------
+# Hard Rules for Liveness (must-pass checks before weighted scoring)
+# ---------------------------------------------------------------------------
+LIVENESS_HARD_RULES_ENABLED = os.environ.get(
+    "LIVENESS_HARD_RULES_ENABLED", "1"
+) == "1"
+
+LIVENESS_HARD_RULE_MIN_BLINKS = int(
+    os.environ.get("LIVENESS_HARD_RULE_MIN_BLINKS", "1")
+)  # Must have ≥1 blink detected
+
+LIVENESS_HARD_RULE_MIN_MOTION = float(
+    os.environ.get("LIVENESS_HARD_RULE_MIN_MOTION", "0.15")
+)  # motion_score must be ≥ 0.15
+
+# ---------------------------------------------------------------------------
+# Updated Fusion Weights (Screen + Temporal added, CNN reduced)
+# ---------------------------------------------------------------------------
+# NOTE: These override the old weights if ENABLE_ADVANCED_LIVENESS=1
+LIVENESS_FUSION_WEIGHT_CNN_NEW = float(
+    os.environ.get("LIVENESS_FUSION_WEIGHT_CNN_NEW", "0.25")
+)  # CHANGED: was 0.40 (less trustworthy on photos)
+LIVENESS_FUSION_WEIGHT_BLINK_NEW = float(
+    os.environ.get("LIVENESS_FUSION_WEIGHT_BLINK_NEW", "0.20")
+)  # unchanged
+LIVENESS_FUSION_WEIGHT_MOTION_NEW = float(
+    os.environ.get("LIVENESS_FUSION_WEIGHT_MOTION_NEW", "0.20")
+)  # unchanged
+LIVENESS_FUSION_WEIGHT_TEXTURE_NEW = float(
+    os.environ.get("LIVENESS_FUSION_WEIGHT_TEXTURE_NEW", "0.15")
+)  # unchanged
+LIVENESS_FUSION_WEIGHT_SCREEN_NEW = float(
+    os.environ.get("LIVENESS_FUSION_WEIGHT_SCREEN_NEW", "0.10")
+)  # NEW
+LIVENESS_FUSION_WEIGHT_TEMPORAL_NEW = float(
+    os.environ.get("LIVENESS_FUSION_WEIGHT_TEMPORAL_NEW", "0.10")
+)  # NEW
+
+# Validate fusion weights sum to ~1.0
+_FUSION_WEIGHT_SUM_NEW = (
+    LIVENESS_FUSION_WEIGHT_CNN_NEW
+    + LIVENESS_FUSION_WEIGHT_BLINK_NEW
+    + LIVENESS_FUSION_WEIGHT_MOTION_NEW
+    + LIVENESS_FUSION_WEIGHT_TEXTURE_NEW
+    + LIVENESS_FUSION_WEIGHT_SCREEN_NEW
+    + LIVENESS_FUSION_WEIGHT_TEMPORAL_NEW
 )
 
 # ---------------------------------------------------------------------------

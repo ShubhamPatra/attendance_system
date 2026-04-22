@@ -3,14 +3,13 @@
 ## Table of Contents
 
 1. [Local Development Setup](#local-development-setup)
-2. [Docker Deployment](#docker-deployment)
-3. [Kubernetes Deployment (Phase 7)](#kubernetes-deployment-phase-7)
-4. [Environment Configuration](#environment-configuration)
-5. [Production Setup](#production-setup)
-6. [Scaling & Performance Tuning](#scaling--performance-tuning)
-7. [Monitoring & Logging](#monitoring--logging)
-8. [Backup & Disaster Recovery](#backup--disaster-recovery)
-9. [Troubleshooting](#troubleshooting)
+2. [Kubernetes Deployment (Phase 7)](#kubernetes-deployment-phase-7)
+3. [Environment Configuration](#environment-configuration)
+4. [Production Setup](#production-setup)
+5. [Scaling & Performance Tuning](#scaling--performance-tuning)
+6. [Monitoring & Logging](#monitoring--logging)
+7. [Backup & Disaster Recovery](#backup--disaster-recovery)
+8. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -111,137 +110,14 @@ python scripts/bootstrap_admin.py \
 ### Step 5: Run Development Servers
 
 ```bash
-# Option 1: Both apps together
+# Start unified application (runs both admin and student apps)
 python run.py
-
-# Option 2: Separate terminals
-# Terminal 1: Admin app
-python run_admin.py
-
-# Terminal 2: Student app  
-python run_student.py
-
-# Terminal 3: Nginx (optional)
-nginx -c $(pwd)/deploy/nginx/nginx.conf
 ```
 
 **Access**:
 
 - Admin: http://localhost:5000
 - Student: http://localhost:5001
-- Nginx: http://localhost
-
----
-
-## Docker Deployment
-
-### Prerequisites
-
-- Docker 20.10+
-- Docker Compose 2.0+
-- NVIDIA Docker (optional, for GPU)
-
-### CPU Build
-
-```bash
-# Build images
-docker compose build
-
-# Start services
-docker compose up -d
-
-# View logs
-docker compose logs -f web student-web nginx
-
-# Stop services
-docker compose down
-```
-
-**Service Status**:
-
-```bash
-docker compose ps
-
-# Output:
-# NAME         STATUS              PORTS
-# web          Up 2 minutes        5000/tcp
-# student-web  Up 2 minutes        5001/tcp
-# nginx        Up 2 minutes        80/tcp
-```
-
-### GPU Build
-
-```bash
-# Set GPU flag and build
-INSTALL_GPU=1 docker compose build
-
-# Start with GPU
-docker compose up -d
-
-# Verify GPU
-docker compose exec web python -c "
-import torch
-print(f'GPU Available: {torch.cuda.is_available()}')
-print(f'GPU Name: {torch.cuda.get_device_name(0)}')
-"
-```
-
-### Docker Compose Configuration
-
-**File**: [docker-compose.yml](../docker-compose.yml)
-
-```yaml
-version: '3.9'
-
-services:
-  web:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile
-      args:
-        INSTALL_GPU: ${INSTALL_GPU:-0}
-        PYTHON_VERSION: ${PYTHON_VERSION:-3.12}
-    ports:
-      - "5000:5000"
-    volumes:
-      - ./logs:/app/logs
-      - ./uploads:/app/uploads
-      - ./unknown_faces:/app/unknown_faces
-    environment:
-      - FLASK_ENV=production
-      - MONGO_URI=${MONGO_URI}
-      - ENABLE_GPU_PROVIDERS=${ENABLE_GPU_PROVIDERS:-0}
-    restart: unless-stopped
-
-  student-web:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.student
-      args:
-        PYTHON_VERSION: ${PYTHON_VERSION:-3.12}
-    ports:
-      - "5001:5001"
-    volumes:
-      - ./logs:/app/logs
-      - ./uploads:/app/uploads
-    environment:
-      - FLASK_ENV=production
-      - MONGO_URI=${MONGO_URI}
-    restart: unless-stopped
-
-  nginx:
-    image: nginx:alpine
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./docker/nginx/ssl:/etc/nginx/ssl:ro
-    depends_on:
-      - web
-      - student-web
-    restart: unless-stopped
-```
 
 ---
 
@@ -516,103 +392,13 @@ access_log_format = '%(h)s %(l)s %(u)s %(t)s "%(r)s" %(s)s %(b)s "%(f)s" "%(a)s"
 # ssl_version = "TLSv1_2"
 ```
 
-### Nginx Configuration
-
-**File**: [docker/nginx/nginx.conf](../docker/nginx/nginx.conf)
-
-```nginx
-upstream admin_backend {
-    server web:5000;
-}
-
-upstream student_backend {
-    server student-web:5001;
-}
-
-server {
-    listen 80;
-    server_name _;
-    client_max_body_size 10M;
-
-    # Admin app
-    location / {
-        proxy_pass http://admin_backend;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    # WebSocket support
-    location /socket.io {
-        proxy_pass http://admin_backend/socket.io;
-        proxy_http_version 1.1;
-        proxy_buffering off;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-    }
-
-    # Student app
-    location /student/ {
-        proxy_pass http://student_backend/;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    }
-
-    # Static assets
-    location /static/ {
-        alias /app/static/;
-        expires 1d;
-        add_header Cache-Control "public, immutable";
-    }
-}
-```
-
-### SSL/TLS Setup
-
-```bash
-# Generate self-signed certificate (development)
-openssl req -x509 -newkey rsa:4096 -nodes \
-  -out cert.pem -keyout key.pem -days 365
-
-# Or use Let's Encrypt (production)
-certbot certonly --standalone -d yourdomain.com
-
-# Configure Nginx for HTTPS
-# Update docker/nginx/nginx.conf:
-# listen 443 ssl http2;
-# ssl_certificate /etc/nginx/ssl/cert.pem;
-# ssl_certificate_key /etc/nginx/ssl/key.pem;
-```
-
 ---
 
 ## Scaling & Performance Tuning
 
 ### Horizontal Scaling
 
-Add more server instances behind load balancer:
-
-```yaml
-# docker-compose.yml (multi-server setup)
-version: '3.9'
-
-services:
-  web-1:
-    image: attendance-system:latest
-    # ... config
-  
-  web-2:
-    image: attendance-system:latest
-    # ... config
-  
-  nginx:
-    image: nginx:alpine
-    volumes:
-      - ./docker/nginx/nginx-lb.conf:/etc/nginx/nginx.conf
-    # Distributes traffic to web-1, web-2, ...
-```
+Add more server instances behind a load balancer (AWS ELB, GCP Load Balancer, Azure Load Balancer, or Nginx).
 
 ### Vertical Scaling
 
@@ -680,14 +466,14 @@ logs/
 ### Real-Time Monitoring
 
 ```bash
-# Tail admin app logs
-docker compose logs -f web
+# Tail application logs
+tail -f logs/attendance.log
 
-# Tail student app logs
-docker compose logs -f student-web
+# Tail access logs
+tail -f logs/access.log
 
-# Tail Nginx logs
-docker compose logs -f nginx
+# Tail error logs
+tail -f logs/error.log
 ```
 
 ### Health Check Endpoint
@@ -728,29 +514,36 @@ mongorestore --uri "mongodb+srv://user:pass@cluster/db" \
 ### Application Data Backup
 
 ```bash
-# Backup volumes
-docker compose down
+# Stop application
+sudo systemctl stop gunicorn
+
+# Backup application data
 tar -czf attendance-system-backup-$(date +%Y-%m-%d).tar.gz \
   logs/ uploads/ unknown_faces/ models/
 
-docker compose up -d
+# Backup MongoDB database
+mongodump --uri "mongodb+srv://user:pass@cluster/db" \
+  --out ./backups/$(date +%Y-%m-%d-%H-%M-%S)
+
+# Restart application
+sudo systemctl start gunicorn
 ```
 
 ### Recovery Procedure
 
 ```bash
-# 1. Stop services
-docker compose down
+# 1. Stop application
+sudo systemctl stop gunicorn
 
 # 2. Restore database
 mongorestore --uri "mongodb+srv://user:pass@cluster/db" \
   ./backups/2024-09-15-09-15-23
 
-# 3. Restore volumes (if corrupted)
+# 3. Restore application data (if corrupted)
 tar -xzf attendance-system-backup-2024-09-15.tar.gz
 
-# 4. Restart services
-docker compose up -d
+# 4. Restart application
+sudo systemctl start gunicorn
 
 # 5. Verify
 curl http://localhost:5000/health
@@ -759,25 +552,6 @@ curl http://localhost:5000/health
 ---
 
 ## Troubleshooting
-
-### Issue: Docker Build Fails
-
-```
-Error: "Could not find ONNX model..."
-```
-
-**Solution**:
-
-```bash
-# Ensure models directory exists
-mkdir -p models/
-
-# Download models manually
-python scripts/download_models.py
-
-# Rebuild Docker image
-docker compose build --no-cache
-```
 
 ### Issue: MongoDB Connection Error
 
@@ -811,25 +585,22 @@ CUDA not available; falling back to CPU
 **Solution**:
 
 ```bash
-# Install NVIDIA Docker
-distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
-curl -s -L https://nvidia.github.io/nvidia-docker/gpgkey | apt-key add -
-curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list | \
-  tee /etc/apt/sources.list.d/nvidia-docker.list
+# Verify NVIDIA GPU drivers installed
+nvidia-smi
 
-# Verify NVIDIA Docker
-docker run --rm --gpus all nvidia/cuda:12.1.0-runtime-ubuntu22.04 nvidia-smi
+# Set GPU environment variable
+export ENABLE_GPU_PROVIDERS=1
 
-# Rebuild with GPU
-INSTALL_GPU=1 docker compose build
-docker compose up -d
-
-# Verify GPU in container
-docker compose exec web python -c "
+# Test GPU with Python
+python -c "
 import torch
 print(f'GPU Available: {torch.cuda.is_available()}')
-print(f'GPU Device: {torch.cuda.get_device_name(0)}')
+if torch.cuda.is_available():
+    print(f'GPU Device: {torch.cuda.get_device_name(0)}')
 "
+
+# Restart application with GPU enabled
+sudo systemctl restart gunicorn
 ```
 
 ### Issue: High Latency (Slow Face Detection)
@@ -842,17 +613,19 @@ YuNet detection taking > 100ms per frame
 
 ```bash
 # 1. Enable GPU acceleration
-ENABLE_GPU_PROVIDERS=1
-INSTALL_GPU=1 docker compose build
+export ENABLE_GPU_PROVIDERS=1
 
 # 2. Increase detection interval (detect less frequently)
-DETECTION_INTERVAL=12
+export DETECTION_INTERVAL=12
 
 # 3. Reduce frame size
-FRAME_PROCESS_WIDTH=320
+export FRAME_PROCESS_WIDTH=320
 
 # 4. Use KCF tracker (faster, less accurate)
-PERF_USE_KCF_TRACKER=1
+export PERF_USE_KCF_TRACKER=1
+
+# 5. Restart application
+sudo systemctl restart gunicorn
 ```
 
 ---

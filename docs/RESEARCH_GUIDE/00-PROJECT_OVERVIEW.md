@@ -192,13 +192,7 @@ The system employs **five concurrent defense mechanisms**:
 
 ### Local Development
 ```bash
-python run.py              # Admin app (port 5000)
-python run_student.py      # Student app (port 5001)
-```
-
-### Docker Container
-```bash
-docker-compose up          # All services + MongoDB
+python run.py              # Unified app (Admin: 5000, Student: 5001)
 ```
 
 ### Kubernetes Cluster
@@ -344,15 +338,11 @@ source venv/bin/activate          # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 
 # Development
-python run.py                     # Admin app (5000)
-python run_student.py             # Student app (5001)
+python run.py                     # Unified app (Admin: 5000, Student: 5001)
 
 # Verification
 python scripts/verify_versions.py # Check dependencies
 python scripts/smoke_test.py      # Test core pipeline
-
-# Docker
-docker-compose up                 # All services
 ```
 
 ---

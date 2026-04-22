@@ -353,7 +353,7 @@ Large campus (10,000+) | 200,000+ | 300ms | ✗
 ### Technical Skill Gap
 
 **Staff Requirements**:
-- DevOps: Docker, MongoDB deployment, monitoring.
+- DevOps: MongoDB deployment, cloud infrastructure, monitoring.
 - ML: Model retraining, threshold tuning, debugging.
 - Security: Encryption, access control, vulnerability assessment.
 
@@ -361,7 +361,7 @@ Large campus (10,000+) | 200,000+ | 300ms | ✗
 
 **Workaround**:
 - Use managed MongoDB Atlas (outsource DB ops).
-- Deploy via pre-built Docker images (simplify setup).
+- Use systemd or orchestration platforms for deployment.
 - Provide training documentation and resources.
 
 ---

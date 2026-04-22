@@ -815,7 +815,7 @@ AutoAttendance's Flask backend provides:
 5. **Scalability**: Stateless design compatible with Gunicorn worker pools.
 
 Next steps:
-- See [DEPLOYMENT.md](DEPLOYMENT.md) for production setup with Gunicorn + Nginx.
+- See [DEPLOYMENT.md](DEPLOYMENT.md) for production setup with Gunicorn (optional: Nginx/load balancer).
 - See [TESTING.md](TESTING.md) for unit and integration tests.
 
 ---

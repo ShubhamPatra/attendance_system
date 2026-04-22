@@ -520,30 +520,6 @@ pip install faiss-cpu>=1.7    # Vector search (CPU)
 pip install faiss-gpu>=1.7    # Requires CUDA 11.8+
 ```
 
-### Docker Build
-
-```dockerfile
-FROM python:3.10-slim
-
-WORKDIR /app
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    cmake \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Python dependencies
-COPY requirements/base.txt .
-RUN pip install --no-cache-dir -r base.txt
-
-# Copy application
-COPY . .
-
-# Run app
-CMD ["python", "run.py"]
-```
-
 ### Testing
 
 Run integration tests:

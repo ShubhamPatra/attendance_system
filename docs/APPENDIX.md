@@ -226,39 +226,12 @@ python scripts/download_models.py  # Downloads YuNet, ArcFace, Silent-Face model
 ### Local Development
 
 ```bash
-# Run admin app (port 5000)
-python run_admin.py
-
-# Run student app (port 5001)
-python run_student.py
-
-# Run both simultaneously (requires two terminals)
-# Terminal 1: python run_admin.py
-# Terminal 2: python run_student.py
+# Run unified application (starts both admin and student apps)
+python run.py
 
 # Access applications
 # Admin: http://localhost:5000
 # Student: http://localhost:5001
-```
-
-### Docker Deployment
-
-```bash
-# Build images
-docker-compose build
-
-# Start services
-docker-compose up -d
-
-# Stop services
-docker-compose down
-
-# View logs
-docker-compose logs -f web          # Admin app logs
-docker-compose logs -f student-web  # Student app logs
-
-# Rebuild with GPU support (if NVIDIA available)
-INSTALL_GPU=1 docker-compose build
 ```
 
 ### Database Operations
@@ -400,16 +373,17 @@ python -c "import onnxruntime as rt; print(rt.get_available_providers())"
 # Production startup (with Gunicorn)
 gunicorn -c gunicorn.conf.py admin_app:app
 
-# Monitor system
-docker stats  # Docker container resource usage
-top -u celery  # Celery task worker processes
+# Monitor system resources
+top -u www-data  # Check web server process resources
 
 # Health check
 curl http://localhost:5000/health
 
-# Graceful restart (Nginx + Gunicorn)
-sudo systemctl reload nginx
+# Graceful restart (Gunicorn)
 sudo systemctl restart gunicorn
+
+# If using Nginx reverse proxy (optional)
+sudo systemctl reload nginx
 ```
 
 ---

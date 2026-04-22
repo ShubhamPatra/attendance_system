@@ -130,9 +130,9 @@ Decision = CNN_classification ×
    - Deployed in 5+ institutions (100+ users).
 
 2. **Deployment Best Practices**
-   - Docker containerization guide.
+   - Production deployment guide (systemd, cloud platforms, Kubernetes).
    - MongoDB Atlas integration patterns.
-   - Gunicorn + Nginx configuration for scaling.
+   - Gunicorn + optional reverse proxy (Nginx, HAProxy) for scaling.
 
 3. **Anti-Spoofing Integration Guide**
    - Practical deployment of Silent-Face model.

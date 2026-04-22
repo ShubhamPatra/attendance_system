@@ -220,7 +220,7 @@ def create_app() -> Flask:
         logger.error(
             "Anti-spoofing model initialization failed at startup: %s. "
             "App will continue with degraded anti-spoofing (all faces marked real). "
-            "Check model files and Silent-Face-Anti-Spoofing library installation.",
+            "Check anti-spoofing model file installation.",
             exc,
         )
 

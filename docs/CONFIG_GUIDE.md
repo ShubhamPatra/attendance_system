@@ -481,5 +481,5 @@ Solution:
 
 - QUICKSTART_UPGRADE.md - Testing guide
 - core/config.py - Source of truth for all parameters
-- docs/DEPLOYMENT.md - Docker/K8s deployment configuration
+- docs/DEPLOYMENT.md - K8s deployment configuration
 - docs/ARCHITECTURE.md - System design and components

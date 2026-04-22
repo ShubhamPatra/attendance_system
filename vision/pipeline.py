@@ -91,6 +91,11 @@ class FaceTrack:
         "verification_started_at", "last_seen_at", "last_liveness_meta",
         "confidence_history", "motion_history", "face_center_history",
         "screen_history", "brightness_history", "contrast_history",
+        # NEW: Screen/Print Detection
+        "screen_score", "screen_detection_history",
+        # NEW: Temporal Consistency Tracking
+        "temporal_score", "temporal_consistency_history",
+        "bbox_history", "landmark_history",
         "ppe_state", "ppe_confidence", "ppe_history", "ppe_updated_at",
         "state", "quality_reason", "created_at",
         "candidate_student_id", "candidate_name",
@@ -136,6 +141,14 @@ class FaceTrack:
         self.screen_history: list[bool] = []
         self.brightness_history: list[float] = []
         self.contrast_history: list[float] = []
+        # NEW: Screen/Print Detection
+        self.screen_score: float = 0.0
+        self.screen_detection_history: list[float] = []
+        # NEW: Temporal Consistency
+        self.temporal_score: float = 0.5
+        self.temporal_consistency_history: list[float] = []
+        self.bbox_history: list[tuple] = []  # [(x, y, w, h), ...] last 15
+        self.landmark_history: list = []     # [5x2 array, ...] last 15
         self.ppe_state: str = "none"
         self.ppe_confidence: float = 0.0
         self.ppe_history: list[tuple[str, float]] = []

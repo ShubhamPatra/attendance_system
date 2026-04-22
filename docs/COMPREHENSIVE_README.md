@@ -210,7 +210,7 @@ core/
 
 | Document | Purpose | Key Sections | Read Time |
 |----------|---------|--------------|-----------|
-| [SETUP_DETAILED.md](docs/IMPLEMENTATION/SETUP_DETAILED.md) | Installation for all OS | Ubuntu/Windows/Mac/Docker, troubleshooting | 30 min |
+| [SETUP_DETAILED.md](docs/IMPLEMENTATION/SETUP_DETAILED.md) | Installation for all OS | Ubuntu/Windows/Mac, troubleshooting | 30 min |
 | [CODE_WALKTHROUGH.md](docs/IMPLEMENTATION/CODE_WALKTHROUGH.md) | All modules with code examples | 50+ code snippets, all packages | 40 min |
 | [API_ENDPOINTS.md](docs/IMPLEMENTATION/API_ENDPOINTS.md) | REST API reference | 20+ endpoints, curl examples, WebSocket | 20 min |
 | [DEBUGGING_GUIDE.md](docs/IMPLEMENTATION/DEBUGGING_GUIDE.md) | Troubleshooting & profiling | 6 error scenarios, logging strategy | 25 min |
@@ -341,8 +341,7 @@ Cost/Student/Year:
 | ML Framework | ONNX Runtime | 1.16+ | Cross-platform inference |
 | Computer Vision | OpenCV | 4.8+ | Frame processing, face detection |
 | Matching | FAISS | 1.7.4+ | Vector similarity search |
-| Container | Docker | 24.0+ | Environment isolation |
-| Orchestration | Kubernetes | 1.27+ | Scaling & high availability |
+| Orchestration | Kubernetes | 1.27+ | Scaling & high availability (optional) |
 
 ### Development & Testing
 
@@ -351,7 +350,7 @@ Cost/Student/Year:
 | Python 3.9+ | Core language |
 | pytest | Unit & integration testing |
 | Gunicorn | Production WSGI server |
-| Nginx | Reverse proxy & load balancing |
+| Nginx | Reverse proxy & load balancing (optional) |
 | Prometheus | Metrics collection |
 | Elasticsearch + Kibana | Log aggregation |
 | Sentry | Error tracking |

@@ -10,7 +10,7 @@ This guide covers deploying the AutoAttendance system to Kubernetes with product
 
 - Kubernetes 1.19+ cluster (1.21+ recommended)
 - kubectl configured for your cluster
-- Docker image built: `attendance-admin:latest`
+- Pre-built Python application image (or build custom OCI image)
 - MongoDB Atlas instance (or on-cluster MongoDB StatefulSet)
 - NGINX Ingress Controller (recommended)
 - Cert-Manager (for TLS certificates)

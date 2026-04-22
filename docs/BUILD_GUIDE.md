@@ -93,7 +93,7 @@ cd attendance_system
 
 # Verify directory structure
 ls -la
-# Should see: README.md, docker-compose.yml, requirements.txt, etc.
+# Should see: README.md, requirements.txt, etc.
 
 # Verify critical directories
 test -d admin_app && echo " admin_app exists"
@@ -388,29 +388,20 @@ python scripts/dev_only/seed_demo_data.py
 # ⚠️ Remember: This is TEST DATA ONLY - DO NOT USE IN PRODUCTION
 ```
 
-### Step 2: Start Admin App
+### Step 2: Start Application
 
 ```bash
-# Terminal 1: Start admin app (port 5000)
-python run_admin.py
+# Start unified application (runs both admin and student apps)
+python run.py
 
 # Output:
-# * Running on http://localhost:5000
+# * Running on http://localhost:5000 (Admin)
+# * Running on http://localhost:5001 (Student)
 # * WARNING: This is a development server...
 # * Press CTRL+C to quit
 ```
 
-### Step 3: Start Student App
-
-```bash
-# Terminal 2: Start student app (port 5001)
-python run_student.py
-
-# Output:
-# * Running on http://localhost:5001
-```
-
-### Step 4: Access Applications
+### Step 3: Access Applications
 
 ```bash
 # Open web browser
@@ -493,8 +484,7 @@ mongosh
 
 ###  Application Startup
 
-- [ ] Admin app starts: `python run_admin.py` (http://localhost:5000 loads)
-- [ ] Student app starts: `python run_student.py` (http://localhost:5001 loads)
+- [ ] Application starts: `python run.py` (both http://localhost:5000 and http://localhost:5001 load)
 - [ ] No Python exceptions in console
 - [ ] Browser console (DevTools F12) has no JavaScript errors
 
@@ -604,7 +594,7 @@ export ATTENDANCE_FRAME_PROCESS_WIDTH=384
 export ATTENDANCE_ENABLE_GPU=1
 
 # Restart app
-python run_admin.py
+python run.py
 ```
 
 ---
@@ -615,7 +605,7 @@ After successful setup:
 
 1. **Customize Configuration**: Adjust [RECOGNITION_THRESHOLD](../core/config.py), detection interval per your environment.
 2. **Batch Enroll Students**: Use [scripts/bootstrap_admin.py](../scripts/bootstrap_admin.py) to load student list from CSV.
-3. **Deploy to Production**: Follow [DEPLOYMENT.md](DEPLOYMENT.md) for Docker + Gunicorn setup.
+3. **Deploy to Production**: Follow [DEPLOYMENT.md](DEPLOYMENT.md) for Gunicorn setup.
 4. **Monitor & Debug**: Use [core/profiling.py](../core/profiling.py) for performance analysis.
 5. **Read Architecture**: Review [ARCHITECTURE.md](ARCHITECTURE.md) for design patterns and module organization.
 

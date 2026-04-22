@@ -89,6 +89,8 @@ def _ppe_detection_module():
 # -- Advanced anti-spoofing modules (lazy-loaded) --
 _lazy_texture_analyzer = None
 _lazy_challenge_response = None
+_lazy_screen_print_detector = None
+_lazy_temporal_consistency = None
 
 
 def _texture_analyzer_module():
@@ -105,6 +107,22 @@ def _challenge_response_module():
         import vision.challenge_response as _mod
         _lazy_challenge_response = _mod
     return _lazy_challenge_response
+
+
+def _screen_print_detector_module():
+    global _lazy_screen_print_detector
+    if _lazy_screen_print_detector is None:
+        import vision.screen_print_detector as _mod
+        _lazy_screen_print_detector = _mod
+    return _lazy_screen_print_detector
+
+
+def _temporal_consistency_module():
+    global _lazy_temporal_consistency
+    if _lazy_temporal_consistency is None:
+        import vision.temporal_consistency as _mod
+        _lazy_temporal_consistency = _mod
+    return _lazy_temporal_consistency
 
 
 def _encoding_cache():
@@ -958,6 +976,20 @@ class Camera:
                 }
             else:
                 analysis = analyze_liveness_frame(face_crop, face_bbox=liveness_box)
+                
+                # NEW: Screen/Print Detection using FFT
+                if config.SCREEN_PRINT_DETECTOR_ENABLED:
+                    try:
+                        spd_module = _screen_print_detector_module()
+                        screen_result = spd_module.detect_screen_or_print(face_crop)
+                        trk.screen_score = screen_result.get('screen_score', 0.0)
+                        trk.screen_detection_history.append(trk.screen_score)
+                        if len(trk.screen_detection_history) > 10:
+                            trk.screen_detection_history.pop(0)
+                    except Exception as exc:
+                        if config.DEBUG_MODE:
+                            logger.debug("Screen detection failed: %s", exc)
+                        trk.screen_score = 0.0
 
         label = int(analysis.get("label", 0))
         conf = float(analysis.get("confidence", 0.0))
@@ -1059,6 +1091,27 @@ class Camera:
         
         # Compute blink score for fusion
         blink_score = 1.0 if getattr(trk, "blink_count", 0) > 0 else 0.0
+        
+        # NEW: Temporal Consistency Check
+        temporal_score = 0.5  # Default neutral score
+        if config.TEMPORAL_CONSISTENCY_ENABLED and len(trk.bbox_history) >= 2:
+            try:
+                tc_module = _temporal_consistency_module()
+                temporal_result = tc_module.compute_temporal_consistency(
+                    bbox_history=trk.bbox_history,
+                    face_center_history=trk.face_center_history,
+                    landmarks_history=trk.landmark_history,
+                    window_size=5
+                )
+                temporal_score = temporal_result.get('temporal_score', 0.5)
+                trk.temporal_score = temporal_score
+                trk.temporal_consistency_history.append(temporal_score)
+                if len(trk.temporal_consistency_history) > 10:
+                    trk.temporal_consistency_history.pop(0)
+            except Exception as exc:
+                if config.DEBUG_MODE:
+                    logger.debug("Temporal consistency check failed: %s", exc)
+                temporal_score = 0.5
 
         # Check spoof hold temporal override
         if now < trk.spoof_hold_until:
@@ -1095,19 +1148,23 @@ class Camera:
         if config.ENABLE_ADVANCED_LIVENESS and state != "spoof":
             try:
                 from vision.anti_spoofing import fuse_liveness_signals
+                # NEW: Updated call with screen_score and temporal_score parameters
                 fused_score = fuse_liveness_signals(
                     cnn_score=conf,
                     blink_score=blink_score,
                     motion_score=motion_score,
                     texture_score=texture_score,
+                    screen_score=trk.screen_score,      # NEW
+                    temporal_score=temporal_score,      # NEW
                     challenge_score=challenge_score,
+                    blink_count=getattr(trk, 'blink_count', 0),  # NEW: for hard rules
                 )
                 if config.DEBUG_MODE:
                     logger.debug(
                         "Liveness fusion: CNN=%.3f blink=%.3f motion=%.3f texture=%.3f "
-                        "challenge=%.3f fused=%.3f",
-                        conf, blink_score, motion_score, texture_score, 
-                        challenge_score, fused_score,
+                        "screen=%.3f temporal=%.3f challenge=%.3f fused=%.3f",
+                        conf, blink_score, motion_score, texture_score,
+                        trk.screen_score, temporal_score, challenge_score, fused_score,
                     )
                 score = fused_score
             except Exception as exc:

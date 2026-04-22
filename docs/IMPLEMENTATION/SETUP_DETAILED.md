@@ -404,20 +404,6 @@ gunicorn -c gunicorn.conf.py app:app
 # Output:
 # [2025-01-20 10:30:00 +0000] [1234] [INFO] Listening at: http://127.0.0.1:8000
 ```
-
-### Docker (Optional)
-
-```bash
-# Build image
-docker build -f docker/Dockerfile -t attendance_system:latest .
-
-# Run container
-docker run -p 5000:5000 \
-  -e MONGO_URI=mongodb://host.docker.internal:27017 \
-  -v /path/to/models:/app/models \
-  attendance_system:latest
-
-# Access: http://localhost:5000
 ```
 
 ---

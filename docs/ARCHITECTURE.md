@@ -388,7 +388,7 @@ RECOGNITION_THRESHOLD=0.38
 ENABLE_GPU_PROVIDERS=1
 ```
 
-**Benefit**: Same Docker image works across dev/test/prod with different `.env` files.
+**Benefit**: Single configuration file works across dev/test/prod environments with different `.env` files.
 
 ---
 

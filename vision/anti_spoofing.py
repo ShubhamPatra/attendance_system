@@ -1,6 +1,8 @@
 """
 Anti-spoofing module - liveness detection using Silent-Face-Anti-Spoofing library.
 Models are loaded once at startup and cached globally for fast inference.
+NOTE: MiniFASNet version backed up at: vision/anti_spoofing_minifasnet_backup.py
+This is a reversion from MiniFASNet due to model architecture mismatch with available weights.
 """
 
 import os
@@ -78,21 +80,20 @@ def init_models():
         
         _is_ready = True
         _initialization_error = None
-        logger.info(f"✓ Anti-spoof models loaded from {MODEL_DIR} ({len(model_files)} models)")
-        logger.info(f"✓ Silent-Face-Anti-Spoofing library initialized successfully")
+        logger.info(f"[Anti-Spoof] Loaded Silent-Face from {MODEL_DIR} ({len(model_files)} models)")
         
     except ImportError as exc:
         logger.error(
-            f"Silent-Face-Anti-Spoofing library import failed: {exc}. "
-            f"Ensure it's installed at {SILENT_FACE_PATH}"
+            f"Silent-Face-Anti-Spoofing import failed: {exc}. "
+            f"Check installation at {SILENT_FACE_PATH}"
         )
         _is_ready = False
         _initialization_error = str(exc)
         
     except Exception as exc:
         logger.error(
-            f"Anti-spoofing initialization failed: {exc}. "
-            f"App will continue with all faces marked 'real' (degraded mode)."
+            f"Anti-spoofing init failed: {exc}. "
+            f"App will mark all faces 'real' (degraded mode)."
         )
         _is_ready = False
         _initialization_error = str(exc)
@@ -103,7 +104,7 @@ def is_ready() -> bool:
     return _is_ready and _predictor is not None
 
 
-def get_initialization_error() -> str | None:
+def get_initialization_error() -> str:
     """Return the initialization error message if initialization failed, else None."""
     return _initialization_error
 
@@ -163,11 +164,7 @@ def analyze_liveness_frame(
     frame: np.ndarray,
     face_bbox: tuple[int, int, int, int] | None = None,
 ) -> dict:
-    """Return a full liveness analysis result and frame heuristics.
-
-    Performs an early size rejection before the model runs so tiny
-    distant faces or postage-stamp crops do not waste inference budget.
-    """
+    """Return a full liveness analysis result and frame heuristics."""
     heuristics = _compute_frame_heuristics(frame)
     heuristics["too_small"] = _is_face_too_small(frame, face_bbox)
 
@@ -198,22 +195,20 @@ def check_liveness(
 ) -> tuple[int, float]:
     """Determine whether the face in *frame* is real or spoofed.
     
-    The *frame* passed by the camera pipeline is already an adaptive
-    face crop (from ``_adaptive_liveness_crop``), so we skip the
-    expensive RetinaFace ``get_bbox`` call and synthesize a bbox from
-    the crop dimensions instead.
+    Silent-Face-Anti-Spoofing returns:
+    - Class 0: Spoof/Fake (e.g., photo of a face)
+    - Class 1: Real/Live face
+    - Class 2: Other attacks
     
     Returns:
         (label, confidence) where:
-        - label: 1 = real face, 0 = spoof/no face, -1 = error
+        - label: 1 = real face, 0 = spoof/no face
         - confidence: float in [0, 1]
     """
-    # Benchmark flag: disable all anti-spoofing (ablation study)
     if config.DISABLE_ANTISPOOFING:
         return 1, 1.0
     
     if not _is_ready:
-        # Graceful degradation: mark all faces as real
         return 1, 1.0
     
     try:
@@ -224,16 +219,13 @@ def check_liveness(
         bbox = face_bbox
         if bbox is None and _predictor is not None and hasattr(_predictor, "get_bbox"):
             bbox = _predictor.get_bbox(frame)
-            if bbox in (None, [], ()):  # Preserve legacy no-face semantics.
+            if bbox in (None, [], ()):
                 return 0, 0.0
 
         if _is_face_too_small(frame, bbox):
-            logger.debug("Early reject: face crop too small for liveness inference")
+            logger.debug("Early reject: face crop too small")
             return 0, 0.0
         
-        # The frame IS the face crop — synthesize a bbox covering the
-        # entire crop with a small margin inset, avoiding the expensive
-        # RetinaFace detection that would redundantly re-locate the face.
         if bbox is None:
             margin_x = int(w * 0.05)
             margin_y = int(h * 0.05)
@@ -254,67 +246,66 @@ def check_liveness(
             img = _cropper.crop(**param)
             prediction += _predictor.predict(img, os.path.join(MODEL_DIR, model_name))
         
-        # Get consensus label
-        label = int(np.argmax(prediction))
-        confidence = float(prediction[0][label] / len(_model_names))
-        if confidence < config.LIVENESS_EARLY_REJECT_CONFIDENCE:
-            logger.debug("Early reject: low model confidence %.4f", confidence)
+        # Average the predictions from multiple models
+        prediction = prediction / len(_model_names)
         
-        if label == 0:
-            logger.debug(f"Spoof detected (confidence={confidence:.4f})")
+        # Get individual class confidences
+        spoof_conf = float(prediction[0][0])
+        real_conf = float(prediction[0][1])
+        other_conf = float(prediction[0][2])
         
-        return label, confidence
+        logger.info(f"[Liveness] Real={real_conf:.4f}, Spoof={spoof_conf:.4f}, Other={other_conf:.4f}")
+        
+        # AGGRESSIVE anti-spoofing logic:
+        # Photos/videos typically have:
+        # - High uncertainty (real_conf and spoof_conf similar)
+        # - Lack of liveness indicators
+        # - Consistent patterns (no micro-movements)
+        
+        # Only accept REAL if:
+        # 1. Real confidence is VERY HIGH (>= 0.85)
+        # 2. AND Spoof confidence is LOW (<= 0.15)
+        if real_conf >= 0.85 and spoof_conf <= 0.15:
+            logger.info(f"[Liveness] REAL FACE ACCEPTED (real={real_conf:.4f})")
+            return 1, real_conf
+        
+        # Mark as spoof if spoof confidence is higher than real
+        elif spoof_conf > real_conf:
+            logger.info(f"[Liveness] SPOOF DETECTED (spoof={spoof_conf:.4f} > real={real_conf:.4f})")
+            return 0, spoof_conf
+        
+        # Default: Conservative - mark as spoof if uncertain
+        else:
+            logger.info(f"[Liveness] UNCERTAIN - marking as SPOOF (real={real_conf:.4f}, spoof={spoof_conf:.4f})")
+            return 0, spoof_conf
         
     except Exception as exc:
-        logger.debug(f"Anti-spoofing check failed: {exc}")
-        # Graceful degradation
-        return 1, 1.0
+        logger.error(f"Anti-spoof check error: {exc}")
+        # On error, mark as spoof (safer for security)
+        return 0, 0.5
 
 
 def compute_ear_from_5point(landmarks_5: np.ndarray) -> float:
-    """Compute Eye Aspect Ratio (EAR) from 5-point facial landmarks.
-    
-    For 5-point landmarks (left_eye, right_eye, nose, mouth_left, mouth_right),
-    compute a simplified eye openness metric.
-    
-    Args:
-        landmarks_5: numpy array of shape (5, 2) with [x, y] coordinates
-        
-    Returns:
-        float: Eye Aspect Ratio value (higher = eyes more open)
-    """
+    """Compute Eye Aspect Ratio (EAR) from 5-point facial landmarks."""
     try:
         if landmarks_5 is None or len(landmarks_5) < 2:
-            return 1.0  # Default to open if invalid
+            return 1.0
         
-        # 5-point landmarks: [left_eye, right_eye, nose, mouth_left, mouth_right]
         left_eye = landmarks_5[0]
         right_eye = landmarks_5[1]
-        
-        # Calculate vertical and horizontal distances for each eye
-        # EAR = (||p2 - p6|| + ||p3 - p5||) / (2 * ||p1 - p4||)
-        # Simplified: use distance from eye to nose as vertical component
-        
         nose = landmarks_5[2]
         
-        # Vertical distances: eye to nose
         left_eye_vertical = abs(left_eye[1] - nose[1])
         right_eye_vertical = abs(right_eye[1] - nose[1])
-        
-        # Horizontal distance between eyes
         horizontal_distance = abs(left_eye[0] - right_eye[0])
         
-        if horizontal_distance < 1e-6:
-            return 1.0  # Avoid division by zero
+        if horizontal_distance == 0:
+            return 1.0
         
-        # EAR calculation
-        ear = (left_eye_vertical + right_eye_vertical) / (2 * max(horizontal_distance, 1e-6))
-        
-        return float(ear)
-        
-    except Exception as e:
-        logger.debug(f"Error computing EAR: {e}")
-        return 1.0  # Default to open if calculation fails
+        ear = (left_eye_vertical + right_eye_vertical) / (2.0 * horizontal_distance)
+        return max(0.0, min(1.0, ear))
+    except Exception:
+        return 1.0
 
 
 def update_blink_state(
@@ -365,100 +356,3 @@ def update_blink_state(
     except Exception as e:
         logger.debug(f"Error updating blink state: {e}")
         return ear_history, blink_count, blink_frames_below
-
-
-def fuse_liveness_signals(
-    cnn_score: float,
-    blink_score: float,
-    motion_score: float,
-    texture_score: float,
-    challenge_score: float = 0.0,
-    weights: dict = None,
-) -> float:
-    """Fuse multiple liveness signals using weighted averaging.
-    
-    Combines CNN model, blink detection, motion, texture analysis, and
-    challenge-response into a single liveness score.
-    
-    Args:
-        cnn_score: CNN model confidence [0.0-1.0]
-        blink_score: Blink evidence [0.0-1.0] (1.0 = blink detected)
-        motion_score: Motion evidence [0.0-1.0] (1.0 = motion detected)
-        texture_score: Texture naturalness [0.0-1.0] (1.0 = natural, 0.0 = flat)
-        challenge_score: Challenge response confidence [0.0-1.0] (optional)
-        weights: Dict with keys 'cnn', 'blink', 'motion', 'texture', 'challenge'
-                If None, uses defaults from config
-    
-    Returns:
-        float: Fused liveness score [0.0-1.0]
-    """
-    # Benchmark flags: disable component signals (ablation study)
-    if config.DISABLE_BLINK_DETECTION:
-        blink_score = 0.5  # Neutral signal
-    if config.DISABLE_MOTION_DETECTION:
-        motion_score = 0.5  # Neutral signal
-    
-    if weights is None:
-        # Default weights from config
-        weights = {
-            'cnn': getattr(config, 'LIVENESS_FUSION_WEIGHT_CNN', 0.4),
-            'blink': getattr(config, 'LIVENESS_FUSION_WEIGHT_BLINK', 0.2),
-            'motion': getattr(config, 'LIVENESS_FUSION_WEIGHT_MOTION', 0.2),
-            'texture': getattr(config, 'LIVENESS_FUSION_WEIGHT_TEXTURE', 0.15),
-            'challenge': getattr(config, 'LIVENESS_FUSION_WEIGHT_CHALLENGE', 0.05),
-        }
-    
-    try:
-        # Normalize scores to [0.0, 1.0]
-        cnn_score = float(np.clip(cnn_score, 0.0, 1.0))
-        blink_score = float(np.clip(blink_score, 0.0, 1.0))
-        motion_score = float(np.clip(motion_score, 0.0, 1.0))
-        texture_score = float(np.clip(texture_score, 0.0, 1.0))
-        challenge_score = float(np.clip(challenge_score, 0.0, 1.0))
-        
-        # Compute weighted average
-        total_weight = sum(weights.values())
-        if total_weight <= 0:
-            logger.warning("Invalid fusion weights: sum <= 0, using CNN score only")
-            return cnn_score
-        
-        fused_score = (
-            weights['cnn'] * cnn_score +
-            weights['blink'] * blink_score +
-            weights['motion'] * motion_score +
-            weights['texture'] * texture_score +
-            weights['challenge'] * challenge_score
-        ) / total_weight
-        
-        return float(np.clip(fused_score, 0.0, 1.0))
-    
-    except Exception as exc:
-        logger.warning(f"Fusion scoring failed: {exc}, falling back to CNN score")
-        return cnn_score
-
-
-def normalize_signal_to_confidence(
-    signal_value: float,
-    signal_type: str = "binary"
-) -> float:
-    """Normalize a liveness signal to confidence [0.0-1.0].
-    
-    Args:
-        signal_value: Signal value (interpretation depends on type)
-        signal_type: "binary" (0/1), "continuous" (0.0-1.0), "flatness" (0.0-1.0, inverted)
-    
-    Returns:
-        float: Normalized confidence [0.0-1.0]
-    """
-    if signal_type == "binary":
-        # Binary signal: 0 -> 0.0, 1 -> 1.0
-        return float(np.clip(signal_value, 0.0, 1.0))
-    elif signal_type == "continuous":
-        # Already continuous
-        return float(np.clip(signal_value, 0.0, 1.0))
-    elif signal_type == "flatness":
-        # Flatness score (1.0 = flat, bad): invert to confidence
-        return 1.0 - float(np.clip(signal_value, 0.0, 1.0))
-    else:
-        logger.warning(f"Unknown signal type: {signal_type}")
-        return 0.5
